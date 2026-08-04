@@ -333,6 +333,7 @@ table.dt td.pv-brand{font-weight:800}
       <div class="panel ag">
         <div class="ph">
           <span class="ph-t"><span>📈</span><select class="fsel" id="trend-metric-sel" onchange="switchTrendMetric(this.value)">
+            <option value="all">All (Sign Up, FTD, Active, Deposit)</option>
             <option value="signup">Total Sign Up</option>
             <option value="ftd">Total FTD</option>
             <option value="active">Active Player</option>
@@ -393,11 +394,11 @@ table.dt td.pv-brand{font-weight:800}
 
         <div class="row2 c66" style="margin-top:16px">
           <div class="panel">
-            <div class="ph"><span>🏔️</span><span class="ph-t">Top 3 Peak Weeks</span><span class="ph-tag">all brands</span></div>
+            <div class="ph"><span>🏔️</span><span class="ph-t">Top 3 Peak Weeks</span><span class="ph-tag" id="spv-topw-tag">all brands</span></div>
             <div class="peak-list" id="spv-top-weeks"></div>
           </div>
           <div class="panel">
-            <div class="ph"><span>🏔️</span><span class="ph-t">Top 3 Peak Months</span><span class="ph-tag">all brands</span></div>
+            <div class="ph"><span>🏔️</span><span class="ph-t">Top 3 Peak Months</span><span class="ph-tag" id="spv-topm-tag">all brands</span></div>
             <div class="peak-list" id="spv-top-months"></div>
           </div>
         </div>
@@ -415,11 +416,11 @@ table.dt td.pv-brand{font-weight:800}
 
         <div class="row2 c66" style="margin-top:16px">
           <div class="panel">
-            <div class="ph"><span>📈</span><span class="ph-t">Weekly Volume Trend</span><span class="ph-tag">all brands</span></div>
+            <div class="ph"><span>📈</span><span class="ph-t">Weekly Volume Trend</span><span class="ph-tag" id="spv-wtrend-tag">all brands</span></div>
             <div class="cw" style="height:200px"><canvas id="spv-wtrend-chart"></canvas></div>
           </div>
           <div class="panel">
-            <div class="ph"><span>📈</span><span class="ph-t">Monthly Volume Trend</span><span class="ph-tag">all brands</span></div>
+            <div class="ph"><span>📈</span><span class="ph-t">Monthly Volume Trend</span><span class="ph-tag" id="spv-mtrend-tag">all brands</span></div>
             <div class="cw" style="height:200px"><canvas id="spv-mtrend-chart"></canvas></div>
           </div>
         </div>
@@ -962,7 +963,7 @@ function showPage(id,el){
   var titles={
     overview:'💰 Sales Overview — '+brandLabel_(currentBrand),
     trends:'📈 Trends — '+brandLabel_(currentBrand),
-    salespv:'🏔️ Sales Peaks & Valleys — All Brands',
+    salespv:'🏔️ Sales Peaks & Valleys — '+brandLabel_(currentBrand),
     brandcomp:'🆚 Brand Comparison — '+currentCurrency
   };
   document.getElementById('pg-title').textContent=titles[id];
@@ -1058,8 +1059,15 @@ function renderSalesPV(){
   var mv=function(r){ return isMoney?pickMoney(r,metric,displayMode):r[metric]; };
   var fmtVal=function(v){ return isMoney?money(v,displayMode):fmt(v); };
   var cur=currentCurrency;
-  var brands=BRANDS_BY_CURRENCY[cur]||[];
+  // Follows the Brand selector in the top filter bar: "All Brands" compares every
+  // brand under this currency; picking one brand filters everything on this page
+  // down to just that brand (tables collapse to one row, split charts to one line).
+  var brands=currentBrand===ALL_BRANDS ? (BRANDS_BY_CURRENCY[cur]||[]) : [currentBrand];
   var months=['Jan','Feb','Mar'];
+  var selLabel=brandLabel_(currentBrand)==='All Brands' ? 'all brands' : currentBrand;
+  ['spv-topw-tag','spv-topm-tag','spv-wtrend-tag','spv-mtrend-tag'].forEach(function(id){
+    document.getElementById(id).textContent=selLabel;
+  });
 
   // ── per-brand weekly peak/valley, within the currently selected month ──
   var brandWeekData=brands.map(function(b){
@@ -1124,34 +1132,41 @@ function renderSalesPV(){
   var topMonths=monthTotals.slice().sort(function(a,b){return b.val-a.val;}).slice(0,3);
   renderPeakBarList_('spv-top-months',topMonths,fmtVal);
 
-  // ── Brand Weekly Split — stacked, not grouped, so it stays readable even with 17 brands ──
+  // ── Brand Weekly Split — multi-line so each brand's shape is easy to follow,
+  //    hovering anywhere on a week shows every brand's value for that week at once ──
   document.getElementById('spv-wsplit-tag').textContent=monthNames[currentMonth]+' · by brand';
   var weekLabels=weekTotals.map(function(w){return w.label;});
   if(spvWeekSplitChart) spvWeekSplitChart.destroy();
   spvWeekSplitChart=new Chart(document.getElementById('spv-wsplit-chart').getContext('2d'),{
-    type:'bar',
+    type:'line',
     data:{labels:weekLabels,datasets:brands.map(function(b){
       var d=brandWeekData.filter(function(x){return x.brand===b;})[0];
-      return {label:b,data:d.weeks.map(function(w){return w.val;}),backgroundColor:brandColor_(brands,b)};
+      var c=brandColor_(brands,b);
+      return {label:b,data:d.weeks.map(function(w){return w.val;}),borderColor:c,backgroundColor:c,fill:false,tension:.3,pointRadius:3,pointHoverRadius:5,borderWidth:2};
     })},
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:9,font:{size:9}}}},
-      scales:{x:{stacked:true,grid:{display:false},ticks:{color:'#64748b',font:{size:9}}},
-              y:{stacked:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:9,font:{size:9}}},
+        tooltip:{mode:'index',intersect:false,callbacks:{label:function(ctx){return ctx.dataset.label+': '+fmt(ctx.parsed.y);}}}},
+      scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9}}},
+              y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
   });
 
   // ── Brand Monthly Split ──
   if(spvMonthSplitChart) spvMonthSplitChart.destroy();
   spvMonthSplitChart=new Chart(document.getElementById('spv-msplit-chart').getContext('2d'),{
-    type:'bar',
+    type:'line',
     data:{labels:months.map(function(m){return monthNames[m];}),datasets:brands.map(function(b){
       var d=brandMonthData.filter(function(x){return x.brand===b;})[0];
-      return {label:b,data:d.monthly.map(function(mo){return mo.val;}),backgroundColor:brandColor_(brands,b)};
+      var c=brandColor_(brands,b);
+      return {label:b,data:d.monthly.map(function(mo){return mo.val;}),borderColor:c,backgroundColor:c,fill:false,tension:.3,pointRadius:3,pointHoverRadius:5,borderWidth:2};
     })},
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:9,font:{size:9}}}},
-      scales:{x:{stacked:true,grid:{display:false},ticks:{color:'#64748b',font:{size:9}}},
-              y:{stacked:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:9,font:{size:9}}},
+        tooltip:{mode:'index',intersect:false,callbacks:{label:function(ctx){return ctx.dataset.label+': '+fmt(ctx.parsed.y);}}}},
+      scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9}}},
+              y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
   });
 
   // ── Weekly / Monthly Volume Trend — every brand summed into one line ──
@@ -1269,7 +1284,7 @@ function renderAll(){
   var pgTitles={
     overview:'💰 Sales Overview — '+brandLabel_(currentBrand),
     trends:'📈 Trends — '+brandLabel_(currentBrand),
-    salespv:'🏔️ Sales Peaks & Valleys — All Brands',
+    salespv:'🏔️ Sales Peaks & Valleys — '+brandLabel_(currentBrand),
     brandcomp:'🆚 Brand Comparison — '+currentCurrency
   };
   document.getElementById('pg-title').textContent=pgTitles[activePageId];
@@ -1305,21 +1320,41 @@ function renderAll(){
   // Chart
   var labels=rows.map(function(r){return r.date;});
   if(trendChart) trendChart.destroy();
-  var isMoney=TREND_METRIC_ISMONEY[trendMetric];
-  var fieldMap={signup:'signup',ftd:'ftd',active:'active',deposit:'deposit'};
-  var field=fieldMap[trendMetric];
   var lblMap={signup:'Total Sign Up',ftd:'Total FTD',active:'Active Player',deposit:'Total Deposit'};
   var colorMap={signup:'#00b0ff',ftd:'#facc15',active:'#9b7ff4',deposit:'#00e676'};
-  var c=colorMap[trendMetric];
-  var trendDatasets=[
-    {label:lblMap[trendMetric],data:rows.map(function(r){return isMoney?pickMoney(r,field,displayMode):r[field];}),borderColor:c,backgroundColor:c+'26',fill:true,tension:.35,pointRadius:0,borderWidth:2}
-  ];
+  var trendDatasets, trendScales;
+  if(trendMetric==='all'){
+    // Deposit is money-scaled (hundreds of thousands) vs. the other three being
+    // simple counts (tens/hundreds) — sharing one axis would flatten Sign Up/FTD/
+    // Active into a flat line near zero, so Deposit gets its own axis on the right.
+    trendDatasets=['signup','ftd','active','deposit'].map(function(k){
+      var isMoney=TREND_METRIC_ISMONEY[k];
+      return {label:lblMap[k],data:rows.map(function(r){return isMoney?pickMoney(r,k,displayMode):r[k];}),
+        borderColor:colorMap[k],backgroundColor:colorMap[k]+'1a',fill:false,tension:.35,pointRadius:0,borderWidth:2,
+        yAxisID:(k==='deposit'?'y1':'y')};
+    });
+    trendScales={
+      x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:8},autoSkip:false,maxRotation:60,minRotation:60}},
+      y:{position:'left',grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'Sign Up / FTD / Active',color:'#64748b',font:{size:9}}},
+      y1:{position:'right',grid:{display:false},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'Deposit',color:'#64748b',font:{size:9}}}
+    };
+  } else {
+    var isMoney=TREND_METRIC_ISMONEY[trendMetric];
+    var field=trendMetric;
+    var c=colorMap[trendMetric];
+    trendDatasets=[
+      {label:lblMap[trendMetric],data:rows.map(function(r){return isMoney?pickMoney(r,field,displayMode):r[field];}),borderColor:c,backgroundColor:c+'26',fill:true,tension:.35,pointRadius:0,borderWidth:2}
+    ];
+    trendScales={
+      x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:8},autoSkip:false,maxRotation:60,minRotation:60}},
+      y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}
+    };
+  }
   trendChart=new Chart(document.getElementById('trend-chart').getContext('2d'),{
     type:'line',
     data:{labels:labels,datasets:trendDatasets},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:10,font:{size:10}}}},
-      scales:{x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9},maxRotation:0,autoSkip:true,maxTicksLimit:10}},
-              y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
+      scales:trendScales}
   });
 
   // Daily table — grouped header (Acquisition / Financials) + every day + a TOTAL row
