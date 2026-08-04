@@ -125,21 +125,22 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 .collapsed-panel .cp-tag{font-size:9px;font-family:var(--mono)}
 
 /* TABLE */
-table.dt{width:100%;border-collapse:separate;border-spacing:0;font-size:11px}
-table.dt th{text-align:left;padding:8px 10px;color:var(--muted);font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border);white-space:nowrap;box-sizing:border-box}
+table.dt{width:100%;border-collapse:collapse;font-size:11px}
+table.dt th{text-align:left;padding:8px 10px;color:var(--muted);font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border);white-space:nowrap}
 table.dt td{padding:7px 10px;border-bottom:1px solid var(--border);font-family:var(--mono);white-space:nowrap}
 .ph-daycount{font-size:9px;color:var(--dim);font-weight:600;margin-left:8px;text-transform:none;letter-spacing:0}
 .dt-scroll{max-height:440px;overflow-y:auto;overflow-x:auto}
 .dt-grp{text-align:center!important;font-size:9px}
-/* Sticky header: needs border-collapse:separate above (collapse breaks sticky
-   positioning on table cells in a lot of browsers) and a fixed, known height on
-   every header cell so the second header row's "top" offset lines up exactly —
-   an approximate/guessed offset is what let data rows show through last time. */
-.dt-grp.acq{background:var(--teal-d);color:var(--teal);position:sticky;top:0;z-index:3;height:32px}
-.dt-grp.fin{background:var(--gold-d);color:var(--gold);position:sticky;top:0;z-index:3;height:32px}
-.dt-date-hd{background:var(--card);vertical-align:middle;position:sticky;top:0;z-index:4;height:65px}
-.dt-sub.acq{background:var(--card);border-bottom:2px solid var(--teal);position:sticky;top:32px;z-index:3;height:33px}
-.dt-sub.fin{background:var(--card);border-bottom:2px solid var(--gold);position:sticky;top:32px;z-index:3;height:33px}
+/* Deliberately NOT sticky. Tried it twice, both times it visually broke (data
+   rows showing through the header while scrolling) in ways that couldn't be
+   verified or reproduced in the sandbox before shipping. A normal header that
+   scrolls away with the content is reliable everywhere — not worth the risk
+   for a "stays pinned while scrolling" nicety. */
+.dt-grp.acq{background:var(--teal-d);color:var(--teal)}
+.dt-grp.fin{background:var(--gold-d);color:var(--gold)}
+.dt-date-hd{background:var(--card);vertical-align:bottom}
+.dt-sub.acq{background:var(--card);border-bottom:2px solid var(--teal)}
+.dt-sub.fin{background:var(--card);border-bottom:2px solid var(--gold)}
 tr.dt-total td{font-weight:800;background:var(--card);border-top:2px solid var(--border2);border-bottom:none}
 tr.dt-total td:first-child{color:var(--gold)}
 table.dt tbody tr:hover td{background:rgba(255,255,255,.03)}
