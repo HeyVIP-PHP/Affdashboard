@@ -76,6 +76,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 .cur-toggle button{background:transparent;border:none;color:var(--muted);font-size:11px;font-weight:700;font-family:var(--mono);padding:7px 14px;cursor:pointer;transition:.15s}
 .cur-toggle button.active{background:var(--gold-d);color:var(--gold)}
 .ref-btn{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--border2);color:var(--muted);font-size:11px;font-weight:600;padding:7px 14px;border-radius:7px;cursor:not-allowed;opacity:.6}
+.exp-sel{background:var(--card);border:1px solid var(--border2);color:var(--text);font-size:11px;font-weight:600;padding:7px 10px;border-radius:7px;font-family:var(--mono);cursor:pointer}
+.exp-sel:focus{outline:none;border-color:var(--gold)}
+.exp-btn{display:flex;align-items:center;gap:6px;background:var(--gold-d);border:1px solid rgba(250,204,21,0.4);color:var(--gold);font-size:11px;font-weight:700;padding:7px 14px;border-radius:7px;cursor:pointer;transition:.15s}
+.exp-btn:hover{background:rgba(250,204,21,0.18)}
+.exp-btn:disabled{opacity:.55;cursor:not-allowed}
 .content{padding:20px 24px;flex:1;display:flex;flex-direction:column;gap:16px;min-width:0}
 .page{display:none;flex-direction:column;gap:16px}
 .page.active{display:flex}
@@ -165,23 +170,24 @@ table.dt tbody tr:hover{background:rgba(255,255,255,.02)}
 /* SETTINGS MODAL */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(4,6,12,.72);z-index:200;align-items:center;justify-content:center;padding:24px}
 .modal-overlay.open{display:flex}
-.modal-box{width:100%;max-width:760px;max-height:84vh;background:var(--panel);border:1px solid var(--border2);border-radius:14px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.5)}
+.modal-box{width:100%;max-width:560px;max-height:84vh;background:var(--panel);border:1px solid var(--border2);border-radius:14px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.5)}
 .modal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border)}
 .modal-title{font-size:13px;font-weight:800}
 .modal-close{background:transparent;border:1px solid var(--border2);color:var(--muted);width:26px;height:26px;border-radius:7px;cursor:pointer}
 .modal-close:hover{color:var(--text);border-color:var(--red)}
 .modal-body{display:flex;flex:1;min-height:360px;overflow:hidden}
-.modal-list{width:220px;border-right:1px solid var(--border);overflow-y:auto;padding:8px;flex-shrink:0}
-.modal-cur-hd{font-size:9px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;padding:10px 8px 4px}
-.modal-cur-hd-row{display:flex;align-items:center;gap:8px;padding:9px 9px;margin-top:6px;border-radius:7px;cursor:pointer;font-size:11px;font-weight:800;color:var(--text);transition:.12s}
-.modal-cur-hd-row:hover{background:var(--card)}
-.modal-cur-hd-row.sel{background:var(--gold-d);color:var(--gold)}
-.modal-brand-row{display:flex;align-items:center;gap:8px;padding:8px 9px;border-radius:7px;cursor:pointer;font-size:11px;font-weight:600;color:var(--muted);transition:.12s}
-.modal-brand-row:hover{background:var(--card);color:var(--text)}
-.modal-brand-row.sel{background:var(--purple-d);color:var(--purple)}
+.modal-body.single{display:block;overflow-y:auto}
 .mb-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;background:var(--dim)}
 .mb-dot.on{background:var(--green)}.mb-dot.error{background:var(--red)}.mb-dot.loading{background:var(--teal)}
 .modal-detail{flex:1;padding:18px 20px;overflow-y:auto}
+.brand-row-list{max-height:340px;overflow-y:auto;border:1px solid var(--border);border-radius:9px}
+.brand-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid var(--border)}
+.brand-row:last-child{border-bottom:none}
+.brand-row-name{flex:0 0 120px;font-size:11px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.brand-row-input{flex:1;min-width:0;background:var(--card);border:1px solid var(--border2);color:var(--text);font-size:10px;font-family:var(--mono);padding:6px 9px;border-radius:6px}
+.brand-row-input:focus{outline:none;border-color:var(--purple)}
+.brand-row-btn{background:transparent;border:1px solid var(--border2);color:var(--muted);width:26px;height:26px;border-radius:6px;cursor:pointer;font-size:10px;flex-shrink:0;transition:.12s}
+.brand-row-btn:hover{color:var(--text);border-color:var(--purple)}
 .md-brand-title{font-size:14px;font-weight:800;margin-bottom:2px}
 .md-brand-sub{font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:16px}
 .md-field{margin-bottom:14px}
@@ -267,6 +273,13 @@ table.dt tbody tr:hover{background:rgba(255,255,255,.02)}
         <div class="pg-sub" id="pg-sub">Sample data · January · PKR sheet</div>
       </div>
       <div class="tb-right">
+        <select class="exp-sel" id="export-month-sel">
+          <option value="Jan">January</option>
+          <option value="Feb">February</option>
+          <option value="Mar">March</option>
+          <option value="all">Full period (Jan–Mar)</option>
+        </select>
+        <button class="exp-btn" id="export-btn" onclick="exportMonthReport()"><i class="fa-solid fa-download"></i> <span id="export-label">Export Report</span></button>
         <div class="cur-toggle">
           <button class="active" id="btn-pkr" onclick="setDisplayCurrency('local')">PKR</button>
           <button id="btn-usd" onclick="setDisplayCurrency('usd')">USD</button>
@@ -378,9 +391,8 @@ table.dt tbody tr:hover{background:rgba(255,255,255,.02)}
       <div class="modal-title">⚙️ Sheet Links — Data source setup</div>
       <button class="modal-close" onclick="closeSettings()"><i class="fa-solid fa-xmark"></i></button>
     </div>
-    <div class="modal-body">
-      <div class="modal-list" id="settings-list"></div>
-      <div class="modal-detail" id="settings-detail"></div>
+    <div class="modal-body single">
+      <div class="modal-detail" id="settings-body"></div>
     </div>
     <div class="modal-foot" id="modal-foot">
       The Sheet doesn't need to be public — just share it with your service account email (Viewer access). Changes apply immediately, no redeploy needed.
@@ -583,8 +595,7 @@ function getSheetTabData(sheetId,tab){
 function onSheetDataUpdated(){
   renderAll();
   if(document.getElementById('settings-overlay').classList.contains('open')){
-    renderSettingsList();
-    renderSettingsDetail();
+    renderSettings();
   }
 }
 
@@ -814,6 +825,7 @@ function switchCurrency(c){
   renderBrandDD();
   document.getElementById('conn-sub').textContent='Awaiting Sales Sheet ID for '+c;
   renderAll();
+  if(document.getElementById('settings-overlay').classList.contains('open')) renderSettings();
 }
 function switchBrand(b){ currentBrand=b; renderBrandDD(); renderAll(); }
 function switchMonth(m){ currentMonth=m; renderAll(); }
@@ -1105,8 +1117,11 @@ function renderAll(){
   }
 }
 
-/* ═══════════ SHEET LINKS SETTINGS MODAL ═══════════ */
-var settingsSelected=null; // {cur,brand}
+/* ═══════════ SHEET LINKS SETTINGS MODAL ═══════════
+   Always shows whatever currency the dashboard is currently on — no browsing
+   other currencies from inside this modal. To edit a different currency's
+   Sheet, switch the dashboard's currency selector first.
+*/
 var LS_KEY='affiliate-dashboard-sheet-links';
 
 // Storage prefers window.storage (running inside a Claude artifact, config shared
@@ -1144,179 +1159,392 @@ function statusForBrand_(cur,brand){
 
 function openSettings(){
   document.getElementById('settings-overlay').classList.add('open');
-  // Always jump to whichever currency the dashboard is currently showing —
-  // if you're viewing BDT and open Sheet Links, it should land on BDT's link,
-  // not wherever you last left the panel.
-  settingsSelected={cur:currentCurrency,brand:null};
-  renderSettingsList();
-  renderSettingsDetail();
+  renderSettings();
 }
 function closeSettings(){
   document.getElementById('settings-overlay').classList.remove('open');
 }
 
-// brand=null means the selection is the currency's own "Sheet link"; otherwise it's a Tab-name override for a specific brand
-function renderSettingsList(){
-  var html='';
-  Object.keys(BRANDS_BY_CURRENCY).forEach(function(cur){
-    var cfg=SHEET_LINKS[cur];
-    var hdSel=(settingsSelected&&settingsSelected.cur===cur&&settingsSelected.brand===null)?' sel':'';
-    var hdDot=(cfg&&cfg.sheetId)?'on':'';
-    html+='<div class="modal-cur-hd-row'+hdSel+'" onclick="selectSettingsBrand(\''+cur+'\',null)">'+
-      '<span class="mb-dot '+hdDot+'"></span><span>'+cur+' Sheet</span></div>';
-    BRANDS_BY_CURRENCY[cur].forEach(function(brand){
-      var st=statusForBrand_(cur,brand);
-      var dotCls=(st==='ready')?'on':(st==='error')?'error':(st==='loading')?'loading':'';
-      var sel=(settingsSelected&&settingsSelected.cur===cur&&settingsSelected.brand===brand)?' sel':'';
-      html+='<div class="modal-brand-row'+sel+'" onclick="selectSettingsBrand(\''+cur+'\',\''+brand+'\')">'+
-        '<span class="mb-dot '+dotCls+'"></span><span>'+brand+'</span></div>';
-    });
-  });
-  document.getElementById('settings-list').innerHTML=html;
-}
+function renderSettings(){
+  var cur=currentCurrency;
+  var cfg=SHEET_LINKS[cur]||{};
+  var statusHtml=cfg.sheetId
+    ? '<div class="md-status on">✓ Saved — Sheet ID: '+cfg.sheetId+'</div>'
+    : '<div class="md-status off">Not configured — every brand under '+cur+' is using sample data</div>';
 
-function selectSettingsBrand(cur,brand){
-  settingsSelected={cur:cur,brand:brand};
-  renderSettingsList();
-  renderSettingsDetail();
-}
-
-function renderSettingsDetail(){
-  var sel=settingsSelected;
-  if(!sel){ document.getElementById('settings-detail').innerHTML=''; return; }
-
-  if(sel.brand===null){
-    // ── Currency level: configure the Sheet link shared by this whole currency ──
-    var cfg=SHEET_LINKS[sel.cur]||{};
-    var statusHtml=cfg.sheetId
-      ? '<div class="md-status on">✓ Saved — Sheet ID: '+cfg.sheetId+'</div>'
-      : '<div class="md-status off">Not configured — every brand under '+sel.cur+' is using sample data</div>';
-    document.getElementById('settings-detail').innerHTML=
-      '<div class="md-brand-title">'+sel.cur+' Sheet</div>'+
-      '<div class="md-brand-sub">This whole currency shares one Google Sheet — each brand below maps to a Tab in it</div>'+
-      '<div class="md-field"><span class="md-label">Google Sheet link</span>'+
-        '<input class="md-input" id="set-url" placeholder="https://docs.google.com/spreadsheets/d/…/edit" value="'+(cfg.rawUrl||'').replace(/"/g,'&quot;')+'">'+
-        '<div class="md-hint">The Sheet can stay private — just share it with your service account email (Viewer access). You can also paste the Sheet ID directly. After saving, each brand below will look for a Tab with its own name in this Sheet.</div></div>'+
-      statusHtml+
-      '<div class="md-actions">'+
-        '<button class="md-btn primary" onclick="saveSettingsField()">Save</button>'+
-        '<button class="md-btn danger" onclick="clearSettingsField()">Clear</button>'+
+  var brandsHtml=(BRANDS_BY_CURRENCY[cur]||[]).map(function(brand){
+    var st=statusForBrand_(cur,brand);
+    var dotCls=(st==='ready')?'on':(st==='error')?'error':(st==='loading')?'loading':'';
+    var override=(cfg.tabs&&cfg.tabs[brand])||'';
+    return '<div class="brand-row">'+
+      '<span class="mb-dot '+dotCls+'"></span>'+
+      '<span class="brand-row-name">'+brand+'</span>'+
+      '<input class="brand-row-input" data-brand="'+brand+'" placeholder="'+brand+' (default)" value="'+override.replace(/"/g,'&quot;')+'" onblur="saveBrandTab_(this)">'+
+      '<button class="brand-row-btn" title="Test connection" onclick="testBrandTab_(\''+brand+'\')"><i class="fa-solid fa-rotate"></i></button>'+
       '</div>';
-    return;
-  }
+  }).join('');
 
-  // ── Brand level: only configure this brand's Tab name (defaults to the brand name, overridable) ──
-  var cur=sel.cur, brand=sel.brand;
-  var cfg=SHEET_LINKS[cur];
-  var tab=tabNameFor_(cur,brand);
-  var st=statusForBrand_(cur,brand);
-  var entry=(cfg&&cfg.sheetId)?sheetTabCache[sheetTabKey_(cfg.sheetId,tab)]:null;
-  var override=(cfg&&cfg.tabs&&cfg.tabs[brand])||'';
-
-  var statusHtml;
-  if(!cfg||!cfg.sheetId) statusHtml='<div class="md-status off">Configure '+cur+'\'s Sheet link above first</div>';
-  else if(st==='ready') statusHtml='<div class="md-status on">✓ Connected — last fetch read '+((entry&&entry.rawRows)?entry.rawRows.length:0)+' raw rows</div>';
-  else if(st==='loading') statusHtml='<div class="md-status loading">⏳ Fetching…</div>';
-  else if(st==='error') statusHtml='<div class="md-status error">✕ '+((entry&&entry.error)||'Unknown error')+'</div>';
-  else statusHtml='<div class="md-status loading">Configured but not fetched yet — click Test Connection to trigger a fetch</div>';
-
-  document.getElementById('settings-detail').innerHTML=
-    '<div class="md-brand-title">'+brand+'</div>'+
-    '<div class="md-brand-sub">'+cur+' · which Tab to read this brand\'s data from</div>'+
-    '<div class="md-field"><span class="md-label">Tab name</span>'+
-      '<input class="md-input" id="set-tab" placeholder="'+brand+' (default)" value="'+override.replace(/"/g,'&quot;')+'">'+
-      '<div class="md-hint">Matches the Sheet\'s tab label exactly (case-sensitive). Leave blank to default to the brand name "'+brand+'"; if the Sheet\'s Tab name differs (e.g. "Sbi66" instead of "SBJ66"), enter the real Tab name here.</div></div>'+
+  document.getElementById('settings-body').innerHTML=
+    '<div class="md-brand-title">'+cur+' Sheet</div>'+
+    '<div class="md-brand-sub">This whole currency shares one Google Sheet — each brand below maps to a Tab in it</div>'+
+    '<div class="md-field"><span class="md-label">Google Sheet link</span>'+
+      '<input class="md-input" id="set-url" placeholder="https://docs.google.com/spreadsheets/d/…/edit" value="'+(cfg.rawUrl||'').replace(/"/g,'&quot;')+'">'+
+      '<div class="md-hint">The Sheet can stay private — just share it with your service account email (Viewer access). You can also paste the Sheet ID directly.</div></div>'+
     statusHtml+
     '<div class="md-actions">'+
-      '<button class="md-btn primary" onclick="saveSettingsField()">Save</button>'+
-      '<button class="md-btn" onclick="testSettingsField()">Test Connection</button>'+
-      '<button class="md-btn danger" onclick="clearSettingsField()">Reset to default</button>'+
-    '</div>';
+      '<button class="md-btn primary" onclick="saveCurrencySheet_()">Save</button>'+
+      '<button class="md-btn danger" onclick="clearCurrencySheet_()">Clear</button>'+
+    '</div>'+
+    '<div class="md-label" style="margin-top:20px;margin-bottom:8px">Brand tab names — '+cur+'</div>'+
+    '<div class="md-hint" style="margin-bottom:8px">Defaults to the brand name shown below. Only fill this in if the Sheet\'s actual tab label is different (case-sensitive) — e.g. "Sbi66" instead of "SBJ66".</div>'+
+    '<div class="brand-row-list">'+brandsHtml+'</div>';
 }
 
-function saveSettingsField(){
-  var sel=settingsSelected; if(!sel) return;
-
-  if(sel.brand===null){
-    var url=document.getElementById('set-url').value.trim();
-    var sheetId=extractSheetId_(url);
-    if(!sheetId){
-      document.getElementById('settings-detail').insertAdjacentHTML('beforeend',
-        '<div class="md-status error" style="margin-top:8px">✕ Could not identify a Sheet ID from this link — check the link format</div>');
-      return;
-    }
-    var oldCfg=SHEET_LINKS[sel.cur];
-    if(oldCfg&&oldCfg.sheetId&&oldCfg.sheetId!==sheetId){
-      // switched to a different Sheet — clear the old cache for every brand under this currency
-      (BRANDS_BY_CURRENCY[sel.cur]||[]).forEach(function(b){
-        delete sheetTabCache[sheetTabKey_(oldCfg.sheetId,tabNameFor_(sel.cur,b))];
-      });
-    }
-    var prevTabs=(oldCfg&&oldCfg.tabs)||{};
-    SHEET_LINKS[sel.cur]={sheetId:sheetId,rawUrl:url,tabs:prevTabs};
-    persistSheetLinks();
-    renderSettingsList(); renderSettingsDetail();
-    renderAll();
+function saveCurrencySheet_(){
+  var cur=currentCurrency;
+  var url=document.getElementById('set-url').value.trim();
+  var sheetId=extractSheetId_(url);
+  if(!sheetId){
+    document.getElementById('settings-body').insertAdjacentHTML('beforeend',
+      '<div class="md-status error" style="margin-top:8px">✕ Could not identify a Sheet ID from this link — check the link format</div>');
     return;
   }
-
-  var tab=document.getElementById('set-tab').value.trim();
-  var cfg=SHEET_LINKS[sel.cur];
-  if(!cfg||!cfg.sheetId){
-    document.getElementById('settings-detail').insertAdjacentHTML('beforeend',
-      '<div class="md-status error" style="margin-top:8px">✕ Configure '+sel.cur+'\'s Sheet link first</div>');
-    return;
+  var oldCfg=SHEET_LINKS[cur];
+  if(oldCfg&&oldCfg.sheetId&&oldCfg.sheetId!==sheetId){
+    // switched to a different Sheet — clear the old cache for every brand under this currency
+    (BRANDS_BY_CURRENCY[cur]||[]).forEach(function(b){
+      delete sheetTabCache[sheetTabKey_(oldCfg.sheetId,tabNameFor_(cur,b))];
+    });
   }
-  var oldTab=tabNameFor_(sel.cur,sel.brand);
+  var prevTabs=(oldCfg&&oldCfg.tabs)||{};
+  SHEET_LINKS[cur]={sheetId:sheetId,rawUrl:url,tabs:prevTabs};
+  persistSheetLinks();
+  renderSettings();
+  renderAll();
+}
+
+function clearCurrencySheet_(){
+  var cur=currentCurrency;
+  var cfg=SHEET_LINKS[cur];
+  if(cfg&&cfg.sheetId){
+    (BRANDS_BY_CURRENCY[cur]||[]).forEach(function(b){
+      delete sheetTabCache[sheetTabKey_(cfg.sheetId,tabNameFor_(cur,b))];
+    });
+  }
+  delete SHEET_LINKS[cur];
+  persistSheetLinks();
+  renderSettings();
+  renderAll();
+}
+
+function saveBrandTab_(inputEl){
+  var brand=inputEl.getAttribute('data-brand');
+  var cur=currentCurrency;
+  var tab=inputEl.value.trim();
+  var cfg=SHEET_LINKS[cur];
+  if(!cfg||!cfg.sheetId) return; // nothing to save a tab override against yet
+  var oldTab=tabNameFor_(cur,brand);
   cfg.tabs=cfg.tabs||{};
-  if(tab) cfg.tabs[sel.brand]=tab; else delete cfg.tabs[sel.brand];
-  var newTab=tabNameFor_(sel.cur,sel.brand);
+  if(tab) cfg.tabs[brand]=tab; else delete cfg.tabs[brand];
+  var newTab=tabNameFor_(cur,brand);
   if(oldTab!==newTab) delete sheetTabCache[sheetTabKey_(cfg.sheetId,oldTab)];
   persistSheetLinks();
   getSheetTabData(cfg.sheetId,newTab); // trigger a fetch right away
-  renderSettingsList(); renderSettingsDetail();
+  renderSettings();
   renderAll();
 }
 
-function clearSettingsField(){
-  var sel=settingsSelected; if(!sel) return;
+function testBrandTab_(brand){
+  var cur=currentCurrency;
+  var cfg=SHEET_LINKS[cur];
+  if(!cfg||!cfg.sheetId) return;
+  var tab=tabNameFor_(cur,brand);
+  delete sheetTabCache[sheetTabKey_(cfg.sheetId,tab)];
+  getSheetTabData(cfg.sheetId,tab);
+  renderSettings();
+}
+/* ═══════════ EXPORT MONTH REPORT ═══════════
+   Adapted from the CS Dashboard's month-report export pattern, re-pointed at
+   this dashboard's own data model (signup/FTD/turnover/deposit/withdraw/
+   promotion/revenue per brand, not SLA/QA/attendance). Design rules kept:
+   - The exported file is a self-contained snapshot (data + a small renderer),
+     it never phones home to this dashboard or to Google Sheets.
+   - buildMonthReportHtml_ re-runs the aggregation from scratch for the chosen
+     period rather than copying whatever's currently on screen.
+   - Single month and "full period" share one code path (no separate branches).
+   - MoM baseline: a single month compares to the month right before it; the
+     full period (Jan–Mar) has no larger prior period, same as Jan on its own.
+*/
+var REPORT_MONTHS=['Jan','Feb','Mar']; // the only months this framework's mock/month-select currently covers
+function expandExportMonths_(val){
+  if(val==='all') return REPORT_MONTHS.slice();
+  return [val];
+}
+function emptyAgg_(){
+  return {signup:0,ftd:0,active:0,ftdAmt:0,ftdAmtUsd:0,turnover:0,turnoverUsd:0,deposit:0,depositUsd:0,withdraw:0,withdrawUsd:0,promo:0,promoUsd:0,revenue:0,revenueUsd:0};
+}
+function addRowToAgg_(agg,r){
+  agg.signup+=r.signup; agg.ftd+=r.ftd; agg.active+=r.active;
+  agg.ftdAmt+=r.ftdAmt; agg.ftdAmtUsd+=r.ftdAmtUsd||0;
+  agg.turnover+=r.turnover; agg.turnoverUsd+=r.turnoverUsd||0;
+  agg.deposit+=r.deposit; agg.depositUsd+=r.depositUsd||0;
+  agg.withdraw+=r.withdraw; agg.withdrawUsd+=r.withdrawUsd||0;
+  agg.promo+=r.promo; agg.promoUsd+=r.promoUsd||0;
+  agg.revenue+=r.revenue; agg.revenueUsd+=r.revenueUsd||0;
+}
+function sumAggs_(list){
+  var out=emptyAgg_();
+  list.forEach(function(a){
+    Object.keys(out).forEach(function(k){ out[k]+=a[k]||0; });
+  });
+  return out;
+}
+function pct_(cur,prev){
+  if(!prev) return null;
+  return (cur-prev)/prev*100;
+}
+function expMoney_(n,cur){ return CUR_SYMBOL[cur]+' '+fmt(Math.round(n||0)); }
 
-  if(sel.brand===null){
-    var cfg=SHEET_LINKS[sel.cur];
-    if(cfg&&cfg.sheetId){
-      (BRANDS_BY_CURRENCY[sel.cur]||[]).forEach(function(b){
-        delete sheetTabCache[sheetTabKey_(cfg.sheetId,tabNameFor_(sel.cur,b))];
+// Sum every brand's rows for a currency across a set of months into one aggregate
+// per brand, tagging how many of those months actually had live Sheet data.
+function brandPeriodAgg_(cur,brand,months){
+  var agg=emptyAgg_();
+  var liveMonths=0;
+  months.forEach(function(m){
+    var res=getMonthRows(cur,brand,m);
+    if(res.live) liveMonths++;
+    res.rows.forEach(function(r){ addRowToAgg_(agg,r); });
+  });
+  agg.brand=brand;
+  agg.liveMonths=liveMonths;
+  agg.totalMonths=months.length;
+  return agg;
+}
+
+function buildMonthReportHtml_(cur,periodKey){
+  var months=expandExportMonths_(periodKey);
+  var isPeriod=months.length>1;
+  var brands=BRANDS_BY_CURRENCY[cur]||[];
+
+  var brandAggs=brands.map(function(b){ return brandPeriodAgg_(cur,b,months); });
+  var overview=sumAggs_(brandAggs);
+
+  // Trend: daily granularity for a single month, monthly granularity for the full period —
+  // same shape either way so the renderer doesn't need to branch on which one it got.
+  var trend;
+  if(!isPeriod){
+    var days=daysInMonth_(months[0]);
+    trend=[];
+    for(var d=1; d<=days; d++){
+      var t=0,r=0;
+      brands.forEach(function(b){
+        var row=getMonthRows(cur,b,months[0]).rows[d-1];
+        if(row){ t+=row.turnover; r+=row.revenue; }
       });
+      trend.push({label:months[0]+'-'+d,turnover:t,revenue:r});
     }
-    delete SHEET_LINKS[sel.cur];
-    persistSheetLinks();
-    renderSettingsList(); renderSettingsDetail();
-    renderAll();
-    return;
+  } else {
+    trend=months.map(function(m){
+      var t=0,r=0;
+      brands.forEach(function(b){
+        getMonthRows(cur,b,m).rows.forEach(function(row){ t+=row.turnover; r+=row.revenue; });
+      });
+      return {label:monthNames[m],turnover:t,revenue:r};
+    });
   }
 
-  var cfg=SHEET_LINKS[sel.cur];
-  if(cfg&&cfg.sheetId) delete sheetTabCache[sheetTabKey_(cfg.sheetId,tabNameFor_(sel.cur,sel.brand))];
-  if(cfg&&cfg.tabs) delete cfg.tabs[sel.brand];
-  persistSheetLinks();
-  renderSettingsList(); renderSettingsDetail();
-  renderAll();
+  // Previous comparable period: single month -> the month right before it;
+  // the full period and Jan on its own have no prior period to compare to.
+  var prevMonths=null, prevPeriodLabel=null;
+  if(!isPeriod){
+    var idx=REPORT_MONTHS.indexOf(months[0]);
+    if(idx>0){ prevMonths=[REPORT_MONTHS[idx-1]]; prevPeriodLabel=monthNames[REPORT_MONTHS[idx-1]]; }
+  }
+
+  var prevOverview=null, prevByBrand={};
+  if(prevMonths){
+    brands.forEach(function(b){ prevByBrand[b]=brandPeriodAgg_(cur,b,prevMonths); });
+    prevOverview=sumAggs_(brands.map(function(b){ return prevByBrand[b]; }));
+  }
+
+  var mom=prevOverview ? {
+    turnoverPct:pct_(overview.turnover,prevOverview.turnover),
+    revenuePct:pct_(overview.revenue,prevOverview.revenue),
+    signupPct:pct_(overview.signup,prevOverview.signup),
+    ftdPct:pct_(overview.ftd,prevOverview.ftd)
+  } : null;
+
+  var brandRanking=brandAggs.slice().sort(function(a,b){return b.turnover-a.turnover;}).map(function(a){
+    var prev=prevByBrand[a.brand];
+    return {
+      brand:a.brand, signup:a.signup, ftd:a.ftd, active:a.active,
+      turnover:a.turnover, deposit:a.deposit, withdraw:a.withdraw, promotion:a.promo, revenue:a.revenue,
+      turnoverUsd:a.turnoverUsd, revenueUsd:a.revenueUsd,
+      turnoverMomPct: prev?pct_(a.turnover,prev.turnover):null,
+      revenueMomPct: prev?pct_(a.revenue,prev.revenue):null,
+      live:a.liveMonths===a.totalMonths, partialLive:a.liveMonths>0&&a.liveMonths<a.totalMonths,
+      liveMonths:a.liveMonths, totalMonths:a.totalMonths
+    };
+  });
+
+  // Top days only make sense at daily granularity (single-month exports)
+  var topDays=[];
+  if(!isPeriod){
+    var dayTotals=[];
+    var days2=daysInMonth_(months[0]);
+    for(var d2=1; d2<=days2; d2++){
+      var rv=0;
+      brands.forEach(function(b){
+        var row=getMonthRows(cur,b,months[0]).rows[d2-1];
+        if(row) rv+=row.revenue;
+      });
+      dayTotals.push({date:months[0]+'-'+d2,revenue:rv});
+    }
+    topDays=dayTotals.slice().sort(function(a,b){return b.revenue-a.revenue;}).slice(0,3);
+  }
+
+  var takeaways=[];
+  if(mom){
+    if(mom.turnoverPct!=null) takeaways.push('Turnover '+(mom.turnoverPct>=0?'increased':'decreased')+' by '+Math.abs(mom.turnoverPct).toFixed(1)+'% vs '+prevPeriodLabel+' ('+expMoney_(overview.turnover,cur)+' vs '+expMoney_(prevOverview.turnover,cur)+').');
+    if(mom.revenuePct!=null) takeaways.push('Revenue '+(mom.revenuePct>=0?'increased':'decreased')+' by '+Math.abs(mom.revenuePct).toFixed(1)+'% vs '+prevPeriodLabel+' ('+expMoney_(overview.revenue,cur)+' vs '+expMoney_(prevOverview.revenue,cur)+').');
+    if(mom.ftdPct!=null) takeaways.push('FTD count '+(mom.ftdPct>=0?'grew':'declined')+' by '+Math.abs(mom.ftdPct).toFixed(1)+'% vs '+prevPeriodLabel+'.');
+    if(brandRanking.length) takeaways.push(brandRanking[0].brand+' led all '+cur+' brands in turnover this period.');
+  } else {
+    takeaways.push('This is the earliest period with data on file — no prior period comparison yet.');
+  }
+  var sampleBrands=brandRanking.filter(function(b){return !b.live;});
+  if(sampleBrands.length){
+    takeaways.push('⚠️ '+sampleBrands.length+' of '+brands.length+' brand(s) are showing sample data — connect their Sheet link for accurate figures: '+sampleBrands.map(function(b){return b.brand;}).join(', ')+'.');
+  }
+  if(!takeaways.length) takeaways.push('Not enough data available yet to generate takeaways.');
+
+  var DATA_OBJ={
+    meta:{
+      currency:cur,
+      period:periodKey,
+      periodLabel: isPeriod ? ('Full period ('+monthNames[months[0]]+'–'+monthNames[months[months.length-1]]+')') : monthNames[months[0]],
+      curSymbol:CUR_SYMBOL[cur],
+      generatedAt:new Date().toISOString()
+    },
+    overview:overview,
+    isPeriod:isPeriod,
+    brandRanking:brandRanking,
+    trend:trend,
+    topDays:topDays,
+    mom:mom,
+    prevPeriodLabel:prevPeriodLabel,
+    takeaways:takeaways
+  };
+
+  var dataJson=JSON.stringify(DATA_OBJ).replace(/</g,'\u003c');
+
+  return '<!DOCTYPE html><html><head><meta charset="utf-8">'+
+    '<title>'+cur+' · '+DATA_OBJ.meta.periodLabel+' Report</title>'+
+    '<meta name="viewport" content="width=device-width, initial-scale=1">'+
+    '<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"><\/script>'+
+    '<style>'+REPORT_STYLE_CSS+'</style>'+
+    '</head><body>'+
+    '<div id="app"></div>'+
+    '<script id="report-data" type="application/json">'+dataJson+'<\/script>'+
+    '<script>'+REPORT_ENGINE_JS+'<\/script>'+
+    '</body></html>';
 }
 
-function testSettingsField(){
-  var sel=settingsSelected; if(!sel||sel.brand===null) return;
-  var cfg=SHEET_LINKS[sel.cur];
-  if(!cfg||!cfg.sheetId){
-    document.getElementById('settings-detail').insertAdjacentHTML('beforeend',
-      '<div class="md-status error" style="margin-top:8px">✕ Configure '+sel.cur+'\'s Sheet link first</div>');
-    return;
-  }
-  var tabInput=document.getElementById('set-tab').value.trim()||sel.brand;
-  delete sheetTabCache[sheetTabKey_(cfg.sheetId,tabInput)];
-  getSheetTabData(cfg.sheetId,tabInput);
-  renderSettingsDetail();
+function downloadHtmlFile_(htmlStr,filename){
+  var blob=new Blob([htmlStr],{type:'text/html;charset=utf-8'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); },4000);
 }
-/* ═══════════ END SETTINGS MODAL ═══════════ */
+
+function exportMonthReport(){
+  var period=document.getElementById('export-month-sel').value;
+  if(!period){ alert('Select a month or period first.'); return; }
+  var btn=document.getElementById('export-btn'), lbl=document.getElementById('export-label');
+  btn.disabled=true;
+  var prevLbl=lbl.textContent;
+  lbl.textContent='Generating…';
+  setTimeout(function(){
+    try{
+      var html=buildMonthReportHtml_(currentCurrency,period);
+      downloadHtmlFile_(html,currentCurrency+'_'+period+'_Report.html');
+    }catch(e){
+      alert('Failed to generate report: '+((e&&e.message)||e));
+    }finally{
+      btn.disabled=false;
+      lbl.textContent=prevLbl;
+    }
+  },30);
+}
+
+// Minimal self-contained styling for the exported report — deliberately not
+// pulling in the full dashboard stylesheet, just enough to look clean standalone.
+var REPORT_STYLE_CSS=
+  ':root{--bg:#0a0e1a;--panel:#111827;--card:#161d30;--border:#1e2740;--text:#e2e8f0;--muted:#8492a8;--gold:#facc15;--green:#00e676;--red:#ff4081;--teal:#00b0ff}'+
+  '*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,Segoe UI,Roboto,sans-serif}'+
+  '#app{max-width:1100px;margin:0 auto;padding:28px 20px 60px}'+
+  '.rp-hd{margin-bottom:22px}.rp-hd h1{font-size:20px;margin:0 0 4px}.rp-hd .sub{color:var(--muted);font-size:12px}'+
+  '.rp-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:22px}'+
+  '.rp-kpi{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px}'+
+  '.rp-kpi .lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700}'+
+  '.rp-kpi .val{font-size:19px;font-weight:800;margin-top:6px}'+
+  '.rp-kpi .mom{font-size:10px;margin-top:4px;font-weight:700}.rp-kpi .mom.up{color:var(--green)}.rp-kpi .mom.dn{color:var(--red)}'+
+  '.rp-panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:20px}'+
+  '.rp-panel h2{font-size:13px;margin:0 0 14px}'+
+  'table{width:100%;border-collapse:collapse;font-size:11px}th{text-align:left;color:var(--muted);text-transform:uppercase;font-size:9px;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;user-select:none}'+
+  'td{padding:8px 10px;border-bottom:1px solid var(--border)}tr:last-child td{border-bottom:none}'+
+  '.badge{font-size:8px;font-weight:800;padding:2px 6px;border-radius:4px;letter-spacing:.04em}'+
+  '.badge.live{background:rgba(0,230,118,.14);color:var(--green)}.badge.sample{background:rgba(255,64,129,.14);color:var(--red)}'+
+  '.pos{color:var(--green)}.neg{color:var(--red)}'+
+  '.rp-list{list-style:none;padding:0;margin:0}.rp-list li{padding:10px 0;border-bottom:1px solid var(--border);font-size:12px;line-height:1.6}.rp-list li:last-child{border-bottom:none}'+
+  '.rp-foot{color:var(--muted);font-size:10px;margin-top:30px;text-align:center}';
+
+// Rendering engine for the exported file — reads DATA back out of the embedded
+// JSON and draws everything itself. No network calls, no dependency on this
+// dashboard or on Google Sheets being reachable.
+var REPORT_ENGINE_JS=[
+'var DATA = JSON.parse(document.getElementById("report-data").textContent);',
+'function fmt(n){ return Math.round(n||0).toLocaleString("en-US"); }',
+'function money(n){ return DATA.meta.curSymbol + " " + fmt(n); }',
+'function momSpan(p){ if(p==null) return ""; var cls = p>=0?"up":"dn"; var sign = p>=0?"+":""; return \'<span class="mom \'+cls+\'">\'+sign+p.toFixed(1)+\'% vs \'+DATA.prevPeriodLabel+\'</span>\'; }',
+'function kpi(lbl,val,momPct){ return \'<div class="rp-kpi"><div class="lbl">\'+lbl+\'</div><div class="val">\'+val+\'</div>\'+(momPct!=null?\'<div class="mom \'+(momPct>=0?"up":"dn")+\'">\'+(momPct>=0?"+":"")+momPct.toFixed(1)+"% vs "+DATA.prevPeriodLabel+\'</div>\':\'\')+\'</div>\'; }',
+'var app=document.getElementById("app");',
+'var html="";',
+'html+=\'<div class="rp-hd"><h1>\'+DATA.meta.currency+\' — \'+DATA.meta.periodLabel+\' Report</h1><div class="sub">Generated \'+new Date(DATA.meta.generatedAt).toLocaleString()+\'</div></div>\';',
+'var o=DATA.overview, m=DATA.mom;',
+'html+=\'<div class="rp-kpis">\'+',
+'  kpi("Total Signup", fmt(o.signup), m?m.signupPct:null)+',
+'  kpi("Total FTD", fmt(o.ftd), m?m.ftdPct:null)+',
+'  kpi("Total Turnover", money(o.turnover), m?m.turnoverPct:null)+',
+'  kpi("Total Deposit", money(o.deposit))+',
+'  kpi("Total Withdraw", money(o.withdraw))+',
+'  kpi("Revenue", money(o.revenue), m?m.revenuePct:null)+',
+'  \'</div>\';',
+'html+=\'<div class="rp-panel"><h2>Turnover &amp; Revenue Trend</h2><canvas id="trendChart" height="90"></canvas></div>\';',
+'var brandRows=DATA.brandRanking.map(function(b){',
+'  var badge = b.live ? \'<span class="badge live">LIVE</span>\' : (b.partialLive ? \'<span class="badge sample">PARTIAL</span>\' : \'<span class="badge sample">SAMPLE</span>\');',
+'  return \'<tr><td>\'+b.brand+\'</td><td>\'+badge+\'</td><td>\'+fmt(b.signup)+\'</td><td>\'+fmt(b.ftd)+\'</td><td>\'+money(b.turnover)+\'</td><td>\'+money(b.deposit)+\'</td><td>\'+money(b.withdraw)+\'</td><td>\'+money(b.revenue)+\'</td><td>\'+(b.turnoverMomPct!=null?momSpan(b.turnoverMomPct):"—")+\'</td></tr>\';',
+'}).join("");',
+'html+=\'<div class="rp-panel"><h2>Brand Ranking (by Turnover)</h2><div style="overflow-x:auto"><table><tr><th>Brand</th><th>Source</th><th>Signup</th><th>FTD</th><th>Turnover</th><th>Deposit</th><th>Withdraw</th><th>Revenue</th><th>Turnover MoM</th></tr>\'+brandRows+\'</table></div></div>\';',
+'if(DATA.topDays && DATA.topDays.length){',
+'  var topHtml=DATA.topDays.map(function(d,i){ return \'<li><b>#\'+(i+1)+\'</b> — \'+d.date+\': \'+money(d.revenue)+\' revenue</li>\'; }).join("");',
+'  html+=\'<div class="rp-panel"><h2>Top 3 Peak Days (by Revenue)</h2><ul class="rp-list">\'+topHtml+\'</ul></div>\';',
+'}',
+'html+=\'<div class="rp-panel"><h2>Key Takeaways</h2><ul class="rp-list">\'+DATA.takeaways.map(function(t){ return "<li>"+t+"</li>"; }).join("")+\'</ul></div>\';',
+'html+=\'<div class="rp-foot">This is a standalone snapshot — it will not update. Re-export from the dashboard for current numbers.</div>\';',
+'app.innerHTML=html;',
+'new Chart(document.getElementById("trendChart").getContext("2d"),{',
+'  type: DATA.isPeriod ? "bar" : "line",',
+'  data:{ labels: DATA.trend.map(function(t){return t.label;}), datasets:[',
+'    {label:"Turnover", data: DATA.trend.map(function(t){return t.turnover;}), borderColor:"#facc15", backgroundColor: DATA.isPeriod?"#facc15":"rgba(250,204,21,.12)", fill:!DATA.isPeriod, tension:.3, pointRadius:0, borderWidth:2},',
+'    {label:"Revenue", data: DATA.trend.map(function(t){return t.revenue;}), borderColor:"#00e676", backgroundColor: DATA.isPeriod?"#00e676":"rgba(0,230,118,.12)", fill:!DATA.isPeriod, tension:.3, pointRadius:0, borderWidth:2}',
+'  ]},',
+'  options:{responsive:true, plugins:{legend:{labels:{color:"#8492a8"}}}, scales:{x:{ticks:{color:"#8492a8",maxTicksLimit:12},grid:{display:false}},y:{ticks:{color:"#8492a8"},grid:{color:"rgba(255,255,255,.05)"}}}}',
+'});'
+].join('\n');
+/* ═══════════ END EXPORT MONTH REPORT ═══════════ */
 
 async function init(){
   await loadSheetLinks();
