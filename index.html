@@ -53,8 +53,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 .dd-search:focus{outline:none;border-color:var(--gold)}
 .dd-empty{padding:10px 9px;font-size:10px;color:var(--dim);text-align:center}
 
-.month-select{margin:0 12px 12px;width:calc(100% - 24px)}
-.month-select select{width:100%;background:var(--card);border:1px solid var(--border2);color:var(--text);font-size:11px;font-family:var(--mono);padding:8px 10px;border-radius:7px;cursor:pointer}
+.top-filter-bar{display:flex;align-items:center;gap:10px;padding:10px 24px;background:var(--panel);border-bottom:1px solid var(--border);flex-wrap:wrap}
+.tfb-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700}
+.tfb-dd{position:relative;margin:0;min-width:170px}
+.tfb-dd .cur-dd-head{padding:7px 10px}
+.tfb-sel{background:var(--card);border:1px solid var(--border2);color:var(--text);font-size:11px;font-family:var(--mono);padding:7px 10px;border-radius:7px;cursor:pointer}
+.tfb-sel:focus{outline:none;border-color:var(--gold)}
+.tfb-summary{margin-left:auto;font-size:9px;color:var(--dim);font-family:var(--mono)}
+@media (max-width:700px){ .tfb-summary{display:none} }
 
 .nav-item{display:flex;align-items:center;gap:9px;padding:9px 14px;margin:1px 6px;border-radius:8px;font-size:11px;font-weight:600;color:var(--muted);cursor:pointer;transition:.15s;border:1px solid transparent}
 .nav-item:hover{color:var(--text);background:var(--card)}
@@ -122,6 +128,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 table.dt{width:100%;border-collapse:collapse;font-size:11px}
 table.dt th{text-align:left;padding:8px 10px;color:var(--muted);font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border);white-space:nowrap}
 table.dt td{padding:7px 10px;border-bottom:1px solid var(--border);font-family:var(--mono);white-space:nowrap}
+.ph-daycount{font-size:9px;color:var(--dim);font-weight:600;margin-left:8px;text-transform:none;letter-spacing:0}
+.dt-scroll{max-height:440px;overflow-y:auto}
+.dt-grp{text-align:center!important;font-size:9px}
+.dt-grp.acq{background:var(--teal-d);color:var(--teal);position:sticky;top:0;z-index:2}
+.dt-grp.fin{background:var(--gold-d);color:var(--gold);position:sticky;top:0;z-index:2}
+.dt-date-hd{position:sticky;top:0;z-index:3;background:var(--card);vertical-align:bottom}
+.dt-sub.acq{position:sticky;top:29px;z-index:2;background:var(--card);border-bottom:2px solid var(--teal)}
+.dt-sub.fin{position:sticky;top:29px;z-index:2;background:var(--card);border-bottom:2px solid var(--gold)}
+tr.dt-total td{font-weight:800;background:var(--card);border-top:2px solid var(--border2);border-bottom:none;position:sticky;bottom:0}
+tr.dt-total td:first-child{color:var(--gold)}
 table.dt tbody tr:hover{background:rgba(255,255,255,.02)}
 .up{color:var(--green);font-weight:700}
 .dn{color:var(--red);font-weight:700}
@@ -140,11 +156,23 @@ table.dt tbody tr:hover{background:rgba(255,255,255,.02)}
 .peak-rank.r3{background:rgba(255,145,0,0.12);color:var(--amber)}
 .peak-info{flex:1;display:flex;justify-content:space-between;align-items:center;margin-left:10px;font-size:11px}
 .peak-info b{font-family:var(--mono);font-weight:700}
+.peak-bar-row{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--panel);border-radius:8px;border:1px solid var(--border)}
+.peak-bar-lbl{flex:0 0 92px;font-size:10px;font-family:var(--mono);color:var(--text)}
+.peak-bar-wrap{flex:1;height:7px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden}
+.peak-bar-fill{height:100%;border-radius:4px}
+.peak-bar-val{flex:0 0 auto;font-size:11px;font-family:var(--mono);font-weight:800;min-width:56px;text-align:right}
+.pv-pill{display:inline-block;font-size:9px;font-weight:700;padding:3px 8px;border-radius:5px;font-family:var(--mono);white-space:nowrap}
+.pv-pill.peak{background:var(--teal-d);color:var(--teal)}
+.pv-pill.valley{background:var(--red-d);color:var(--red)}
+table.dt td.pv-brand{font-weight:800}
 
 @media (max-width:900px){
   .sidebar{transform:translateX(-100%)}
   .main{margin-left:0}
-  .g5,.g4{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .g5,.g4,.c66{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:700px){
+  .c66{grid-template-columns:minmax(0,1fr)}
 }
 
 /* CONN-BOX status variants */
@@ -230,29 +258,11 @@ table.dt tbody tr:hover{background:rgba(255,255,255,.02)}
       <div class="cur-dd-list" id="cur-dd-list"></div>
     </div>
 
-    <div class="nav-sec">Brand (own Tab)</div>
-    <div class="cur-dd" id="brand-dd">
-      <div class="cur-dd-head" id="brand-dd-head" onclick="toggleBrandDD()">
-        <span class="cur-dd-label" id="brand-dd-label">Crickex</span>
-        <i class="fa-solid fa-chevron-down"></i>
-      </div>
-      <div class="cur-dd-list" id="brand-dd-list"></div>
-    </div>
-
-    <div class="nav-sec">Month</div>
-    <div class="month-select">
-      <select id="month-select" onchange="switchMonth(this.value)">
-        <option value="Jan">January</option>
-        <option value="Feb">February</option>
-        <option value="Mar">March</option>
-      </select>
-    </div>
-
-    <div class="nav-sec">Reporting</div>
+    <div class="nav-sec">Home</div>
     <div class="nav-item active" onclick="showPage('overview',this)"><div class="nav-dot" style="background:#facc15"></div>Overview</div>
-    <div class="nav-item" onclick="showPage('trends',this)"><div class="nav-dot" style="background:#00b0ff"></div>Trends</div>
 
-    <div class="nav-sec">Analytics</div>
+    <div class="nav-sec">Report</div>
+    <div class="nav-item" onclick="showPage('trends',this)"><div class="nav-dot" style="background:#00b0ff"></div>Trends</div>
     <div class="nav-item" onclick="showPage('salespv',this)"><div class="nav-dot" style="background:#facc15"></div>Sales Peaks &amp; Valleys</div>
     <div class="nav-item" onclick="showPage('brandcomp',this)"><div class="nav-dot" style="background:#9b7ff4"></div>Brand Comparison</div>
 
@@ -289,6 +299,25 @@ table.dt tbody tr:hover{background:rgba(255,255,255,.02)}
       </div>
     </div>
 
+    <!-- ═══════════ TOP FILTER BAR (Brand / Month) ═══════════ -->
+    <div class="top-filter-bar">
+      <span class="tfb-lbl">BRAND</span>
+      <div class="cur-dd tfb-dd" id="brand-dd">
+        <div class="cur-dd-head" id="brand-dd-head" onclick="toggleBrandDD()">
+          <span class="cur-dd-label" id="brand-dd-label">Crickex</span>
+          <i class="fa-solid fa-chevron-down"></i>
+        </div>
+        <div class="cur-dd-list" id="brand-dd-list"></div>
+      </div>
+      <span class="tfb-lbl">MONTH</span>
+      <select class="tfb-sel" id="month-select" onchange="switchMonth(this.value)">
+        <option value="Jan">January</option>
+        <option value="Feb">February</option>
+        <option value="Mar">March</option>
+      </select>
+      <span class="tfb-summary" id="tfb-summary">Crickex · January</span>
+    </div>
+
     <div class="content">
 
       <!-- OVERVIEW -->
@@ -302,14 +331,22 @@ table.dt tbody tr:hover{background:rgba(255,255,255,.02)}
 
       <!-- Trend chart -->
       <div class="panel ag">
-        <div class="ph"><span>📈</span><span class="ph-t">Turnover &amp; Revenue Trend</span><span class="ph-tag" id="chart-tag">January · daily</span></div>
+        <div class="ph">
+          <span class="ph-t"><span>📈</span><select class="fsel" id="trend-metric-sel" onchange="switchTrendMetric(this.value)">
+            <option value="signup">Total Sign Up</option>
+            <option value="ftd">Total FTD</option>
+            <option value="active">Active Player</option>
+            <option value="deposit">Total Deposit</option>
+          </select></span>
+          <span class="ph-tag" id="chart-tag">January · daily</span>
+        </div>
         <div class="cw" style="height:260px"><canvas id="trend-chart"></canvas></div>
       </div>
 
       <!-- Daily table -->
       <div class="panel">
-        <div class="ph"><span>📋</span><span class="ph-t">Daily Breakdown</span><span class="ph-tag" id="table-tag">January · sample rows</span></div>
-        <div class="pb" style="overflow-x:auto"><table class="dt" id="daily-table"></table></div>
+        <div class="ph"><span>📋</span><span class="ph-t">Daily Breakdown<span class="ph-daycount" id="daily-daycount">· 31 days</span></span><span class="ph-tag" id="table-tag">January</span></div>
+        <div class="pb dt-scroll" style="overflow-x:auto"><table class="dt" id="daily-table"></table></div>
       </div>
 
       </div>
@@ -342,19 +379,49 @@ table.dt tbody tr:hover{background:rgba(255,255,255,.02)}
             <option value="ftd">FTD</option>
           </select>
         </div>
-        <div class="kpi-grid g4">
-          <div class="kpi c-gold"><div class="kpi-lbl">Peak Day</div><div class="kpi-val" id="spv-pd">—</div><div class="kpi-d" id="spv-pd-d">—</div></div>
-          <div class="kpi c-teal"><div class="kpi-lbl">Valley Day</div><div class="kpi-val" id="spv-vd">—</div><div class="kpi-d" id="spv-vd-d">—</div></div>
-          <div class="kpi c-gold"><div class="kpi-lbl">Peak Week</div><div class="kpi-val" id="spv-pw">—</div><div class="kpi-d" id="spv-pw-d">—</div></div>
-          <div class="kpi c-teal"><div class="kpi-lbl">Valley Week</div><div class="kpi-val" id="spv-vw">—</div><div class="kpi-d" id="spv-vw-d">—</div></div>
+
+        <div class="row2 c66">
+          <div class="panel">
+            <div class="ph"><span>📊</span><span class="ph-t">Weekly Peaks &amp; Valleys by Brand</span><span class="ph-tag" id="spv-w-tag">Peak Week</span></div>
+            <div class="pb" style="overflow-x:auto"><table class="dt" id="spv-week-table"></table></div>
+          </div>
+          <div class="panel">
+            <div class="ph"><span>📅</span><span class="ph-t">Monthly Peaks &amp; Valleys by Brand</span><span class="ph-tag">Peak Month</span></div>
+            <div class="pb" style="overflow-x:auto"><table class="dt" id="spv-month-table"></table></div>
+          </div>
         </div>
-        <div class="panel ag">
-          <div class="ph"><span>📈</span><span class="ph-t" id="spv-chart-title">Daily Turnover Trend</span><span class="ph-tag" id="spv-chart-tag">January</span></div>
-          <div class="cw" style="height:240px"><canvas id="spv-chart"></canvas></div>
+
+        <div class="row2 c66" style="margin-top:16px">
+          <div class="panel">
+            <div class="ph"><span>🏔️</span><span class="ph-t">Top 3 Peak Weeks</span><span class="ph-tag">all brands</span></div>
+            <div class="peak-list" id="spv-top-weeks"></div>
+          </div>
+          <div class="panel">
+            <div class="ph"><span>🏔️</span><span class="ph-t">Top 3 Peak Months</span><span class="ph-tag">all brands</span></div>
+            <div class="peak-list" id="spv-top-months"></div>
+          </div>
         </div>
-        <div class="panel">
-          <div class="ph"><span>🏔️</span><span class="ph-t">Top 3 Peak Days</span><span class="ph-tag" id="spv-top-tag">by Turnover</span></div>
-          <div class="peak-list" id="spv-top"></div>
+
+        <div class="row2 c66" style="margin-top:16px">
+          <div class="panel ag">
+            <div class="ph"><span>📊</span><span class="ph-t">Brand Weekly Split</span><span class="ph-tag" id="spv-wsplit-tag">by brand</span></div>
+            <div class="cw" style="height:240px"><canvas id="spv-wsplit-chart"></canvas></div>
+          </div>
+          <div class="panel ag">
+            <div class="ph"><span>📊</span><span class="ph-t">Brand Monthly Split</span><span class="ph-tag">by brand</span></div>
+            <div class="cw" style="height:240px"><canvas id="spv-msplit-chart"></canvas></div>
+          </div>
+        </div>
+
+        <div class="row2 c66" style="margin-top:16px">
+          <div class="panel">
+            <div class="ph"><span>📈</span><span class="ph-t">Weekly Volume Trend</span><span class="ph-tag">all brands</span></div>
+            <div class="cw" style="height:200px"><canvas id="spv-wtrend-chart"></canvas></div>
+          </div>
+          <div class="panel">
+            <div class="ph"><span>📈</span><span class="ph-t">Monthly Volume Trend</span><span class="ph-tag">all brands</span></div>
+            <div class="cw" style="height:200px"><canvas id="spv-mtrend-chart"></canvas></div>
+          </div>
         </div>
       </div>
 
@@ -645,10 +712,45 @@ function getMonthRows(cur,brand,month){
   return {rows:buildMockMonth(cur,brand,month),live:false,status:'none'};
 }
 
+// Same {rows,live,status,error} shape as getMonthRows, but when brandSel is the
+// ALL_BRANDS sentinel, sums every brand under this currency day-by-day instead
+// of returning a single brand's rows. Downstream rendering code doesn't need to
+// know the difference — it just gets rows shaped the same way either way.
+function getBrandSelectionRows_(cur,brandSel,month){
+  if(brandSel!==ALL_BRANDS) return getMonthRows(cur,brandSel,month);
+  var brands=BRANDS_BY_CURRENCY[cur]||[];
+  if(!brands.length) return {rows:[],live:false,status:'none'};
+  var perBrand=brands.map(function(b){ return getMonthRows(cur,b,month); });
+  var days=perBrand[0].rows.length;
+  var rows=[];
+  for(var d=0; d<days; d++){
+    var agg=emptyAgg_();
+    agg.date=perBrand[0].rows[d]?perBrand[0].rows[d].date:'';
+    perBrand.forEach(function(res){ var r=res.rows[d]; if(r) addRowToAgg_(agg,r); });
+    rows.push(agg);
+  }
+  var liveCount=perBrand.filter(function(r){return r.live;}).length;
+  var loadingCount=perBrand.filter(function(r){return r.status==='loading';}).length;
+  var errored=perBrand.filter(function(r){return r.status==='error';});
+  var status,error;
+  if(loadingCount>0) status='loading';
+  else if(liveCount===brands.length) status='ready';
+  else if(liveCount>0) status='mixed';
+  else if(errored.length>0){ status='error'; error=errored[0].error; }
+  else status='none';
+  return {rows:rows,live:liveCount===brands.length,status:status,error:error,liveCount:liveCount,brandCount:brands.length};
+}
+
 function refreshCurrent(){
   var cfg=SHEET_LINKS[currentCurrency];
   if(!cfg||!cfg.sheetId) { openSettings(); return; }
-  delete sheetTabCache[sheetTabKey_(cfg.sheetId,tabNameFor_(currentCurrency,currentBrand))];
+  if(currentBrand===ALL_BRANDS){
+    (BRANDS_BY_CURRENCY[currentCurrency]||[]).forEach(function(b){
+      delete sheetTabCache[sheetTabKey_(cfg.sheetId,tabNameFor_(currentCurrency,b))];
+    });
+  } else {
+    delete sheetTabCache[sheetTabKey_(cfg.sheetId,tabNameFor_(currentCurrency,currentBrand))];
+  }
   renderAll();
 }
 /* ═══════════ END LIVE GOOGLE SHEET FETCHING ═══════════ */
@@ -667,6 +769,9 @@ var currentBrand='Crickex';
 var currentMonth='Jan';
 var displayMode='local'; // 'local' | 'usd'
 var trendChart=null;
+var trendMetric='signup'; // 'signup' | 'ftd' | 'active' | 'deposit'
+var TREND_METRIC_ISMONEY={signup:false,ftd:false,active:false,deposit:true};
+function switchTrendMetric(v){ trendMetric=v; renderAll(); }
 var SHEET_LINKS={}; // cur -> brand -> {sheetId, tab, rawUrl} · persisted via window.storage (shared)
 
 function seedFor(cur,brand,month){
@@ -730,21 +835,28 @@ function kpiCard(cls,lbl,val,sub){
 
 var brandDDOpen=false;
 var brandFilter='';
+var ALL_BRANDS='__ALL__'; // sentinel currentBrand value meaning "aggregate every brand under this currency"
+
+function brandLabel_(b){ return b===ALL_BRANDS ? 'All Brands' : b; }
 
 function renderBrandDD(){
   var brands=BRANDS_BY_CURRENCY[currentCurrency];
-  if(brands.indexOf(currentBrand)===-1) currentBrand=brands[0];
-  document.getElementById('brand-dd-label').textContent=currentBrand;
+  var validValues=[ALL_BRANDS].concat(brands);
+  if(validValues.indexOf(currentBrand)===-1) currentBrand=brands[0];
+  document.getElementById('brand-dd-label').textContent=brandLabel_(currentBrand);
   var q=brandFilter.trim().toLowerCase();
+  var allOpt=(!q||'all brands'.indexOf(q)!==-1)
+    ? '<div class="cur-dd-opt'+(currentBrand===ALL_BRANDS?' selected':'')+'" onclick="selectBrandDD(\''+ALL_BRANDS+'\')" style="font-weight:800">✦ All Brands</div>'
+    : '';
   var filtered=q?brands.filter(function(b){return b.toLowerCase().indexOf(q)!==-1;}):brands;
-  var optsHtml=filtered.length
-    ? filtered.map(function(b){
-        return '<div class="cur-dd-opt'+(b===currentBrand?' selected':'')+'" onclick="selectBrandDD(\''+b+'\')">'+b+'</div>';
-      }).join('')
-    : '<div class="dd-empty">No matching brands</div>';
+  var optsHtml=filtered.map(function(b){
+    return '<div class="cur-dd-opt'+(b===currentBrand?' selected':'')+'" onclick="selectBrandDD(\''+b+'\')">'+b+'</div>';
+  }).join('');
+  if(!allOpt && !optsHtml) optsHtml='<div class="dd-empty">No matching brands</div>';
   document.getElementById('brand-dd-list').innerHTML=
     '<input class="dd-search" id="brand-dd-search" placeholder="Search brands… ('+brands.length+')" value="'+brandFilter.replace(/"/g,'&quot;')+'" '+
-    'oninput="filterBrandDD(this.value)" onclick="event.stopPropagation()">'+optsHtml;
+    'oninput="filterBrandDD(this.value)" onclick="event.stopPropagation()">'+allOpt+optsHtml;
+  updateFilterSummary_();
 }
 function toggleBrandDD(){
   brandDDOpen=!brandDDOpen;
@@ -828,7 +940,11 @@ function switchCurrency(c){
   if(document.getElementById('settings-overlay').classList.contains('open')) renderSettings();
 }
 function switchBrand(b){ currentBrand=b; renderBrandDD(); renderAll(); }
-function switchMonth(m){ currentMonth=m; renderAll(); }
+function switchMonth(m){ currentMonth=m; updateFilterSummary_(); renderAll(); }
+function updateFilterSummary_(){
+  var el=document.getElementById('tfb-summary');
+  if(el) el.textContent=brandLabel_(currentBrand)+' · '+monthNames[currentMonth]+' · '+currentCurrency;
+}
 function setDisplayCurrency(mode){
   displayMode=mode;
   document.getElementById('btn-pkr').classList.toggle('active',mode==='local');
@@ -844,9 +960,9 @@ function showPage(id,el){
   document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active');});
   if(el) el.classList.add('active');
   var titles={
-    overview:'💰 Sales Overview — '+currentBrand,
-    trends:'📈 Trends — '+currentBrand,
-    salespv:'🏔️ Sales Peaks & Valleys — '+currentBrand,
+    overview:'💰 Sales Overview — '+brandLabel_(currentBrand),
+    trends:'📈 Trends — '+brandLabel_(currentBrand),
+    salespv:'🏔️ Sales Peaks & Valleys — All Brands',
     brandcomp:'🆚 Brand Comparison — '+currentCurrency
   };
   document.getElementById('pg-title').textContent=titles[id];
@@ -869,7 +985,7 @@ function pctCls(cur,prev){
 function renderTrends(){
   var months=['Jan','Feb','Mar'];
   var monthly=months.map(function(m){
-    var rows=getMonthRows(currentCurrency,currentBrand,m).rows;
+    var rows=getBrandSelectionRows_(currentCurrency,currentBrand,m).rows;
     return rows.reduce(function(a,r){
       a.signup+=r.signup;a.ftd+=r.ftd;a.active+=r.active;
       a.turnover+=r.turnover;a.turnoverUsd+=r.turnoverUsd||0;
@@ -909,56 +1025,151 @@ function renderTrends(){
 }
 
 /* ═══════════ SALES PEAKS & VALLEYS ═══════════ */
-var salesPvChart=null;
+var spvWeekSplitChart=null, spvMonthSplitChart=null, spvWeekTrendChart=null, spvMonthTrendChart=null;
 var METRIC_LABEL={turnover:'Turnover',revenue:'Revenue',signup:'Sign Up',ftd:'FTD'};
+
+// Deterministic, evenly-spread color per brand (golden-angle hue rotation) —
+// works whether a currency has 2 brands or 17, without needing a hand-picked palette.
+function brandColor_(brands,brand){
+  var idx=brands.indexOf(brand);
+  var hue=Math.round((idx*137.508)%360);
+  return 'hsl('+hue+',65%,55%)';
+}
+
+function renderPeakBarList_(elId,items,fmtVal){
+  var maxVal=items.length?items[0].val:1;
+  var rankCls=['r1','r2','r3'];
+  var barColor=['var(--gold)','var(--red)','var(--purple)'];
+  document.getElementById(elId).innerHTML=items.map(function(it,i){
+    var pct=maxVal>0?Math.max(4,Math.round(it.val/maxVal*100)):0;
+    return '<div class="peak-bar-row"><div class="peak-rank '+rankCls[i]+'">'+(i+1)+'</div>'+
+      '<div class="peak-bar-lbl">'+it.label+'</div>'+
+      '<div class="peak-bar-wrap"><div class="peak-bar-fill" style="width:'+pct+'%;background:'+barColor[i]+'"></div></div>'+
+      '<div class="peak-bar-val">'+fmtVal(it.val)+'</div></div>';
+  }).join('');
+}
+
+// Peaks & Valleys, but across every brand under the current currency at once
+// (one row per brand), rather than the single selected brand — weekly view
+// covers the currently selected month, monthly view always spans Jan–Mar.
 function renderSalesPV(){
   var metric=document.getElementById('spv-metric').value;
-  var rows=getMonthRows(currentCurrency,currentBrand,currentMonth).rows;
   var isMoney=(metric==='turnover'||metric==='revenue');
   var mv=function(r){ return isMoney?pickMoney(r,metric,displayMode):r[metric]; };
   var fmtVal=function(v){ return isMoney?money(v,displayMode):fmt(v); };
+  var cur=currentCurrency;
+  var brands=BRANDS_BY_CURRENCY[cur]||[];
+  var months=['Jan','Feb','Mar'];
 
-  var peakDay=rows.reduce(function(a,b){return mv(b)>mv(a)?b:a;});
-  var valDay=rows.reduce(function(a,b){return mv(b)<mv(a)?b:a;});
-
-  // group into weeks of 7 for week-level peak/valley
-  var weeks=[];
-  for(var i=0;i<rows.length;i+=7){
-    var chunk=rows.slice(i,i+7);
-    var sum=chunk.reduce(function(a,r){return a+mv(r);},0);
-    weeks.push({label:'W'+(weeks.length+1),val:sum});
-  }
-  var peakWeek=weeks.reduce(function(a,b){return b.val>a.val?b:a;});
-  var valWeek=weeks.reduce(function(a,b){return b.val<a.val?b:a;});
-
-  document.getElementById('spv-pd').textContent=peakDay.date;
-  document.getElementById('spv-pd-d').textContent=fmtVal(mv(peakDay));
-  document.getElementById('spv-vd').textContent=valDay.date;
-  document.getElementById('spv-vd-d').textContent=fmtVal(mv(valDay));
-  document.getElementById('spv-pw').textContent=peakWeek.label;
-  document.getElementById('spv-pw-d').textContent=fmtVal(peakWeek.val);
-  document.getElementById('spv-vw').textContent=valWeek.label;
-  document.getElementById('spv-vw-d').textContent=fmtVal(valWeek.val);
-
-  document.getElementById('spv-chart-title').textContent='Daily '+METRIC_LABEL[metric]+' Trend';
-  document.getElementById('spv-chart-tag').textContent=monthNames[currentMonth]+' · '+currentBrand;
-  document.getElementById('spv-top-tag').textContent='by '+METRIC_LABEL[metric];
-
-  if(salesPvChart) salesPvChart.destroy();
-  salesPvChart=new Chart(document.getElementById('spv-chart').getContext('2d'),{
-    type:'line',
-    data:{labels:rows.map(function(r){return r.date;}),datasets:[
-      {label:METRIC_LABEL[metric],data:rows.map(mv),borderColor:'#facc15',backgroundColor:'rgba(250,204,21,.1)',fill:true,tension:.3,pointRadius:0,borderWidth:2}
-    ]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
-      scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9},maxRotation:0,autoSkip:true,maxTicksLimit:10}},
-              y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
+  // ── per-brand weekly peak/valley, within the currently selected month ──
+  var brandWeekData=brands.map(function(b){
+    var rows=getMonthRows(cur,b,currentMonth).rows;
+    var weeks=[];
+    for(var i=0;i<rows.length;i+=7){
+      var chunk=rows.slice(i,i+7);
+      var val=chunk.reduce(function(s,r){return s+mv(r);},0);
+      weeks.push({label:'W'+(weeks.length+1),val:val,range:chunk[0].date+'–'+chunk[chunk.length-1].date});
+    }
+    var peak=weeks.reduce(function(a,w){return w.val>a.val?w:a;});
+    var valley=weeks.reduce(function(a,w){return w.val<a.val?w:a;});
+    return {brand:b,weeks:weeks,peak:peak,valley:valley};
   });
 
-  var top3=rows.slice().sort(function(a,b){return mv(b)-mv(a);}).slice(0,3);
-  document.getElementById('spv-top').innerHTML=top3.map(function(r,i){
-    return '<div class="peak-row"><div class="peak-rank r'+(i+1)+'">'+(i+1)+'</div><div class="peak-info"><span>'+r.date+'</span><b>'+fmtVal(mv(r))+'</b></div></div>';
-  }).join('');
+  document.getElementById('spv-week-table').innerHTML=
+    '<tr><th>Brand</th><th>▲ Peak Week</th><th>Volume</th><th>▼ Valley Week</th><th>Volume</th></tr>'+
+    brandWeekData.map(function(d){
+      return '<tr><td class="pv-brand" style="color:'+brandColor_(brands,d.brand)+'">'+d.brand+'</td>'+
+        '<td><span class="pv-pill peak">'+d.peak.label+'</span></td><td>'+fmtVal(d.peak.val)+'</td>'+
+        '<td><span class="pv-pill valley">'+d.valley.label+'</span></td><td>'+fmtVal(d.valley.val)+'</td></tr>';
+    }).join('');
+  document.getElementById('spv-w-tag').textContent=monthNames[currentMonth]+' · by '+METRIC_LABEL[metric];
+
+  // ── per-brand monthly peak/valley, always Jan–Mar regardless of the month selector ──
+  var brandMonthData=brands.map(function(b){
+    var monthly=months.map(function(m){
+      var rows=getMonthRows(cur,b,m).rows;
+      return {label:monthNames[m],val:rows.reduce(function(s,r){return s+mv(r);},0)};
+    });
+    var peak=monthly.reduce(function(a,m){return m.val>a.val?m:a;});
+    var valley=monthly.reduce(function(a,m){return m.val<a.val?m:a;});
+    return {brand:b,monthly:monthly,peak:peak,valley:valley};
+  });
+
+  document.getElementById('spv-month-table').innerHTML=
+    '<tr><th>Brand</th><th>▲ Peak Month</th><th>Volume</th><th>▼ Valley Month</th><th>Volume</th></tr>'+
+    brandMonthData.map(function(d){
+      return '<tr><td class="pv-brand" style="color:'+brandColor_(brands,d.brand)+'">'+d.brand+'</td>'+
+        '<td><span class="pv-pill peak">'+d.peak.label+'</span></td><td>'+fmtVal(d.peak.val)+'</td>'+
+        '<td><span class="pv-pill valley">'+d.valley.label+'</span></td><td>'+fmtVal(d.valley.val)+'</td></tr>';
+    }).join('');
+
+  // ── Top 3 peak weeks / months, summed across every brand ──
+  var maxWeeks=0;
+  brandWeekData.forEach(function(d){ if(d.weeks.length>maxWeeks) maxWeeks=d.weeks.length; });
+  var weekTotals=[];
+  for(var w=0; w<maxWeeks; w++){
+    var sum=0, range='';
+    brandWeekData.forEach(function(d){ if(d.weeks[w]){ sum+=d.weeks[w].val; range=d.weeks[w].range; } });
+    weekTotals.push({label:'W'+(w+1),range:range,val:sum});
+  }
+  var topWeeks=weekTotals.slice().sort(function(a,b){return b.val-a.val;}).slice(0,3)
+    .map(function(w){ return {label:w.label+' ('+w.range+')', val:w.val}; });
+  renderPeakBarList_('spv-top-weeks',topWeeks,fmtVal);
+
+  var monthTotals=months.map(function(m,i){
+    var sum=0;
+    brandMonthData.forEach(function(d){ sum+=d.monthly[i].val; });
+    return {label:monthNames[m],val:sum};
+  });
+  var topMonths=monthTotals.slice().sort(function(a,b){return b.val-a.val;}).slice(0,3);
+  renderPeakBarList_('spv-top-months',topMonths,fmtVal);
+
+  // ── Brand Weekly Split — stacked, not grouped, so it stays readable even with 17 brands ──
+  document.getElementById('spv-wsplit-tag').textContent=monthNames[currentMonth]+' · by brand';
+  var weekLabels=weekTotals.map(function(w){return w.label;});
+  if(spvWeekSplitChart) spvWeekSplitChart.destroy();
+  spvWeekSplitChart=new Chart(document.getElementById('spv-wsplit-chart').getContext('2d'),{
+    type:'bar',
+    data:{labels:weekLabels,datasets:brands.map(function(b){
+      var d=brandWeekData.filter(function(x){return x.brand===b;})[0];
+      return {label:b,data:d.weeks.map(function(w){return w.val;}),backgroundColor:brandColor_(brands,b)};
+    })},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:9,font:{size:9}}}},
+      scales:{x:{stacked:true,grid:{display:false},ticks:{color:'#64748b',font:{size:9}}},
+              y:{stacked:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
+  });
+
+  // ── Brand Monthly Split ──
+  if(spvMonthSplitChart) spvMonthSplitChart.destroy();
+  spvMonthSplitChart=new Chart(document.getElementById('spv-msplit-chart').getContext('2d'),{
+    type:'bar',
+    data:{labels:months.map(function(m){return monthNames[m];}),datasets:brands.map(function(b){
+      var d=brandMonthData.filter(function(x){return x.brand===b;})[0];
+      return {label:b,data:d.monthly.map(function(mo){return mo.val;}),backgroundColor:brandColor_(brands,b)};
+    })},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:9,font:{size:9}}}},
+      scales:{x:{stacked:true,grid:{display:false},ticks:{color:'#64748b',font:{size:9}}},
+              y:{stacked:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
+  });
+
+  // ── Weekly / Monthly Volume Trend — every brand summed into one line ──
+  if(spvWeekTrendChart) spvWeekTrendChart.destroy();
+  spvWeekTrendChart=new Chart(document.getElementById('spv-wtrend-chart').getContext('2d'),{
+    type:'bar',
+    data:{labels:weekLabels,datasets:[{label:METRIC_LABEL[metric],data:weekTotals.map(function(w){return w.val;}),backgroundColor:'#00b0ff',borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9}}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
+  });
+
+  if(spvMonthTrendChart) spvMonthTrendChart.destroy();
+  spvMonthTrendChart=new Chart(document.getElementById('spv-mtrend-chart').getContext('2d'),{
+    type:'bar',
+    data:{labels:months.map(function(m){return monthNames[m];}),datasets:[{label:METRIC_LABEL[metric],data:monthTotals.map(function(m){return m.val;}),backgroundColor:'#00b0ff',borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9}}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
+  });
 }
 
 /* ═══════════ BRAND COMPARISON ═══════════
@@ -1014,17 +1225,23 @@ function updateLiveBadges_(res){
   var sub=document.getElementById('conn-sub');
   var refBtn=document.getElementById('ref-btn');
   var refLbl=document.getElementById('ref-btn-label');
+  var brandTxt=brandLabel_(currentBrand);
   box.className='conn-box';
   badge.className='live-badge';
   if(res.status==='ready'){
     badge.classList.add('on'); badge.textContent='LIVE';
     box.classList.add('st-live'); lbl.textContent='CONNECTED · LIVE';
-    sub.textContent=currentBrand+' · '+currentCurrency+' — synced from Google Sheet';
+    sub.textContent=brandTxt+' · '+currentCurrency+' — synced from Google Sheet';
+    refBtn.classList.add('live'); refLbl.textContent='Refresh live data';
+  } else if(res.status==='mixed'){
+    badge.classList.add('loading'); badge.textContent='MIXED';
+    box.classList.add('st-loading'); lbl.textContent='PARTIALLY CONNECTED';
+    sub.textContent=res.liveCount+' of '+res.brandCount+' brands are live, the rest are showing sample data';
     refBtn.classList.add('live'); refLbl.textContent='Refresh live data';
   } else if(res.status==='loading'){
     badge.classList.add('loading'); badge.textContent='SYNCING…';
     box.classList.add('st-loading'); lbl.textContent='SYNCING…';
-    sub.textContent='Fetching '+currentBrand+' · '+currentCurrency+' from Sheet…';
+    sub.textContent='Fetching '+brandTxt+' · '+currentCurrency+' from Sheet…';
     refBtn.classList.add('live'); refLbl.textContent='Refreshing…';
   } else if(res.status==='error'){
     badge.classList.add('error'); badge.textContent='SYNC ERROR';
@@ -1034,13 +1251,13 @@ function updateLiveBadges_(res){
   } else {
     badge.classList.add('off'); badge.textContent='SAMPLE';
     lbl.textContent='NOT CONNECTED';
-    sub.textContent='Awaiting Sheet link for '+currentBrand+' · '+currentCurrency;
+    sub.textContent='Awaiting Sheet link for '+brandTxt+' · '+currentCurrency;
     refBtn.classList.remove('live'); refLbl.textContent='Refresh (no source)';
   }
 }
 
 function renderAll(){
-  var res=getMonthRows(currentCurrency,currentBrand,currentMonth);
+  var res=getBrandSelectionRows_(currentCurrency,currentBrand,currentMonth);
   var rows=res.rows;
   updateLiveBadges_(res);
   var monthLabel=monthNames[currentMonth];
@@ -1050,15 +1267,15 @@ function renderAll(){
     if(document.getElementById('page-'+p).classList.contains('active')) activePageId=p;
   });
   var pgTitles={
-    overview:'💰 Sales Overview — '+currentBrand,
-    trends:'📈 Trends — '+currentBrand,
-    salespv:'🏔️ Sales Peaks & Valleys — '+currentBrand,
+    overview:'💰 Sales Overview — '+brandLabel_(currentBrand),
+    trends:'📈 Trends — '+brandLabel_(currentBrand),
+    salespv:'🏔️ Sales Peaks & Valleys — All Brands',
     brandcomp:'🆚 Brand Comparison — '+currentCurrency
   };
   document.getElementById('pg-title').textContent=pgTitles[activePageId];
   document.getElementById('pg-sub').textContent='Sample data · '+monthLabel+' · '+currentCurrency+' sheet';
   document.getElementById('chart-tag').textContent=monthLabel+' · daily';
-  document.getElementById('table-tag').textContent=monthLabel+' · sample rows';
+  document.getElementById('table-tag').textContent=monthLabel;
 
   var sum=rows.reduce(function(a,r){
     a.signup+=r.signup;a.ftd+=r.ftd;a.active+=r.active;
@@ -1087,28 +1304,44 @@ function renderAll(){
 
   // Chart
   var labels=rows.map(function(r){return r.date;});
-  var turnoverData=rows.map(function(r){return pickMoney(r,'turnover',displayMode);});
-  var revenueData=rows.map(function(r){return pickMoney(r,'revenue',displayMode);});
   if(trendChart) trendChart.destroy();
+  var isMoney=TREND_METRIC_ISMONEY[trendMetric];
+  var fieldMap={signup:'signup',ftd:'ftd',active:'active',deposit:'deposit'};
+  var field=fieldMap[trendMetric];
+  var lblMap={signup:'Total Sign Up',ftd:'Total FTD',active:'Active Player',deposit:'Total Deposit'};
+  var colorMap={signup:'#00b0ff',ftd:'#facc15',active:'#9b7ff4',deposit:'#00e676'};
+  var c=colorMap[trendMetric];
+  var trendDatasets=[
+    {label:lblMap[trendMetric],data:rows.map(function(r){return isMoney?pickMoney(r,field,displayMode):r[field];}),borderColor:c,backgroundColor:c+'26',fill:true,tension:.35,pointRadius:0,borderWidth:2}
+  ];
   trendChart=new Chart(document.getElementById('trend-chart').getContext('2d'),{
     type:'line',
-    data:{labels:labels,datasets:[
-      {label:'Turnover',data:turnoverData,borderColor:'#facc15',backgroundColor:'rgba(250,204,21,.1)',fill:true,tension:.35,pointRadius:0,borderWidth:2},
-      {label:'Revenue',data:revenueData,borderColor:'#00e676',backgroundColor:'rgba(0,230,118,.1)',fill:true,tension:.35,pointRadius:0,borderWidth:2}
-    ]},
+    data:{labels:labels,datasets:trendDatasets},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:10,font:{size:10}}}},
       scales:{x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9},maxRotation:0,autoSkip:true,maxTicksLimit:10}},
               y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
   });
 
-  // Daily table (first 10 rows for preview)
+  // Daily table — grouped header (Acquisition / Financials) + every day + a TOTAL row
+  document.getElementById('daily-daycount').textContent='· '+rows.length+' days';
   document.getElementById('daily-table').innerHTML=
-    '<tr><th>Date</th><th>Sign Up</th><th>FTD</th><th>Active</th><th>FTD Amount</th><th>Turnover</th><th>Deposit</th><th>Withdraw</th><th>Promotion</th><th>Revenue</th></tr>'+
-    rows.slice(0,10).map(function(r){
+    '<tr>'+
+      '<th class="dt-date-hd" rowspan="2">Date</th>'+
+      '<th class="dt-grp acq" colspan="4">● Acquisition</th>'+
+      '<th class="dt-grp fin" colspan="5">● Financials</th>'+
+    '</tr>'+
+    '<tr>'+
+      '<th class="dt-sub acq">Sign Up</th><th class="dt-sub acq">FTD</th><th class="dt-sub acq">Active</th><th class="dt-sub acq">FTD Amount</th>'+
+      '<th class="dt-sub fin">Turnover</th><th class="dt-sub fin">Deposit</th><th class="dt-sub fin">Withdraw</th><th class="dt-sub fin">Promotion</th><th class="dt-sub fin">Revenue</th>'+
+    '</tr>'+
+    rows.map(function(r){
       return '<tr><td>'+r.date+'</td><td>'+fmt(r.signup)+'</td><td>'+fmt(r.ftd)+'</td><td>'+fmt(r.active)+'</td>'+
         '<td>'+money(pickMoney(r,'ftdAmt',displayMode),displayMode)+'</td><td>'+money(pickMoney(r,'turnover',displayMode),displayMode)+'</td><td>'+money(pickMoney(r,'deposit',displayMode),displayMode)+'</td>'+
         '<td>'+money(pickMoney(r,'withdraw',displayMode),displayMode)+'</td><td>'+money(pickMoney(r,'promo',displayMode),displayMode)+'</td><td>'+money(pickMoney(r,'revenue',displayMode),displayMode)+'</td></tr>';
-    }).join('');
+    }).join('')+
+    '<tr class="dt-total"><td>TOTAL</td><td>'+fmt(sum.signup)+'</td><td>'+fmt(sum.ftd)+'</td><td>'+fmt(sum.active)+'</td>'+
+      '<td>'+money(pickMoney(sum,'ftdAmt',displayMode),displayMode)+'</td><td>'+money(pickMoney(sum,'turnover',displayMode),displayMode)+'</td><td>'+money(pickMoney(sum,'deposit',displayMode),displayMode)+'</td>'+
+      '<td>'+money(pickMoney(sum,'withdraw',displayMode),displayMode)+'</td><td>'+money(pickMoney(sum,'promo',displayMode),displayMode)+'</td><td>'+money(pickMoney(sum,'revenue',displayMode),displayMode)+'</td></tr>';
 
   if(!onOverview){
     if(document.getElementById('page-trends').classList.contains('active')) renderTrends();
