@@ -154,10 +154,6 @@ table.dt tbody tr:hover{background:rgba(255,255,255,.02)}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 .conn-gear{margin-top:8px;width:100%;background:transparent;border:1px dashed var(--border2);color:var(--muted);font-size:9px;font-weight:700;padding:6px;border-radius:6px;cursor:pointer;transition:.15s;font-family:var(--mono)}
 .conn-gear:hover{color:var(--text);border-color:var(--purple)}
-
-/* TOPBAR gear + refresh live states */
-.gear-btn{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--border2);color:var(--muted);font-size:11px;font-weight:600;padding:7px 14px;border-radius:7px;cursor:pointer;transition:.15s}
-.gear-btn:hover{color:var(--text);border-color:var(--purple)}
 .ref-btn.live{cursor:pointer;opacity:1;color:var(--teal);border-color:rgba(0,176,255,0.35)}
 .ref-btn.live:hover{background:var(--teal-d)}
 .live-badge{font-size:9px;font-family:var(--mono);font-weight:700;padding:3px 7px;border-radius:5px;letter-spacing:.04em}
@@ -218,7 +214,7 @@ table.dt tbody tr:hover{background:rgba(255,255,255,.02)}
       <div class="sb-sub">DASHBOARD FRAMEWORK</div>
     </div>
 
-    <div class="nav-sec">Currency (独立 Sheet)</div>
+    <div class="nav-sec">Currency (own Sheet)</div>
     <div class="cur-dd" id="cur-dd">
       <div class="cur-dd-head" id="cur-dd-head" onclick="toggleCurDD()">
         <span class="cur-flag" id="cur-dd-flag">🇵🇰</span>
@@ -228,7 +224,7 @@ table.dt tbody tr:hover{background:rgba(255,255,255,.02)}
       <div class="cur-dd-list" id="cur-dd-list"></div>
     </div>
 
-    <div class="nav-sec">Brand (独立 Tab)</div>
+    <div class="nav-sec">Brand (own Tab)</div>
     <div class="cur-dd" id="brand-dd">
       <div class="cur-dd-head" id="brand-dd-head" onclick="toggleBrandDD()">
         <span class="cur-dd-label" id="brand-dd-label">Crickex</span>
@@ -251,7 +247,6 @@ table.dt tbody tr:hover{background:rgba(255,255,255,.02)}
     <div class="nav-item" onclick="showPage('trends',this)"><div class="nav-dot" style="background:#00b0ff"></div>Trends</div>
 
     <div class="nav-sec">Analytics</div>
-    <div class="nav-item" onclick="showPage('chatpv',this)"><div class="nav-dot" style="background:#00e676"></div>Chat Peaks &amp; Valleys</div>
     <div class="nav-item" onclick="showPage('salespv',this)"><div class="nav-dot" style="background:#facc15"></div>Sales Peaks &amp; Valleys</div>
     <div class="nav-item" onclick="showPage('brandcomp',this)"><div class="nav-dot" style="background:#9b7ff4"></div>Brand Comparison</div>
 
@@ -260,7 +255,7 @@ table.dt tbody tr:hover{background:rgba(255,255,255,.02)}
         <div><span class="conn-dot" id="conn-dot"></span><span class="conn-lbl" id="conn-lbl">NOT CONNECTED</span></div>
         <div class="conn-sub" id="conn-sub">Awaiting Sales Sheet ID for PKR</div>
       </div>
-      <button class="conn-gear" onclick="openSettings()"><i class="fa-solid fa-gear"></i> Sheet Links 设置</button>
+      <button class="conn-gear" onclick="openSettings()"><i class="fa-solid fa-gear"></i> Sheet Links</button>
     </div>
   </div>
 
@@ -272,7 +267,6 @@ table.dt tbody tr:hover{background:rgba(255,255,255,.02)}
         <div class="pg-sub" id="pg-sub">Sample data · January · PKR sheet</div>
       </div>
       <div class="tb-right">
-        <button class="gear-btn" onclick="openSettings()"><i class="fa-solid fa-gear"></i> Sheet Links</button>
         <div class="cur-toggle">
           <button class="active" id="btn-pkr" onclick="setDisplayCurrency('local')">PKR</button>
           <button id="btn-usd" onclick="setDisplayCurrency('usd')">USD</button>
@@ -292,16 +286,6 @@ table.dt tbody tr:hover{background:rgba(255,255,255,.02)}
 
       <!-- Financials -->
       <div class="kpi-grid g5" id="kpi-fin"></div>
-
-      <!-- Ads spend — collapsed, future use -->
-      <div class="collapsed-panel" onclick="toggleAds()">
-        <div class="cp-t"><i class="fa-solid fa-bullhorn"></i> Ads Spend Breakdown (FB / TikTok / Livestream)</div>
-        <div class="cp-tag" id="ads-toggle-lbl">暂未使用 · 点击展开 ⌄</div>
-      </div>
-      <div class="panel" id="ads-panel" style="display:none">
-        <div class="ph"><span>📣</span><span class="ph-t">Ads Spend by Channel</span><span class="ph-tag">columns G–O · reserved for future use</span></div>
-        <div class="pb"><table class="dt" id="ads-table"></table></div>
-      </div>
 
       <!-- Trend chart -->
       <div class="panel ag">
@@ -328,28 +312,10 @@ table.dt tbody tr:hover{background:rgba(255,255,255,.02)}
       </div>
 
       <div class="panel">
-        <div class="ph"><span>📋</span><span class="ph-t">Monthly Comparison</span><span class="ph-tag">环比 MoM %</span></div>
+        <div class="ph"><span>📋</span><span class="ph-t">Monthly Comparison</span><span class="ph-tag">MoM %</span></div>
         <div class="pb" style="overflow-x:auto"><table class="dt" id="trend-table"></table></div>
       </div>
 
-      </div>
-
-      <!-- CHAT PEAKS & VALLEYS -->
-      <div class="page" id="page-chatpv">
-        <div class="kpi-grid g4">
-          <div class="kpi c-amber"><div class="kpi-lbl">Peak Week</div><div class="kpi-val" id="cpv-pw">—</div><div class="kpi-d" id="cpv-pw-d">—</div></div>
-          <div class="kpi c-green"><div class="kpi-lbl">Valley Week</div><div class="kpi-val" id="cpv-vw">—</div><div class="kpi-d" id="cpv-vw-d">—</div></div>
-          <div class="kpi c-amber"><div class="kpi-lbl">Peak Month</div><div class="kpi-val" id="cpv-pm">—</div><div class="kpi-d" id="cpv-pm-d">—</div></div>
-          <div class="kpi c-green"><div class="kpi-lbl">Valley Month</div><div class="kpi-val" id="cpv-vm">—</div><div class="kpi-d" id="cpv-vm-d">—</div></div>
-        </div>
-        <div class="panel">
-          <div class="ph"><span>📈</span><span class="ph-t">Weekly Chat Volume Trend</span><span class="ph-tag">last 12 weeks · sample</span></div>
-          <div class="cw" style="height:240px"><canvas id="cpv-chart"></canvas></div>
-        </div>
-        <div class="panel">
-          <div class="ph"><span>🏔️</span><span class="ph-t">Top 3 Peak Weeks</span><span class="ph-tag">by chat volume</span></div>
-          <div class="peak-list" id="cpv-top"></div>
-        </div>
       </div>
 
       <!-- SALES PEAKS & VALLEYS -->
@@ -409,7 +375,7 @@ table.dt tbody tr:hover{background:rgba(255,255,255,.02)}
 <div class="modal-overlay" id="settings-overlay" onclick="if(event.target===this) closeSettings()">
   <div class="modal-box">
     <div class="modal-head">
-      <div class="modal-title">⚙️ Sheet Links — 数据源配置</div>
+      <div class="modal-title">⚙️ Sheet Links — Data source setup</div>
       <button class="modal-close" onclick="closeSettings()"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="modal-body">
@@ -417,65 +383,72 @@ table.dt tbody tr:hover{background:rgba(255,255,255,.02)}
       <div class="modal-detail" id="settings-detail"></div>
     </div>
     <div class="modal-foot" id="modal-foot">
-      Sheet 不需要公开，分享给你的 service account 邮箱（Viewer 权限）即可。保存后立即生效，无需重新部署。
-      Tab 名称需要和 Sheet 里的分页名完全一致（区分大小写）。
+      The Sheet doesn't need to be public — just share it with your service account email (Viewer access). Changes apply immediately, no redeploy needed.
+      Tab names must match the Sheet's tab labels exactly (case-sensitive).
     </div>
   </div>
 </div>
 
 <script>
-/* ═══════════ CONFIG（真实结构，通过下方 Sheet Links 设置面板填写，不用改代码） ═══════════
-   一个货币 = 一个 Google Sheet；品牌 = 该 Sheet 里的一个 Tab（默认按品牌名去找同名 Tab，
-   对不上时可在设置面板里单独给某个品牌覆盖 Tab 名）：
+/* ═══════════ CONFIG (real structure, filled in via the Sheet Links panel below — no code changes needed) ═══════════
+   One currency = one Google Sheet; a brand = a Tab inside that Sheet (defaults to
+   looking for a Tab with the same name as the brand; if a name doesn't match, you
+   can override the Tab name for that brand in the settings panel):
    SHEET_LINKS = {
-     BDT: { sheetId:'...', rawUrl:'...', tabs:{ } },  // tabs 里只放跟品牌名不一致的覆盖，其余留空
+     BDT: { sheetId:'...', rawUrl:'...', tabs:{ } },  // tabs only holds overrides that differ from the brand name, leave the rest empty
      INR: { sheetId:'...', rawUrl:'...', tabs:{} },
      PKR: { sheetId:'...', rawUrl:'...', tabs:{} },
      PHP: { sheetId:'...', rawUrl:'...', tabs:{} }
    };
-   每个 brand tab 内，月份区块纵向堆叠（January 在前，February 接着往下），
-   每月固定预留 31 天的行位（不够的月份后面几行是空占位行），解析时按该月
-   实际日历天数精确截断，不受占位行影响，见 parseMonthBlock_。
+   Inside each brand tab, month blocks are stacked vertically (January first, then
+   February below it, etc). Each month reserves 31 day-row slots regardless of the
+   actual day count (the trailing rows for shorter months are blank placeholders);
+   parsing truncates to the month's real calendar day count so those placeholder
+   rows never get picked up — see parseMonthBlock_.
 */
 
 
 /* ═══════════ REAL SHEET PARSING (ready for when you give the Sheet ID) ═══════════
-   你的 Sheet 有个关键坑：每个月固定占 31 行（day-rows），天数不够的月份
-   （比如 Feb）后面几行是空白/公式占位行（USD 那几列公式算出来是 $0.00，
-   但根本没有真实数据）。不能靠"是不是 $0.00"去判断要不要丢弃——万一某天
-   真实数据刚好是 0，那样会被误杀。正确做法是用日历天数精确截断，跟你
-   CS Dashboard 里 Attendance 页处理月份天数的 ATT_MO_DAYS_2026 是同一套思路。
+   Your Sheet has one important quirk: every month reserves a fixed 31 day-row slots.
+   For shorter months (like Feb) the trailing rows are blank/formula placeholders
+   (the USD columns compute to $0.00 there, but there's no real data). You can't use
+   "is it $0.00" to decide whether to drop a row — a real day could genuinely be $0.
+   The correct approach is to truncate by calendar day count, the same idea used for
+   ATT_MO_DAYS_2026 on the Attendance page of the CS Dashboard.
 
-   列位置对应你截图里的真实结构（G–O 是暂不用的 Ads Spend 区块，
-   照样要跳过，不能直接从 P 开始数，不然列会错位）：
+   Column positions match the real structure from your screenshots (G–O is the
+   Ads Spend block, not used yet — still needs to be skipped, you can't just start
+   counting from P or the columns will be misaligned):
      A=Date  B=Signup  C=FTD  D=Active  E=FTDAmount  F=FTDAmountUSD
-     G–O = Ads Spend（9列，暂不用，见下方 collapsed panel）
+     G–O = Ads Spend (9 columns, not used yet — see the collapsed panel below)
      P=Turnover  Q=Deposit  R=Withdraw  S=Promotion  T=Revenue
      U=TurnoverUSD  V=DepositUSD  W=WithdrawUSD  X=PromotionUSD  Y=RevenueUSD
 */
 var MO_ORDER=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-var SHEET_YEAR=2026; // 用于精确算每月天数（闰年 2 月会自动变 29）；如果你的 Sheet 是别的年份，改这里即可
+var SHEET_YEAR=2026; // used to compute exact days per month (leap years make Feb 29 automatically); change this if your Sheet is for a different year
 function daysInMonth_(monthKey){
   var idx=MO_ORDER.indexOf(monthKey);
   return new Date(SHEET_YEAR, idx+1, 0).getDate();
 }
 var MO_FULLNAME={Jan:'January',Feb:'February',Mar:'March',Apr:'April',May:'May',Jun:'June',Jul:'July',Aug:'August',Sep:'September',Oct:'October',Nov:'November',Dec:'December'};
 
-// 从月份标题行往下找"第一天"那一行具体在第几行——不用假设表头固定几行
-// （你的 Sheet 表头结构是 banner 行 + 组名行(CRICKEX/PKR/USD) + 列名行，
-// 三层还是两层要看具体 Tab，这里不猜行数，直接找 A 列第一个匹配
-// "Jan-1"/"Jan-01" 这种日期格式的单元格，往下最多找 8 行）
+// Scan down from the month title row to find which row is actually "day 1" —
+// don't assume a fixed header row count
+// (your Sheet's header is banner row + group-label row (CRICKEX/PKR/USD) + column-name row,
+// whether it's 3 layers or 2 depends on the specific tab, so instead of guessing the
+// row count, just find the first cell in column A matching "Jan-1"/"Jan-01" style
+// date formatting, scanning at most 8 rows down)
 function findFirstDayRow_(rawRows, titleRowIdx, monthKey){
   var re=new RegExp('^'+monthKey+'-0?1$','i');
   for(var i=titleRowIdx+1; i<Math.min(titleRowIdx+9, rawRows.length); i++){
     var cellA=(rawRows[i]&&rawRows[i][0]||'').toString().trim();
     if(re.test(cellA)) return i;
   }
-  return titleRowIdx+2; // 找不到就退回旧假设（标题行+2），至少不至于直接崩
+  return titleRowIdx+2; // fall back to the old assumption (title row +2) if nothing matches, at least it won't crash
 }
 
-// 扫描一个 brand tab 的原始二维数组，找出每个月份区块标题所在的行号
-// （用文字匹配而不是假设固定间隔，更能扛住以后 Sheet 里插入/删除行）
+// Scan a brand tab's raw 2D array to find which row each month block's title is on
+// (matching by text rather than assuming a fixed interval, so it survives rows being inserted/removed in the Sheet later)
 function findMonthBlocks_(rawRows){
   var blocks={};
   for(var i=0;i<rawRows.length;i++){
@@ -487,34 +460,39 @@ function findMonthBlocks_(rawRows){
   return blocks;
 }
 
-// 把 "$1,234.56" / "#REF!" / "" 这类原始单元格安全转成数字，
-// #REF! 或空值一律当 0（这也是为什么 G–O 广告花费列现在先不读的原因——
-// 那几列全是 #REF!，读了也是噪音）
+// Safely turn raw cells like "$1,234.56" / "#REF!" / "" into numbers,
+// treating #REF! or blanks as 0 (also why the G–O ad-spend columns aren't
+// read yet — they're all #REF!, reading them would just be noise)
 function parseMoney_(cell){
   if(cell==null) return 0;
   var s=String(cell).trim();
   if(s==='' || s.indexOf('#REF!')!==-1 || s.indexOf('#')===0) return 0;
-  // 直接从字符串里找出第一段合法数字（含千分位逗号、可选小数点），
-  // 而不是简单剔除非数字字符——像 "Rs. 1,234.56" 这种货币符号本身
-  // 带句点的写法，旧写法会把 "Rs." 的句点也当成小数点，解析成 0。
+  // Pull out the first valid number pattern (with thousands-separator commas,
+  // optional decimal point) directly from the string, rather than just
+  // stripping non-digit characters — a currency prefix like "Rs. 1,234.56"
+  // has its own period, and the old approach would treat that period as
+  // the decimal point too and parse it as 0.
   var m=s.match(/-?[0-9][0-9,]*(\.[0-9]+)?/);
   if(!m) return 0;
   var n=Number(m[0].replace(/,/g,''));
   return isNaN(n)?0:n;
 }
 
-// 核心函数：给定一个月份标题行号，只取该月日历天数对应的真实行数
-// （Feb 精确取 28/29 行，不管 Sheet 里那个月区块后面垫了几行空白占位行，
-// 都不会被读到——不是"读到 Total 为止"，而是按天数精确数）
-// 布局：月份标题行 -> （banner/组名/列名等表头，行数不定）-> day-rows -> （若干空白占位行）-> Total 行
-// 列位置固定用 A~Y（G–O 是 Ads Spend，暂时跳过不读）：
+// Core function: given a month title row number, only pull the exact number
+// of rows that correspond to that month's real calendar day count
+// (Feb gets exactly 28/29 rows — however many blank placeholder rows the
+// Sheet leaves after that month's block, they're never read — this isn't
+// "read until Total", it's an exact day-count read)
+// Layout: month title row -> (banner/group-label/column-name header, row count varies) -> day-rows -> (some blank placeholder rows) -> Total row
+// Fixed column positions A~Y (G–O is Ads Spend, skipped for now):
 //   A=Date B=Signup C=FTD D=Active E=FTDAmount F=FTDAmountUSD
-//   G–O = Ads Spend（9列，跳过）
-//   P=Turnover Q=Deposit R=Withdraw S=Promotion T=Revenue（不读，见下）
-//   U=TurnoverUSD V=DepositUSD W=WithdrawUSD X=PromotionUSD Y=RevenueUSD（Y也不读）
-// 注意：Revenue(T列)/RevenueUSD(Y列) 在很多真实 Sheet 里是空的或只在 Total 行才有汇总，
-// 逐日行不可靠，所以这里不读那两列，改成用 Deposit − Withdraw − Promotion 现算，
-// 跟 mock 数据、Total 卡片的算法保持一致。
+//   G–O = Ads Spend (9 columns, skipped)
+//   P=Turnover Q=Deposit R=Withdraw S=Promotion T=Revenue (not read, see below)
+//   U=TurnoverUSD V=DepositUSD W=WithdrawUSD X=PromotionUSD Y=RevenueUSD (Y not read either)
+// Note: Revenue (col T) / RevenueUSD (col Y) are blank in a lot of real Sheets, or
+// only rolled up in the Total row — unreliable per day-row, so those two columns
+// aren't read here; instead Revenue = Deposit − Withdraw − Promotion is computed
+// on the fly, matching the mock data and the Total card's math.
 function parseMonthBlock_(rawRows, titleRowIdx, monthKey){
   var days=daysInMonth_(monthKey);
   var firstDayRow=findFirstDayRow_(rawRows, titleRowIdx, monthKey);
@@ -534,30 +512,33 @@ function parseMonthBlock_(rawRows, titleRowIdx, monthKey){
       deposit: deposit,    // Q
       withdraw: withdraw,  // R
       promotion: promotion,// S
-      revenue: deposit-withdraw-promotion,     // 现算，不读 T
+      revenue: deposit-withdraw-promotion,     // computed, not read from T
       turnoverUsd: parseMoney_(r[20]),  // U
       depositUsd: depositUsd,   // V
       withdrawUsd: withdrawUsd, // W
       promotionUsd: promotionUsd, // X
-      revenueUsd: depositUsd-withdrawUsd-promotionUsd  // 现算，不读 Y
+      revenueUsd: depositUsd-withdrawUsd-promotionUsd  // computed, not read from Y
     });
   }
-  return out; // 长度严格等于该月天数，绝不会混入占位行
+  return out; // length is always exactly the month's day count, placeholder rows never leak in
 }
 
-// 用法示例（等真实 fetch 接上后）：
+// Usage example (once the real fetch is wired up):
 // fetchFromSheet_(sheetId, 'CRICKEX!A1:Y400').then(function(rawRows){
 //   var blocks=findMonthBlocks_(rawRows);
-//   var febRecords=parseMonthBlock_(rawRows, blocks['Feb'], 'Feb'); // 精确28条
+//   var febRecords=parseMonthBlock_(rawRows, blocks['Feb'], 'Feb'); // exactly 28 records
 // });
 /* ═══════════ END REAL SHEET PARSING ═══════════ */
 
-/* ═══════════ LIVE GOOGLE SHEET FETCHING (通过自建后端代理，Sheet 保持私有) ═══════════
-   Sheet 不需要公开——只分享给你的 Google service account 邮箱即可（Viewer 权限）。
-   浏览器不直接连 Google，而是打 /api/sheet 这个你自己部署的 serverless function，
-   由它拿着 service account 私钥去调 Sheets API，私钥全程留在后端，前端和仓库源码里都看不到。
-   这意味着这个页面必须跟 /api/sheet 部署在同一个域名下（比如整个项目部署在 Vercel 上），
-   不能只是丢一个静态 HTML 到 GitHub Pages——GitHub Pages 不能跑后端代码。
+/* ═══════════ LIVE GOOGLE SHEET FETCHING (via your own backend proxy, Sheet stays private) ═══════════
+   The Sheet doesn't need to be public — just share it with your Google service
+   account email (Viewer access). The browser doesn't talk to Google directly;
+   it calls /api/sheet, a serverless function you deploy yourself, which holds
+   the service account private key and calls the Sheets API — the private key
+   never leaves the backend, never appears in the frontend or the repo source.
+   This means this page must be deployed on the same domain as /api/sheet (e.g.
+   the whole project deployed on Vercel) — you can't just drop a static HTML
+   file on GitHub Pages, since GitHub Pages can't run backend code.
 */
 function extractSheetId_(input){
   if(!input) return '';
@@ -583,7 +564,7 @@ function getSheetTabData(sheetId,tab){
     return resp.text().then(function(text){
       var data;
       try{ data=JSON.parse(text); }
-      catch(e){ throw new Error('后端代理没有返回 JSON —— /api/sheet 可能没部署成功，或者这个页面没跟 /api 部署在同一个域名下'); }
+      catch(e){ throw new Error('Backend proxy did not return JSON — /api/sheet may not be deployed correctly, or this page is not deployed on the same domain as /api'); }
       if(!resp.ok) throw new Error(data.error||('HTTP '+resp.status));
       return data;
     });
@@ -607,8 +588,10 @@ function onSheetDataUpdated(){
   }
 }
 
-// tab 名称解析：默认用品牌名，如果这个货币下对该品牌设置了覆盖名就用覆盖名
-// （比如侧边栏叫 SBJ66，但 Sheet 里 Tab 实际叫 Sbi66，这种情况要能单独纠正）
+// Tab name resolution: defaults to the brand name; if this currency has an
+// override configured for this brand, use that instead
+// (e.g. the sidebar says SBJ66, but the actual Tab in the Sheet is called Sbi66 —
+// this needs to be individually correctable)
 function tabNameFor_(cur,brand){
   var cfg=SHEET_LINKS[cur];
   var override=cfg&&cfg.tabs&&cfg.tabs[brand];
@@ -628,8 +611,9 @@ function normalizeRealRow_(r){
   };
 }
 
-// 统一入口：优先取真实 Sheet 数据，没配置/加载中/出错时回退到 mock，
-// 并把状态(live/loading/error/none)一起返回，供 UI 显示徽章
+// Unified entry point: prefer real Sheet data, fall back to mock when not
+// configured/still loading/errored, and return the status (live/loading/error/none)
+// alongside the rows so the UI can show the right badge
 function getMonthRows(cur,brand,month){
   var cfg=SHEET_LINKS[cur];
   if(cfg&&cfg.sheetId){
@@ -639,7 +623,7 @@ function getMonthRows(cur,brand,month){
       var blocks=findMonthBlocks_(entry.rawRows);
       if(blocks[month]===undefined){
         return {rows:buildMockMonth(cur,brand,month),live:false,status:'error',
-          error:'Sheet 里找不到 "'+MO_FULLNAME[month]+'" 月份区块标题'};
+          error:'Could not find the "'+MO_FULLNAME[month]+'" month block title in the Sheet'};
       }
       var parsed=parseMonthBlock_(entry.rawRows,blocks[month],month).map(normalizeRealRow_);
       return {rows:parsed,live:true,status:'ready'};
@@ -664,7 +648,7 @@ var BRANDS_BY_CURRENCY={
   PKR:['Crickex','Betjili','Mostplay','Heybaji','Darazplay','Jeetwin','Superbaji','KV8','Sbj66'],
   PHP:['Betjili','Betvisa']
 };
-var FX={BDT:0.0084,PKR:0.0036,INR:0.012,PHP:0.017}; // 仅用于示例数据估算 USD；真实数据一律优先用 Sheet 自己的 USD 列，不用这个换算
+var FX={BDT:0.0084,PKR:0.0036,INR:0.012,PHP:0.017}; // only used to estimate USD for sample data; real data always prefers the Sheet's own USD columns instead of this rate
 var CUR_SYMBOL={BDT:'৳',PKR:'Rs.',INR:'₹',PHP:'₱'};
 
 var currentCurrency='PKR';
@@ -672,7 +656,6 @@ var currentBrand='Crickex';
 var currentMonth='Jan';
 var displayMode='local'; // 'local' | 'usd'
 var trendChart=null;
-var adsOpen=false;
 var SHEET_LINKS={}; // cur -> brand -> {sheetId, tab, rawUrl} · persisted via window.storage (shared)
 
 function seedFor(cur,brand,month){
@@ -720,12 +703,12 @@ function buildMockMonth(cur,brand,month){
 }
 
 function fmt(n){return n.toLocaleString('en-US');}
-// n 必须是已经按 mode 选好的数值（local 原币 或 已经是 usd 数值），这里只负责格式化+符号
+// n must already be the value picked for the given mode (local currency, or already-usd); this function only handles formatting + the currency symbol
 function money(n,mode){
   if(mode==='usd') return '$'+fmt(Math.round(n||0));
   return CUR_SYMBOL[currentCurrency]+' '+fmt(Math.round(n||0));
 }
-// 从一行/一个汇总对象里，按 displayMode 选出正确的数值字段（local 或 xxxUsd）
+// Picks the right numeric field (local or xxxUsd) from a row/summary object, based on displayMode
 function pickMoney(obj,field,mode){
   return mode==='usd' ? (obj[field+'Usd']||0) : (obj[field]||0);
 }
@@ -747,9 +730,9 @@ function renderBrandDD(){
     ? filtered.map(function(b){
         return '<div class="cur-dd-opt'+(b===currentBrand?' selected':'')+'" onclick="selectBrandDD(\''+b+'\')">'+b+'</div>';
       }).join('')
-    : '<div class="dd-empty">没有匹配的品牌</div>';
+    : '<div class="dd-empty">No matching brands</div>';
   document.getElementById('brand-dd-list').innerHTML=
-    '<input class="dd-search" id="brand-dd-search" placeholder="搜索品牌… ('+brands.length+' 个)" value="'+brandFilter.replace(/"/g,'&quot;')+'" '+
+    '<input class="dd-search" id="brand-dd-search" placeholder="Search brands… ('+brands.length+')" value="'+brandFilter.replace(/"/g,'&quot;')+'" '+
     'oninput="filterBrandDD(this.value)" onclick="event.stopPropagation()">'+optsHtml;
 }
 function toggleBrandDD(){
@@ -840,11 +823,6 @@ function setDisplayCurrency(mode){
   document.getElementById('btn-usd').classList.toggle('active',mode==='usd');
   renderAll();
 }
-function toggleAds(){
-  adsOpen=!adsOpen;
-  document.getElementById('ads-panel').style.display=adsOpen?'block':'none';
-  document.getElementById('ads-toggle-lbl').textContent=adsOpen?'暂未使用 · 点击收起 ⌃':'暂未使用 · 点击展开 ⌄';
-}
 
 var monthNames={Jan:'January',Feb:'February',Mar:'March'};
 
@@ -856,13 +834,11 @@ function showPage(id,el){
   var titles={
     overview:'💰 Sales Overview — '+currentBrand,
     trends:'📈 Trends — '+currentBrand,
-    chatpv:'💬 Chat Peaks & Valleys',
     salespv:'🏔️ Sales Peaks & Valleys — '+currentBrand,
     brandcomp:'🆚 Brand Comparison — '+currentCurrency
   };
   document.getElementById('pg-title').textContent=titles[id];
   if(id==='trends') renderTrends();
-  if(id==='chatpv') renderChatPV();
   if(id==='salespv') renderSalesPV();
   if(id==='brandcomp') renderBrandComparison();
 }
@@ -920,59 +896,6 @@ function renderTrends(){
     }).join('');
 }
 
-/* ═══════════ CHAT PEAKS & VALLEYS ═══════════
-   注意：这块数据来源和上面的 Sales 数据是两回事——Chat 量来自 CS Dashboard
-   那份独立的 Sheet（Daily Chat Report），不是这份 Sales Sheet。真正接上后，
-   这个页面会另外 fetch CS Dashboard 的 Sheet ID，跟当前选中的 Sales
-   货币/品牌无关，只是把两边数据放在同一个导航里方便一起看。
-*/
-function genWeeklyChatVolume(){
-  var rand=seedFor(currentCurrency,'chat','weekly');
-  var base=2200;
-  var weeks=[];
-  for(var i=1;i<=12;i++){ weeks.push({label:'W'+i,vol:Math.round(base*(0.55+rand()*0.9))}); }
-  return weeks;
-}
-function genMonthlyChatVolume(){
-  var rand=seedFor(currentCurrency,'chat','monthly');
-  var base=9000;
-  return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map(function(m){
-    return {label:m,vol:Math.round(base*(0.6+rand()*0.8))};
-  });
-}
-var chatPvChart=null;
-function renderChatPV(){
-  var weeks=genWeeklyChatVolume();
-  var months=genMonthlyChatVolume();
-  var peakW=weeks.reduce(function(a,b){return b.vol>a.vol?b:a;});
-  var valW=weeks.reduce(function(a,b){return b.vol<a.vol?b:a;});
-  var peakM=months.reduce(function(a,b){return b.vol>a.vol?b:a;});
-  var valM=months.reduce(function(a,b){return b.vol<a.vol?b:a;});
-  document.getElementById('cpv-pw').textContent=peakW.label;
-  document.getElementById('cpv-pw-d').textContent=fmt(peakW.vol)+' chats';
-  document.getElementById('cpv-vw').textContent=valW.label;
-  document.getElementById('cpv-vw-d').textContent=fmt(valW.vol)+' chats';
-  document.getElementById('cpv-pm').textContent=peakM.label;
-  document.getElementById('cpv-pm-d').textContent=fmt(peakM.vol)+' chats';
-  document.getElementById('cpv-vm').textContent=valM.label;
-  document.getElementById('cpv-vm-d').textContent=fmt(valM.vol)+' chats';
-
-  if(chatPvChart) chatPvChart.destroy();
-  chatPvChart=new Chart(document.getElementById('cpv-chart').getContext('2d'),{
-    type:'line',
-    data:{labels:weeks.map(function(w){return w.label;}),datasets:[
-      {label:'Chat Volume',data:weeks.map(function(w){return w.vol;}),borderColor:'#00e676',backgroundColor:'rgba(0,230,118,.1)',fill:true,tension:.35,pointRadius:3,borderWidth:2}
-    ]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
-      scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9}}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
-  });
-
-  var top3=weeks.slice().sort(function(a,b){return b.vol-a.vol;}).slice(0,3);
-  document.getElementById('cpv-top').innerHTML=top3.map(function(w,i){
-    return '<div class="peak-row"><div class="peak-rank r'+(i+1)+'">'+(i+1)+'</div><div class="peak-info"><span>'+w.label+'</span><b>'+fmt(w.vol)+' chats</b></div></div>';
-  }).join('');
-}
-
 /* ═══════════ SALES PEAKS & VALLEYS ═══════════ */
 var salesPvChart=null;
 var METRIC_LABEL={turnover:'Turnover',revenue:'Revenue',signup:'Sign Up',ftd:'FTD'};
@@ -1027,9 +950,9 @@ function renderSalesPV(){
 }
 
 /* ═══════════ BRAND COMPARISON ═══════════
-   "类似Automation页面的两组对比" —— 这里对比的是：同一货币下每个品牌，
-   本月 vs 上月的表现（不是Bot vs Agent，是 This Month vs Last Month，
-   横向摆开每个品牌）。
+   A "two-group comparison" similar to an Automation page — but here it's
+   comparing each brand under the same currency, This Month vs Last Month
+   (not Bot vs Agent), laid out side by side per brand.
 */
 var bcChart=null;
 function renderBrandComparison(){
@@ -1111,13 +1034,12 @@ function renderAll(){
   var monthLabel=monthNames[currentMonth];
   var onOverview=document.getElementById('page-overview').classList.contains('active');
   var activePageId='overview';
-  ['trends','chatpv','salespv','brandcomp'].forEach(function(p){
+  ['trends','salespv','brandcomp'].forEach(function(p){
     if(document.getElementById('page-'+p).classList.contains('active')) activePageId=p;
   });
   var pgTitles={
     overview:'💰 Sales Overview — '+currentBrand,
     trends:'📈 Trends — '+currentBrand,
-    chatpv:'💬 Chat Peaks & Valleys',
     salespv:'🏔️ Sales Peaks & Valleys — '+currentBrand,
     brandcomp:'🆚 Brand Comparison — '+currentCurrency
   };
@@ -1151,11 +1073,6 @@ function renderAll(){
     kpiCard('red','Total Promotion',money(pickMoney(sum,'promo',displayMode),displayMode))+
     kpiCard('green','Revenue',money(pickMoney(sum,'revenue',displayMode),displayMode),'deposit − withdraw − promo');
 
-  // Ads placeholder table (empty / reserved)
-  document.getElementById('ads-table').innerHTML=
-    '<tr><th>Date</th><th>Total ADS Spend</th><th>FB ADS-Direct</th><th>FB ADS-Chat</th><th>TK ADS-Direct</th><th>TK ADS-Chat</th></tr>'+
-    '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:16px 0">列 G–O 暂无数据 — 保留给以后接入</td></tr>';
-
   // Chart
   var labels=rows.map(function(r){return r.date;});
   var turnoverData=rows.map(function(r){return pickMoney(r,'turnover',displayMode);});
@@ -1183,7 +1100,6 @@ function renderAll(){
 
   if(!onOverview){
     if(document.getElementById('page-trends').classList.contains('active')) renderTrends();
-    else if(document.getElementById('page-chatpv').classList.contains('active')) renderChatPV();
     else if(document.getElementById('page-salespv').classList.contains('active')) renderSalesPV();
     else if(document.getElementById('page-brandcomp').classList.contains('active')) renderBrandComparison();
   }
@@ -1193,16 +1109,17 @@ function renderAll(){
 var settingsSelected=null; // {cur,brand}
 var LS_KEY='affiliate-dashboard-sheet-links';
 
-// 存储优先用 window.storage（在 Claude artifact 里跑，配置对所有打开的人共享）；
-// 如果这个环境没有 window.storage（比如部署到 GitHub Pages 后独立跑在普通浏览器里），
-// 就退回用 localStorage（只存在这台设备/这个浏览器里，不会跨人同步）。
+// Storage prefers window.storage (running inside a Claude artifact, config shared
+// across everyone who opens it); if this environment has no window.storage (e.g.
+// deployed standalone on GitHub Pages, running in a plain browser), it falls back
+// to localStorage (only on this device/browser, doesn't sync across people).
 async function loadSheetLinks(){
   try{
     if(window.storage){
       var res=await window.storage.get('sheet-links',true);
       if(res&&res.value){ SHEET_LINKS=JSON.parse(res.value); return; }
     }
-  }catch(e){ /* 没有 window.storage 或调用失败，往下走 localStorage */ }
+  }catch(e){ /* no window.storage, or the call failed — fall through to localStorage */ }
   try{
     var raw=localStorage.getItem(LS_KEY);
     SHEET_LINKS=raw?JSON.parse(raw):{};
@@ -1211,23 +1128,26 @@ async function loadSheetLinks(){
 async function persistSheetLinks(){
   try{
     if(window.storage){ await window.storage.set('sheet-links',JSON.stringify(SHEET_LINKS),true); return; }
-  }catch(e){ /* 往下走 localStorage 兜底 */ }
+  }catch(e){ /* fall through to the localStorage fallback */ }
   try{ localStorage.setItem(LS_KEY,JSON.stringify(SHEET_LINKS)); }
-  catch(e){ console.error('保存 Sheet Links 失败',e); }
+  catch(e){ console.error('Failed to save Sheet Links',e); }
 }
 
-// 品牌行状态：要先看这个货币有没有配 Sheet，再看这个品牌对应的 tab 有没有抓到数据
+// Brand row status: first check whether this currency has a Sheet configured, then whether this brand's tab has been fetched
 function statusForBrand_(cur,brand){
   var cfg=SHEET_LINKS[cur];
   if(!cfg||!cfg.sheetId) return 'none';
   var entry=sheetTabCache[sheetTabKey_(cfg.sheetId,tabNameFor_(cur,brand))];
-  if(!entry) return 'none-fetched'; // 已配置但还没抓取（会在用到的时候按需抓）
+  if(!entry) return 'none-fetched'; // configured but not fetched yet (will fetch on demand when needed)
   return entry.status; // loading | ready | error
 }
 
 function openSettings(){
   document.getElementById('settings-overlay').classList.add('open');
-  if(!settingsSelected) settingsSelected={cur:currentCurrency,brand:null};
+  // Always jump to whichever currency the dashboard is currently showing —
+  // if you're viewing BDT and open Sheet Links, it should land on BDT's link,
+  // not wherever you last left the panel.
+  settingsSelected={cur:currentCurrency,brand:null};
   renderSettingsList();
   renderSettingsDetail();
 }
@@ -1235,7 +1155,7 @@ function closeSettings(){
   document.getElementById('settings-overlay').classList.remove('open');
 }
 
-// brand=null 表示选中的是"这个货币的 Sheet 链接"本身；否则是某个品牌的 Tab 名覆盖
+// brand=null means the selection is the currency's own "Sheet link"; otherwise it's a Tab-name override for a specific brand
 function renderSettingsList(){
   var html='';
   Object.keys(BRANDS_BY_CURRENCY).forEach(function(cur){
@@ -1266,17 +1186,17 @@ function renderSettingsDetail(){
   if(!sel){ document.getElementById('settings-detail').innerHTML=''; return; }
 
   if(sel.brand===null){
-    // ── 货币级：配置这一整个货币共用的 Sheet 链接 ──
+    // ── Currency level: configure the Sheet link shared by this whole currency ──
     var cfg=SHEET_LINKS[sel.cur]||{};
     var statusHtml=cfg.sheetId
-      ? '<div class="md-status on">✓ 已保存 — Sheet ID: '+cfg.sheetId+'</div>'
-      : '<div class="md-status off">未配置 — '+sel.cur+' 下所有品牌都在用示例数据</div>';
+      ? '<div class="md-status on">✓ Saved — Sheet ID: '+cfg.sheetId+'</div>'
+      : '<div class="md-status off">Not configured — every brand under '+sel.cur+' is using sample data</div>';
     document.getElementById('settings-detail').innerHTML=
       '<div class="md-brand-title">'+sel.cur+' Sheet</div>'+
-      '<div class="md-brand-sub">整个货币共用一个 Google Sheet，下面每个品牌对应 Sheet 里的一个 Tab</div>'+
-      '<div class="md-field"><span class="md-label">Google Sheet 链接</span>'+
+      '<div class="md-brand-sub">This whole currency shares one Google Sheet — each brand below maps to a Tab in it</div>'+
+      '<div class="md-field"><span class="md-label">Google Sheet link</span>'+
         '<input class="md-input" id="set-url" placeholder="https://docs.google.com/spreadsheets/d/…/edit" value="'+(cfg.rawUrl||'').replace(/"/g,'&quot;')+'">'+
-        '<div class="md-hint">Sheet 保持私有，只要分享给你的 service account 邮箱（Viewer 权限）就行。也可以直接粘贴 Sheet ID。保存后，下面每个品牌会按品牌名去这个 Sheet 里找同名 Tab。</div></div>'+
+        '<div class="md-hint">The Sheet can stay private — just share it with your service account email (Viewer access). You can also paste the Sheet ID directly. After saving, each brand below will look for a Tab with its own name in this Sheet.</div></div>'+
       statusHtml+
       '<div class="md-actions">'+
         '<button class="md-btn primary" onclick="saveSettingsField()">Save</button>'+
@@ -1285,7 +1205,7 @@ function renderSettingsDetail(){
     return;
   }
 
-  // ── 品牌级：只配置这个品牌对应的 Tab 名（默认=品牌名，可覆盖） ──
+  // ── Brand level: only configure this brand's Tab name (defaults to the brand name, overridable) ──
   var cur=sel.cur, brand=sel.brand;
   var cfg=SHEET_LINKS[cur];
   var tab=tabNameFor_(cur,brand);
@@ -1294,18 +1214,18 @@ function renderSettingsDetail(){
   var override=(cfg&&cfg.tabs&&cfg.tabs[brand])||'';
 
   var statusHtml;
-  if(!cfg||!cfg.sheetId) statusHtml='<div class="md-status off">请先在上面配置 '+cur+' 的 Sheet 链接</div>';
-  else if(st==='ready') statusHtml='<div class="md-status on">✓ 已连接，最近一次读取到 '+((entry&&entry.rawRows)?entry.rawRows.length:0)+' 行原始数据</div>';
-  else if(st==='loading') statusHtml='<div class="md-status loading">⏳ 正在抓取…</div>';
-  else if(st==='error') statusHtml='<div class="md-status error">✕ '+((entry&&entry.error)||'未知错误')+'</div>';
-  else statusHtml='<div class="md-status loading">已配置，尚未拉取 — 点击 Test Connection 触发抓取</div>';
+  if(!cfg||!cfg.sheetId) statusHtml='<div class="md-status off">Configure '+cur+'\'s Sheet link above first</div>';
+  else if(st==='ready') statusHtml='<div class="md-status on">✓ Connected — last fetch read '+((entry&&entry.rawRows)?entry.rawRows.length:0)+' raw rows</div>';
+  else if(st==='loading') statusHtml='<div class="md-status loading">⏳ Fetching…</div>';
+  else if(st==='error') statusHtml='<div class="md-status error">✕ '+((entry&&entry.error)||'Unknown error')+'</div>';
+  else statusHtml='<div class="md-status loading">Configured but not fetched yet — click Test Connection to trigger a fetch</div>';
 
   document.getElementById('settings-detail').innerHTML=
     '<div class="md-brand-title">'+brand+'</div>'+
-    '<div class="md-brand-sub">'+cur+' · 用哪个 Tab 读这个品牌的数据</div>'+
-    '<div class="md-field"><span class="md-label">Tab 名称</span>'+
-      '<input class="md-input" id="set-tab" placeholder="'+brand+'（默认）" value="'+override.replace(/"/g,'&quot;')+'">'+
-      '<div class="md-hint">对应 Sheet 底部分页名，需完全一致（区分大小写）。留空默认用品牌名 "'+brand+'"；如果 Sheet 里 Tab 名不完全一样（比如 "Sbi66" 而不是 "SBJ66"），在这里填实际 Tab 名。</div></div>'+
+    '<div class="md-brand-sub">'+cur+' · which Tab to read this brand\'s data from</div>'+
+    '<div class="md-field"><span class="md-label">Tab name</span>'+
+      '<input class="md-input" id="set-tab" placeholder="'+brand+' (default)" value="'+override.replace(/"/g,'&quot;')+'">'+
+      '<div class="md-hint">Matches the Sheet\'s tab label exactly (case-sensitive). Leave blank to default to the brand name "'+brand+'"; if the Sheet\'s Tab name differs (e.g. "Sbi66" instead of "SBJ66"), enter the real Tab name here.</div></div>'+
     statusHtml+
     '<div class="md-actions">'+
       '<button class="md-btn primary" onclick="saveSettingsField()">Save</button>'+
@@ -1322,12 +1242,12 @@ function saveSettingsField(){
     var sheetId=extractSheetId_(url);
     if(!sheetId){
       document.getElementById('settings-detail').insertAdjacentHTML('beforeend',
-        '<div class="md-status error" style="margin-top:8px">✕ 无法从这个链接识别 Sheet ID，请检查链接格式</div>');
+        '<div class="md-status error" style="margin-top:8px">✕ Could not identify a Sheet ID from this link — check the link format</div>');
       return;
     }
     var oldCfg=SHEET_LINKS[sel.cur];
     if(oldCfg&&oldCfg.sheetId&&oldCfg.sheetId!==sheetId){
-      // 换了新 Sheet，把这个货币下所有品牌的旧缓存清掉
+      // switched to a different Sheet — clear the old cache for every brand under this currency
       (BRANDS_BY_CURRENCY[sel.cur]||[]).forEach(function(b){
         delete sheetTabCache[sheetTabKey_(oldCfg.sheetId,tabNameFor_(sel.cur,b))];
       });
@@ -1344,7 +1264,7 @@ function saveSettingsField(){
   var cfg=SHEET_LINKS[sel.cur];
   if(!cfg||!cfg.sheetId){
     document.getElementById('settings-detail').insertAdjacentHTML('beforeend',
-      '<div class="md-status error" style="margin-top:8px">✕ 请先配置 '+sel.cur+' 的 Sheet 链接</div>');
+      '<div class="md-status error" style="margin-top:8px">✕ Configure '+sel.cur+'\'s Sheet link first</div>');
     return;
   }
   var oldTab=tabNameFor_(sel.cur,sel.brand);
@@ -1353,7 +1273,7 @@ function saveSettingsField(){
   var newTab=tabNameFor_(sel.cur,sel.brand);
   if(oldTab!==newTab) delete sheetTabCache[sheetTabKey_(cfg.sheetId,oldTab)];
   persistSheetLinks();
-  getSheetTabData(cfg.sheetId,newTab); // 立即触发抓取
+  getSheetTabData(cfg.sheetId,newTab); // trigger a fetch right away
   renderSettingsList(); renderSettingsDetail();
   renderAll();
 }
@@ -1388,7 +1308,7 @@ function testSettingsField(){
   var cfg=SHEET_LINKS[sel.cur];
   if(!cfg||!cfg.sheetId){
     document.getElementById('settings-detail').insertAdjacentHTML('beforeend',
-      '<div class="md-status error" style="margin-top:8px">✕ 请先配置 '+sel.cur+' 的 Sheet 链接</div>');
+      '<div class="md-status error" style="margin-top:8px">✕ Configure '+sel.cur+'\'s Sheet link first</div>');
     return;
   }
   var tabInput=document.getElementById('set-tab').value.trim()||sel.brand;
@@ -1402,9 +1322,9 @@ async function init(){
   await loadSheetLinks();
   var foot=document.getElementById('modal-foot');
   if(window.storage){
-    foot.innerHTML+=' <br>这份配置对所有打开此看板的人可见共享。';
+    foot.innerHTML+=' <br>This configuration is shared with everyone who opens this dashboard.';
   } else {
-    foot.innerHTML+=' <br>当前运行环境下，配置只保存在这台设备/这个浏览器里（localStorage），不会自动同步给其他人。';
+    foot.innerHTML+=' <br>In this environment, the configuration is only saved on this device/browser (localStorage) and won\'t automatically sync to others.';
   }
   renderCurDD();
   renderBrandDD();
