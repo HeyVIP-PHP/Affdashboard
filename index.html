@@ -287,7 +287,16 @@ table.dt td.pv-brand{font-weight:800}
           <option value="Jan">January</option>
           <option value="Feb">February</option>
           <option value="Mar">March</option>
-          <option value="all">Full period (Jan–Mar)</option>
+          <option value="Apr">April</option>
+          <option value="May">May</option>
+          <option value="Jun">June</option>
+          <option value="Jul">July</option>
+          <option value="Aug">August</option>
+          <option value="Sep">September</option>
+          <option value="Oct">October</option>
+          <option value="Nov">November</option>
+          <option value="Dec">December</option>
+          <option value="all">Full year (Jan–Dec)</option>
         </select>
         <button class="exp-btn" id="export-btn" onclick="exportMonthReport()"><i class="fa-solid fa-download"></i> <span id="export-label">Export Report</span></button>
         <div class="cur-toggle">
@@ -314,6 +323,15 @@ table.dt td.pv-brand{font-weight:800}
         <option value="Jan">January</option>
         <option value="Feb">February</option>
         <option value="Mar">March</option>
+        <option value="Apr">April</option>
+        <option value="May">May</option>
+        <option value="Jun">June</option>
+        <option value="Jul">July</option>
+        <option value="Aug">August</option>
+        <option value="Sep">September</option>
+        <option value="Oct">October</option>
+        <option value="Nov">November</option>
+        <option value="Dec">December</option>
       </select>
       <span class="tfb-summary" id="tfb-summary">Crickex · January</span>
     </div>
@@ -358,7 +376,7 @@ table.dt td.pv-brand{font-weight:800}
       <div class="kpi-grid g4" id="trend-mom-kpis"></div>
 
       <div class="panel ag">
-        <div class="ph"><span>📊</span><span class="ph-t">Turnover &amp; Revenue by Month</span><span class="ph-tag" id="trend-chart-tag">Jan – Mar comparison</span></div>
+        <div class="ph"><span>📊</span><span class="ph-t">Sign Up, FTD, Active &amp; FTD Amount by Month</span><span class="ph-tag" id="trend-chart-tag">Jan – Mar comparison</span></div>
         <div class="cw" style="height:260px"><canvas id="mom-chart"></canvas></div>
       </div>
 
@@ -558,6 +576,14 @@ function parseMoney_(cell){
   return isNaN(n)?0:n;
 }
 
+// Distinguishes "the Sheet cell genuinely has something in it" from "blank" —
+// parseMoney_ alone can't tell the difference since it returns 0 for both.
+function cellFilled_(cell){
+  if(cell==null) return false;
+  var s=String(cell).trim();
+  return s!=='' && s.indexOf('#REF!')===-1 && s.indexOf('#')!==0;
+}
+
 // Core function: given a month title row number, only pull the exact number
 // of rows that correspond to that month's real calendar day count
 // (Feb gets exactly 28/29 rows — however many blank placeholder rows the
@@ -592,12 +618,14 @@ function parseMonthBlock_(rawRows, titleRowIdx, monthKey){
       deposit: deposit,    // Q
       withdraw: withdraw,  // R
       promotion: promotion,// S
-      revenue: deposit-withdraw-promotion,     // computed, not read from T
+      revenue: parseMoney_(r[19]),    // T — read straight from the Sheet, no computed fallback
+      revenueFilled: cellFilled_(r[19]),
       turnoverUsd: parseMoney_(r[20]),  // U
       depositUsd: depositUsd,   // V
       withdrawUsd: withdrawUsd, // W
       promotionUsd: promotionUsd, // X
-      revenueUsd: depositUsd-withdrawUsd-promotionUsd  // computed, not read from Y
+      revenueUsd: parseMoney_(r[24]),  // Y — read straight from the Sheet, no computed fallback
+      revenueUsdFilled: cellFilled_(r[24])
     });
   }
   return out; // length is always exactly the month's day count, placeholder rows never leak in
@@ -686,7 +714,8 @@ function normalizeRealRow_(r){
     deposit:r.deposit, depositUsd:r.depositUsd,
     withdraw:r.withdraw, withdrawUsd:r.withdrawUsd,
     promo:r.promotion, promoUsd:r.promotionUsd,
-    revenue:r.revenue, revenueUsd:r.revenueUsd
+    revenue:r.revenue, revenueUsd:r.revenueUsd,
+    revenueFilled:r.revenueFilled, revenueUsdFilled:r.revenueUsdFilled
   };
 }
 
@@ -770,7 +799,7 @@ var currentBrand='Crickex';
 var currentMonth='Jan';
 var displayMode='local'; // 'local' | 'usd'
 var trendChart=null;
-var trendMetric='signup'; // 'signup' | 'ftd' | 'active' | 'deposit'
+var trendMetric='all'; // 'all' | 'signup' | 'ftd' | 'active' | 'deposit' — must match the <select>'s first/default <option>, or the label shown and the chart actually drawn will disagree on first load
 var TREND_METRIC_ISMONEY={signup:false,ftd:false,active:false,deposit:true};
 function switchTrendMetric(v){ trendMetric=v; renderAll(); }
 var SHEET_LINKS={}; // cur -> brand -> {sheetId, tab, rawUrl} · persisted via window.storage (shared)
@@ -814,16 +843,17 @@ function buildMockMonth(cur,brand,month){
     d.withdrawUsd=Math.round(d.withdraw*fx);
     d.promoUsd=Math.round(d.promo*fx);
     d.revenueUsd=Math.round(d.depositUsd-d.withdrawUsd-d.promoUsd);
+    d.revenueFilled=true; d.revenueUsdFilled=true; // sample data always "has" a revenue figure to show
     rows.push(d);
   }
   return rows;
 }
 
-function fmt(n){return n.toLocaleString('en-US');}
+function fmt(n){return (n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
 // n must already be the value picked for the given mode (local currency, or already-usd); this function only handles formatting + the currency symbol
 function money(n,mode){
-  if(mode==='usd') return '$'+fmt(Math.round(n||0));
-  return CUR_SYMBOL[currentCurrency]+' '+fmt(Math.round(n||0));
+  if(mode==='usd') return '$'+fmt(n||0);
+  return CUR_SYMBOL[currentCurrency]+' '+fmt(n||0);
 }
 // Picks the right numeric field (local or xxxUsd) from a row/summary object, based on displayMode
 function pickMoney(obj,field,mode){
@@ -953,7 +983,7 @@ function setDisplayCurrency(mode){
   renderAll();
 }
 
-var monthNames={Jan:'January',Feb:'February',Mar:'March'};
+var monthNames=MO_FULLNAME; // full 12-month names, already defined above — no need for a separate 3-month copy
 
 function showPage(id,el){
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
@@ -977,14 +1007,14 @@ function pct(cur,prev){
   if(!prev) return '—';
   var p=((cur-prev)/prev*100);
   var sign=p>=0?'+':'';
-  return sign+p.toFixed(1)+'%';
+  return sign+p.toFixed(2)+'%';
 }
 function pctCls(cur,prev){
   if(!prev) return '';
   return cur>=prev?'up':'dn';
 }
 function renderTrends(){
-  var months=['Jan','Feb','Mar'];
+  var months=MO_ORDER.slice(0, MO_ORDER.indexOf(currentMonth)+1); // Jan through whichever month is selected — grows as more months get data
   var monthly=months.map(function(m){
     var rows=getBrandSelectionRows_(currentCurrency,currentBrand,m).rows;
     return rows.reduce(function(a,r){
@@ -997,32 +1027,39 @@ function renderTrends(){
     },{month:m,signup:0,ftd:0,active:0,ftdAmt:0,ftdAmtUsd:0,turnover:0,turnoverUsd:0,deposit:0,withdraw:0,promo:0,revenue:0,revenueUsd:0});
   });
 
-  var last=monthly[monthly.length-1], prev=monthly[monthly.length-2];
+  var last=monthly[monthly.length-1], prev=monthly.length>1?monthly[monthly.length-2]:null;
+  document.getElementById('trend-chart-tag').textContent=months.length>1?(monthNames[months[0]]+' – '+monthNames[months[months.length-1]]+' comparison'):monthNames[months[0]];
   document.getElementById('trend-mom-kpis').innerHTML=
-    kpiCard('teal','Sign Up MoM',pct(last.signup,prev.signup),monthNames[last.month]+' vs '+monthNames[prev.month])+
-    kpiCard('gold','FTD MoM',pct(last.ftd,prev.ftd))+
-    kpiCard('green','Active Player MoM',pct(last.active,prev.active))+
-    kpiCard('purple','FTD Amount MoM',pct(pickMoney(last,'ftdAmt',displayMode),pickMoney(prev,'ftdAmt',displayMode)));
+    kpiCard('teal','Sign Up MoM',prev?pct(last.signup,prev.signup):'—',prev?(monthNames[last.month]+' vs '+monthNames[prev.month]):'no prior month yet')+
+    kpiCard('gold','FTD MoM',prev?pct(last.ftd,prev.ftd):'—')+
+    kpiCard('green','Active Player MoM',prev?pct(last.active,prev.active):'—')+
+    kpiCard('purple','FTD Amount MoM',prev?pct(pickMoney(last,'ftdAmt',displayMode),pickMoney(prev,'ftdAmt',displayMode)):'—');
 
   if(momChart) momChart.destroy();
   momChart=new Chart(document.getElementById('mom-chart').getContext('2d'),{
     type:'bar',
     data:{labels:monthly.map(function(m){return monthNames[m.month];}),datasets:[
-      {label:'Turnover',data:monthly.map(function(m){return pickMoney(m,'turnover',displayMode);}),backgroundColor:'#facc15',borderRadius:4},
-      {label:'Revenue',data:monthly.map(function(m){return pickMoney(m,'revenue',displayMode);}),backgroundColor:'#00e676',borderRadius:4}
+      {label:'Sign Up',data:monthly.map(function(m){return m.signup;}),backgroundColor:'#00b0ff',borderRadius:4,yAxisID:'y'},
+      {label:'FTD',data:monthly.map(function(m){return m.ftd;}),backgroundColor:'#facc15',borderRadius:4,yAxisID:'y'},
+      {label:'Active Player',data:monthly.map(function(m){return m.active;}),backgroundColor:'#9b7ff4',borderRadius:4,yAxisID:'y'},
+      {label:'FTD Amount',data:monthly.map(function(m){return pickMoney(m,'ftdAmt',displayMode);}),backgroundColor:'#00e676',borderRadius:4,yAxisID:'y1'}
     ]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:10,font:{size:10}}}},
-      scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:10}}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
+      scales:{
+        x:{grid:{display:false},ticks:{color:'#64748b',font:{size:10}}},
+        y:{position:'left',grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'Sign Up / FTD / Active',color:'#64748b',font:{size:9}}},
+        y1:{position:'right',grid:{display:false},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'FTD Amount',color:'#64748b',font:{size:9}}}
+      }}
   });
 
   document.getElementById('trend-table').innerHTML=
-    '<tr><th>Month</th><th>Sign Up</th><th>FTD</th><th>Active</th><th>Turnover</th><th>MoM %</th><th>Revenue</th><th>MoM %</th></tr>'+
+    '<tr><th>Month</th><th>Sign Up</th><th>MoM %</th><th>FTD</th><th>Active</th><th>FTD Amount</th><th>MoM %</th></tr>'+
     monthly.map(function(m,i){
       var p=monthly[i-1];
-      var turnoverPct=p?'<span class="'+pctCls(m.turnover,p.turnover)+'">'+pct(m.turnover,p.turnover)+'</span>':'—';
-      var revenuePct=p?'<span class="'+pctCls(m.revenue,p.revenue)+'">'+pct(m.revenue,p.revenue)+'</span>':'—';
-      return '<tr><td>'+monthNames[m.month]+'</td><td>'+fmt(m.signup)+'</td><td>'+fmt(m.ftd)+'</td><td>'+fmt(m.active)+'</td>'+
-        '<td>'+money(pickMoney(m,'turnover',displayMode),displayMode)+'</td><td>'+turnoverPct+'</td><td>'+money(pickMoney(m,'revenue',displayMode),displayMode)+'</td><td>'+revenuePct+'</td></tr>';
+      var signupPct=p?'<span class="'+pctCls(m.signup,p.signup)+'">'+pct(m.signup,p.signup)+'</span>':'—';
+      var ftdAmtPct=p?'<span class="'+pctCls(pickMoney(m,'ftdAmt',displayMode),pickMoney(p,'ftdAmt',displayMode))+'">'+pct(pickMoney(m,'ftdAmt',displayMode),pickMoney(p,'ftdAmt',displayMode))+'</span>':'—';
+      return '<tr><td>'+monthNames[m.month]+'</td><td>'+fmt(m.signup)+'</td><td>'+signupPct+'</td><td>'+fmt(m.ftd)+'</td><td>'+fmt(m.active)+'</td>'+
+        '<td>'+money(pickMoney(m,'ftdAmt',displayMode),displayMode)+'</td><td>'+ftdAmtPct+'</td></tr>';
     }).join('');
 }
 
@@ -1053,7 +1090,7 @@ function renderPeakBarList_(elId,items,fmtVal){
 
 // Peaks & Valleys, but across every brand under the current currency at once
 // (one row per brand), rather than the single selected brand — weekly view
-// covers the currently selected month, monthly view always spans Jan–Mar.
+// covers the currently selected month, monthly view always spans Jan through the selected month.
 function renderSalesPV(){
   var metric=document.getElementById('spv-metric').value;
   var isMoney=(metric==='turnover'||metric==='revenue');
@@ -1064,7 +1101,7 @@ function renderSalesPV(){
   // brand under this currency; picking one brand filters everything on this page
   // down to just that brand (tables collapse to one row, split charts to one line).
   var brands=currentBrand===ALL_BRANDS ? (BRANDS_BY_CURRENCY[cur]||[]) : [currentBrand];
-  var months=['Jan','Feb','Mar'];
+  var months=MO_ORDER.slice(0, MO_ORDER.indexOf(currentMonth)+1); // Jan through the selected month
   var selLabel=brandLabel_(currentBrand)==='All Brands' ? 'all brands' : currentBrand;
   ['spv-topw-tag','spv-topm-tag','spv-wtrend-tag','spv-mtrend-tag'].forEach(function(id){
     document.getElementById(id).textContent=selLabel;
@@ -1093,7 +1130,7 @@ function renderSalesPV(){
     }).join('');
   document.getElementById('spv-w-tag').textContent=monthNames[currentMonth]+' · by '+METRIC_LABEL[metric];
 
-  // ── per-brand monthly peak/valley, always Jan–Mar regardless of the month selector ──
+  // ── per-brand monthly peak/valley, Jan through the currently selected month ──
   var brandMonthData=brands.map(function(b){
     var monthly=months.map(function(m){
       var rows=getMonthRows(cur,b,m).rows;
@@ -1289,7 +1326,8 @@ function renderAll(){
     brandcomp:'🆚 Brand Comparison — '+currentCurrency
   };
   document.getElementById('pg-title').textContent=pgTitles[activePageId];
-  document.getElementById('pg-sub').textContent='Sample data · '+monthLabel+' · '+currentCurrency+' sheet';
+  var dataLabel=res.status==='ready'?'Live data':res.status==='mixed'?('Mixed data — '+res.liveCount+'/'+res.brandCount+' brands live'):res.status==='loading'?'Syncing…':res.status==='error'?'Sync error':'Sample data';
+  document.getElementById('pg-sub').textContent=dataLabel+' · '+monthLabel+' · '+currentCurrency+' sheet';
   document.getElementById('chart-tag').textContent=monthLabel+' · daily';
   document.getElementById('table-tag').textContent=monthLabel;
 
@@ -1301,22 +1339,28 @@ function renderAll(){
     a.withdraw+=r.withdraw;a.withdrawUsd+=r.withdrawUsd||0;
     a.promo+=r.promo;a.promoUsd+=r.promoUsd||0;
     a.revenue+=r.revenue;a.revenueUsd+=r.revenueUsd||0;
+    a.revenueFilled=a.revenueFilled||!!r.revenueFilled;
     return a;
-  },{signup:0,ftd:0,active:0,ftdAmt:0,ftdAmtUsd:0,turnover:0,turnoverUsd:0,deposit:0,depositUsd:0,withdraw:0,withdrawUsd:0,promo:0,promoUsd:0,revenue:0,revenueUsd:0});
+  },{signup:0,ftd:0,active:0,ftdAmt:0,ftdAmtUsd:0,turnover:0,turnoverUsd:0,deposit:0,depositUsd:0,withdraw:0,withdrawUsd:0,promo:0,promoUsd:0,revenue:0,revenueUsd:0,revenueFilled:false});
+
+  // Revenue is only shown at all when at least one day this month actually has a
+  // number in the Sheet's Revenue column — otherwise the KPI card and the whole
+  // table column just disappear instead of showing a wall of misleading zeros.
+  var showRevenue=sum.revenueFilled;
 
   document.getElementById('kpi-acq').innerHTML=
     kpiCard('teal','Total Sign Up',fmt(sum.signup))+
     kpiCard('gold','Total FTD',fmt(sum.ftd),'first-time deposit')+
     kpiCard('purple','Active Player',fmt(sum.active))+
     kpiCard('teal','FTD Amount',money(pickMoney(sum,'ftdAmt',displayMode),displayMode))+
-    kpiCard('green','FTD Conv. Rate',(sum.ftd/sum.signup*100).toFixed(1)+'%');
+    kpiCard('green','FTD Conv. Rate',(sum.ftd/sum.signup*100).toFixed(2)+'%');
 
   document.getElementById('kpi-fin').innerHTML=
     kpiCard('gold','Total Turnover',money(pickMoney(sum,'turnover',displayMode),displayMode))+
     kpiCard('teal','Total Deposit',money(pickMoney(sum,'deposit',displayMode),displayMode))+
     kpiCard('amber','Total Withdraw',money(pickMoney(sum,'withdraw',displayMode),displayMode))+
     kpiCard('red','Total Promotion',money(pickMoney(sum,'promo',displayMode),displayMode))+
-    kpiCard('green','Revenue',money(pickMoney(sum,'revenue',displayMode),displayMode),'deposit − withdraw − promo');
+    (showRevenue?kpiCard('green','Revenue',money(pickMoney(sum,'revenue',displayMode),displayMode)):'');
 
   // Chart
   var labels=rows.map(function(r){return r.date;});
@@ -1364,20 +1408,23 @@ function renderAll(){
     '<tr>'+
       '<th class="dt-date-hd" rowspan="2">Date</th>'+
       '<th class="dt-grp acq" colspan="4">● Acquisition</th>'+
-      '<th class="dt-grp fin" colspan="5">● Financials</th>'+
+      '<th class="dt-grp fin" colspan="'+(showRevenue?5:4)+'">● Financials</th>'+
     '</tr>'+
     '<tr>'+
       '<th class="dt-sub acq">Sign Up</th><th class="dt-sub acq">FTD</th><th class="dt-sub acq">Active</th><th class="dt-sub acq">FTD Amount</th>'+
-      '<th class="dt-sub fin">Turnover</th><th class="dt-sub fin">Deposit</th><th class="dt-sub fin">Withdraw</th><th class="dt-sub fin">Promotion</th><th class="dt-sub fin">Revenue</th>'+
+      '<th class="dt-sub fin">Turnover</th><th class="dt-sub fin">Deposit</th><th class="dt-sub fin">Withdraw</th><th class="dt-sub fin">Promotion</th>'+
+      (showRevenue?'<th class="dt-sub fin">Revenue</th>':'')+
     '</tr>'+
     rows.map(function(r){
       return '<tr><td>'+r.date+'</td><td>'+fmt(r.signup)+'</td><td>'+fmt(r.ftd)+'</td><td>'+fmt(r.active)+'</td>'+
         '<td>'+money(pickMoney(r,'ftdAmt',displayMode),displayMode)+'</td><td>'+money(pickMoney(r,'turnover',displayMode),displayMode)+'</td><td>'+money(pickMoney(r,'deposit',displayMode),displayMode)+'</td>'+
-        '<td>'+money(pickMoney(r,'withdraw',displayMode),displayMode)+'</td><td>'+money(pickMoney(r,'promo',displayMode),displayMode)+'</td><td>'+money(pickMoney(r,'revenue',displayMode),displayMode)+'</td></tr>';
+        '<td>'+money(pickMoney(r,'withdraw',displayMode),displayMode)+'</td><td>'+money(pickMoney(r,'promo',displayMode),displayMode)+'</td>'+
+        (showRevenue?('<td>'+(r.revenueFilled?money(pickMoney(r,'revenue',displayMode),displayMode):'—')+'</td>'):'')+'</tr>';
     }).join('')+
     '<tr class="dt-total"><td>TOTAL</td><td>'+fmt(sum.signup)+'</td><td>'+fmt(sum.ftd)+'</td><td>'+fmt(sum.active)+'</td>'+
       '<td>'+money(pickMoney(sum,'ftdAmt',displayMode),displayMode)+'</td><td>'+money(pickMoney(sum,'turnover',displayMode),displayMode)+'</td><td>'+money(pickMoney(sum,'deposit',displayMode),displayMode)+'</td>'+
-      '<td>'+money(pickMoney(sum,'withdraw',displayMode),displayMode)+'</td><td>'+money(pickMoney(sum,'promo',displayMode),displayMode)+'</td><td>'+money(pickMoney(sum,'revenue',displayMode),displayMode)+'</td></tr>';
+      '<td>'+money(pickMoney(sum,'withdraw',displayMode),displayMode)+'</td><td>'+money(pickMoney(sum,'promo',displayMode),displayMode)+'</td>'+
+      (showRevenue?('<td>'+money(pickMoney(sum,'revenue',displayMode),displayMode)+'</td>'):'')+'</tr>';
 
   if(!onOverview){
     if(document.getElementById('page-trends').classList.contains('active')) renderTrends();
@@ -1542,15 +1589,15 @@ function testBrandTab_(brand){
      period rather than copying whatever's currently on screen.
    - Single month and "full period" share one code path (no separate branches).
    - MoM baseline: a single month compares to the month right before it; the
-     full period (Jan–Mar) has no larger prior period, same as Jan on its own.
+     the full year (Jan–Dec) has no larger prior period, same as Jan on its own.
 */
-var REPORT_MONTHS=['Jan','Feb','Mar']; // the only months this framework's mock/month-select currently covers
+var REPORT_MONTHS=MO_ORDER.slice(); // full 12 months — matches the month selector now
 function expandExportMonths_(val){
   if(val==='all') return REPORT_MONTHS.slice();
   return [val];
 }
 function emptyAgg_(){
-  return {signup:0,ftd:0,active:0,ftdAmt:0,ftdAmtUsd:0,turnover:0,turnoverUsd:0,deposit:0,depositUsd:0,withdraw:0,withdrawUsd:0,promo:0,promoUsd:0,revenue:0,revenueUsd:0};
+  return {signup:0,ftd:0,active:0,ftdAmt:0,ftdAmtUsd:0,turnover:0,turnoverUsd:0,deposit:0,depositUsd:0,withdraw:0,withdrawUsd:0,promo:0,promoUsd:0,revenue:0,revenueUsd:0,revenueFilled:false,revenueUsdFilled:false};
 }
 function addRowToAgg_(agg,r){
   agg.signup+=r.signup; agg.ftd+=r.ftd; agg.active+=r.active;
@@ -1560,11 +1607,16 @@ function addRowToAgg_(agg,r){
   agg.withdraw+=r.withdraw; agg.withdrawUsd+=r.withdrawUsd||0;
   agg.promo+=r.promo; agg.promoUsd+=r.promoUsd||0;
   agg.revenue+=r.revenue; agg.revenueUsd+=r.revenueUsd||0;
+  agg.revenueFilled=agg.revenueFilled||!!r.revenueFilled;
+  agg.revenueUsdFilled=agg.revenueUsdFilled||!!r.revenueUsdFilled;
 }
 function sumAggs_(list){
   var out=emptyAgg_();
   list.forEach(function(a){
-    Object.keys(out).forEach(function(k){ out[k]+=a[k]||0; });
+    Object.keys(out).forEach(function(k){
+      if(k==='revenueFilled'||k==='revenueUsdFilled') out[k]=out[k]||!!a[k];
+      else out[k]+=a[k]||0;
+    });
   });
   return out;
 }
@@ -1572,7 +1624,7 @@ function pct_(cur,prev){
   if(!prev) return null;
   return (cur-prev)/prev*100;
 }
-function expMoney_(n,cur){ return CUR_SYMBOL[cur]+' '+fmt(Math.round(n||0)); }
+function expMoney_(n,cur){ return CUR_SYMBOL[cur]+' '+fmt(n||0); }
 
 // Sum every brand's rows for a currency across a set of months into one aggregate
 // per brand, tagging how many of those months actually had live Sheet data.
@@ -1674,9 +1726,9 @@ function buildMonthReportHtml_(cur,periodKey){
 
   var takeaways=[];
   if(mom){
-    if(mom.turnoverPct!=null) takeaways.push('Turnover '+(mom.turnoverPct>=0?'increased':'decreased')+' by '+Math.abs(mom.turnoverPct).toFixed(1)+'% vs '+prevPeriodLabel+' ('+expMoney_(overview.turnover,cur)+' vs '+expMoney_(prevOverview.turnover,cur)+').');
-    if(mom.revenuePct!=null) takeaways.push('Revenue '+(mom.revenuePct>=0?'increased':'decreased')+' by '+Math.abs(mom.revenuePct).toFixed(1)+'% vs '+prevPeriodLabel+' ('+expMoney_(overview.revenue,cur)+' vs '+expMoney_(prevOverview.revenue,cur)+').');
-    if(mom.ftdPct!=null) takeaways.push('FTD count '+(mom.ftdPct>=0?'grew':'declined')+' by '+Math.abs(mom.ftdPct).toFixed(1)+'% vs '+prevPeriodLabel+'.');
+    if(mom.turnoverPct!=null) takeaways.push('Turnover '+(mom.turnoverPct>=0?'increased':'decreased')+' by '+Math.abs(mom.turnoverPct).toFixed(2)+'% vs '+prevPeriodLabel+' ('+expMoney_(overview.turnover,cur)+' vs '+expMoney_(prevOverview.turnover,cur)+').');
+    if(mom.revenuePct!=null) takeaways.push('Revenue '+(mom.revenuePct>=0?'increased':'decreased')+' by '+Math.abs(mom.revenuePct).toFixed(2)+'% vs '+prevPeriodLabel+' ('+expMoney_(overview.revenue,cur)+' vs '+expMoney_(prevOverview.revenue,cur)+').');
+    if(mom.ftdPct!=null) takeaways.push('FTD count '+(mom.ftdPct>=0?'grew':'declined')+' by '+Math.abs(mom.ftdPct).toFixed(2)+'% vs '+prevPeriodLabel+'.');
     if(brandRanking.length) takeaways.push(brandRanking[0].brand+' led all '+cur+' brands in turnover this period.');
   } else {
     takeaways.push('This is the earliest period with data on file — no prior period comparison yet.');
@@ -1775,10 +1827,10 @@ var REPORT_STYLE_CSS=
 // dashboard or on Google Sheets being reachable.
 var REPORT_ENGINE_JS=[
 'var DATA = JSON.parse(document.getElementById("report-data").textContent);',
-'function fmt(n){ return Math.round(n||0).toLocaleString("en-US"); }',
+'function fmt(n){ return (n||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}); }',
 'function money(n){ return DATA.meta.curSymbol + " " + fmt(n); }',
-'function momSpan(p){ if(p==null) return ""; var cls = p>=0?"up":"dn"; var sign = p>=0?"+":""; return \'<span class="mom \'+cls+\'">\'+sign+p.toFixed(1)+\'% vs \'+DATA.prevPeriodLabel+\'</span>\'; }',
-'function kpi(lbl,val,momPct){ return \'<div class="rp-kpi"><div class="lbl">\'+lbl+\'</div><div class="val">\'+val+\'</div>\'+(momPct!=null?\'<div class="mom \'+(momPct>=0?"up":"dn")+\'">\'+(momPct>=0?"+":"")+momPct.toFixed(1)+"% vs "+DATA.prevPeriodLabel+\'</div>\':\'\')+\'</div>\'; }',
+'function momSpan(p){ if(p==null) return ""; var cls = p>=0?"up":"dn"; var sign = p>=0?"+":""; return \'<span class="mom \'+cls+\'">\'+sign+p.toFixed(2)+\'% vs \'+DATA.prevPeriodLabel+\'</span>\'; }',
+'function kpi(lbl,val,momPct){ return \'<div class="rp-kpi"><div class="lbl">\'+lbl+\'</div><div class="val">\'+val+\'</div>\'+(momPct!=null?\'<div class="mom \'+(momPct>=0?"up":"dn")+\'">\'+(momPct>=0?"+":"")+momPct.toFixed(2)+"% vs "+DATA.prevPeriodLabel+\'</div>\':\'\')+\'</div>\'; }',
 'var app=document.getElementById("app");',
 'var html="";',
 'html+=\'<div class="rp-hd"><h1>\'+DATA.meta.currency+\' — \'+DATA.meta.periodLabel+\' Report</h1><div class="sub">Generated \'+new Date(DATA.meta.generatedAt).toLocaleString()+\'</div></div>\';',
