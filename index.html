@@ -280,7 +280,7 @@ table.dt td.pv-brand{font-weight:800}
     <div class="topbar">
       <div>
         <div class="pg-title" id="pg-title">💰 Sales Overview — Crickex</div>
-        <div class="pg-sub" id="pg-sub">Sample data · January · PKR sheet</div>
+        <div class="pg-sub" id="pg-sub">No data · January · PKR sheet</div>
       </div>
       <div class="tb-right">
         <select class="exp-sel" id="export-month-sel">
@@ -303,7 +303,7 @@ table.dt td.pv-brand{font-weight:800}
           <button class="active" id="btn-pkr" onclick="setDisplayCurrency('local')">PKR</button>
           <button id="btn-usd" onclick="setDisplayCurrency('usd')">USD</button>
         </div>
-        <span class="live-badge off" id="live-badge">SAMPLE</span>
+        <span class="live-badge off" id="live-badge">NO DATA</span>
         <button class="ref-btn" id="ref-btn" onclick="refreshCurrent()"><i class="fa-solid fa-rotate-right"></i> <span id="ref-btn-label">Refresh (no source)</span></button>
       </div>
     </div>
@@ -730,16 +730,16 @@ function getMonthRows(cur,brand,month){
     if(entry.status==='ready'){
       var blocks=findMonthBlocks_(entry.rawRows);
       if(blocks[month]===undefined){
-        return {rows:buildMockMonth(cur,brand,month),live:false,status:'error',
+        return {rows:emptyMonthRows_(month),live:false,status:'error',
           error:'Could not find the "'+MO_FULLNAME[month]+'" month block title in the Sheet'};
       }
       var parsed=parseMonthBlock_(entry.rawRows,blocks[month],month).map(normalizeRealRow_);
       return {rows:parsed,live:true,status:'ready'};
     }
-    if(entry.status==='error') return {rows:buildMockMonth(cur,brand,month),live:false,status:'error',error:entry.error};
-    return {rows:buildMockMonth(cur,brand,month),live:false,status:'loading'};
+    if(entry.status==='error') return {rows:emptyMonthRows_(month),live:false,status:'error',error:entry.error};
+    return {rows:emptyMonthRows_(month),live:false,status:'loading'};
   }
-  return {rows:buildMockMonth(cur,brand,month),live:false,status:'none'};
+  return {rows:emptyMonthRows_(month),live:false,status:'none'};
 }
 
 // Same {rows,live,status,error} shape as getMonthRows, but when brandSel is the
@@ -791,7 +791,7 @@ var BRANDS_BY_CURRENCY={
   PKR:['Crickex','Betjili','Mostplay','Heybaji','Darazplay','Jeetwin','Superbaji','KV8','Sbj66'],
   PHP:['Betjili','Betvisa']
 };
-var FX={BDT:0.0084,PKR:0.0036,INR:0.012,PHP:0.017}; // only used to estimate USD for sample data; real data always prefers the Sheet's own USD columns instead of this rate
+var FX={BDT:0.0084,PKR:0.0036,INR:0.012,PHP:0.017}; // only used to estimate USD for the zero-filled placeholder rows shown before a brand is connected; real data always prefers the Sheet's own USD columns instead of this rate
 var CUR_SYMBOL={BDT:'৳',PKR:'Rs.',INR:'₹',PHP:'₱'};
 
 var currentCurrency='PKR';
@@ -804,47 +804,27 @@ var TREND_METRIC_ISMONEY={signup:false,ftd:false,active:false,deposit:true};
 function switchTrendMetric(v){ trendMetric=v; renderAll(); }
 var SHEET_LINKS={}; // cur -> brand -> {sheetId, tab, rawUrl} · persisted via window.storage (shared)
 
-function seedFor(cur,brand,month){
-  // deterministic pseudo-random mock generator so switching is stable per combo
-  var seedStr=cur+brand+month, h=0;
-  for(var i=0;i<seedStr.length;i++){h=(h*31+seedStr.charCodeAt(i))>>>0;}
-  return function(){ h=(h*1103515245+12345)>>>0; return (h%1000)/1000; };
-}
-
-function genDay(rand,base){
-  return {
-    signup: Math.round(base.signup*(0.6+rand()*0.8)),
-    ftd: Math.round(base.ftd*(0.6+rand()*0.8)),
-    active: Math.round(base.active*(0.7+rand()*0.6)),
-    ftdAmt: Math.round(base.ftdAmt*(0.6+rand()*0.8)),
-    turnover: Math.round(base.turnover*(0.7+rand()*0.6)),
-    deposit: Math.round(base.deposit*(0.7+rand()*0.6)),
-    withdraw: Math.round(base.withdraw*(0.6+rand()*0.8)),
-    promo: Math.round(base.promo*(0.6+rand()*0.8)),
-    revenue: 0
-  };
-}
-
-function buildMockMonth(cur,brand,month){
-  var rand=seedFor(cur,brand,month);
-  var base={signup:120,ftd:35,active:600,ftdAmt:4200,turnover:1800000,deposit:520000,withdraw:410000,promo:38000};
-  var scale=cur==='PKR'?1:(cur==='INR'?0.8:cur==='BDT'?0.7:0.5);
-  Object.keys(base).forEach(function(k){base[k]=Math.round(base[k]*scale);});
+// Not-connected / not-yet-fetched brands used to fall back to invented "sample
+// data" that looked plausible enough to be mistaken for real numbers (this is
+// exactly what happened when one un-connected brand's mock data inflated an
+// "All Brands" total). Now they fall back to honest zeros instead — the UI's
+// status badges (LIVE / MIXED / NOT CONNECTED / SYNC ERROR) are what tell you
+// whether what you're looking at is real.
+function emptyMonthRows_(month){
   var days=daysInMonth_(month);
   var rows=[];
   for(var i=1;i<=days;i++){
-    var d=genDay(rand,base);
-    d.revenue=Math.round(d.deposit-d.withdraw-d.promo);
-    d.date=month+'-'+i;
-    var fx=FX[cur];
-    d.ftdAmtUsd=Math.round(d.ftdAmt*fx);
-    d.turnoverUsd=Math.round(d.turnover*fx);
-    d.depositUsd=Math.round(d.deposit*fx);
-    d.withdrawUsd=Math.round(d.withdraw*fx);
-    d.promoUsd=Math.round(d.promo*fx);
-    d.revenueUsd=Math.round(d.depositUsd-d.withdrawUsd-d.promoUsd);
-    d.revenueFilled=true; d.revenueUsdFilled=true; // sample data always "has" a revenue figure to show
-    rows.push(d);
+    rows.push({
+      date:month+'-'+i,
+      signup:0,ftd:0,active:0,
+      ftdAmt:0,ftdAmtUsd:0,
+      turnover:0,turnoverUsd:0,
+      deposit:0,depositUsd:0,
+      withdraw:0,withdrawUsd:0,
+      promo:0,promoUsd:0,
+      revenue:0,revenueUsd:0,
+      revenueFilled:false,revenueUsdFilled:false
+    });
   }
   return rows;
 }
@@ -1289,7 +1269,7 @@ function updateLiveBadges_(res){
   } else if(res.status==='mixed'){
     badge.classList.add('loading'); badge.textContent='MIXED';
     box.classList.add('st-loading'); lbl.textContent='PARTIALLY CONNECTED';
-    sub.textContent=res.liveCount+' of '+res.brandCount+' brands are live, the rest are showing sample data';
+    sub.textContent=res.liveCount+' of '+res.brandCount+' brands are live, the rest are showing no data yet';
     refBtn.classList.add('live'); refLbl.textContent='Refresh live data';
   } else if(res.status==='loading'){
     badge.classList.add('loading'); badge.textContent='SYNCING…';
@@ -1302,7 +1282,7 @@ function updateLiveBadges_(res){
     sub.textContent=res.error||'Fetch failed';
     refBtn.classList.add('live'); refLbl.textContent='Retry';
   } else {
-    badge.classList.add('off'); badge.textContent='SAMPLE';
+    badge.classList.add('off'); badge.textContent='NO DATA';
     lbl.textContent='NOT CONNECTED';
     sub.textContent='Awaiting Sheet link for '+brandTxt+' · '+currentCurrency;
     refBtn.classList.remove('live'); refLbl.textContent='Refresh (no source)';
@@ -1326,7 +1306,7 @@ function renderAll(){
     brandcomp:'🆚 Brand Comparison — '+currentCurrency
   };
   document.getElementById('pg-title').textContent=pgTitles[activePageId];
-  var dataLabel=res.status==='ready'?'Live data':res.status==='mixed'?('Mixed data — '+res.liveCount+'/'+res.brandCount+' brands live'):res.status==='loading'?'Syncing…':res.status==='error'?'Sync error':'Sample data';
+  var dataLabel=res.status==='ready'?'Live data':res.status==='mixed'?('Mixed data — '+res.liveCount+'/'+res.brandCount+' brands live'):res.status==='loading'?'Syncing…':res.status==='error'?'Sync error':'No data';
   document.getElementById('pg-sub').textContent=dataLabel+' · '+monthLabel+' · '+currentCurrency+' sheet';
   document.getElementById('chart-tag').textContent=monthLabel+' · daily';
   document.getElementById('table-tag').textContent=monthLabel;
@@ -1353,7 +1333,7 @@ function renderAll(){
     kpiCard('gold','Total FTD',fmt(sum.ftd),'first-time deposit')+
     kpiCard('purple','Active Player',fmt(sum.active))+
     kpiCard('teal','FTD Amount',money(pickMoney(sum,'ftdAmt',displayMode),displayMode))+
-    kpiCard('green','FTD Conv. Rate',(sum.ftd/sum.signup*100).toFixed(2)+'%');
+    kpiCard('green','FTD Conv. Rate',sum.signup>0?(sum.ftd/sum.signup*100).toFixed(2)+'%':'—');
 
   document.getElementById('kpi-fin').innerHTML=
     kpiCard('gold','Total Turnover',money(pickMoney(sum,'turnover',displayMode),displayMode))+
@@ -1486,7 +1466,7 @@ function renderSettings(){
   var cfg=SHEET_LINKS[cur]||{};
   var statusHtml=cfg.sheetId
     ? '<div class="md-status on">✓ Saved — Sheet ID: '+cfg.sheetId+'</div>'
-    : '<div class="md-status off">Not configured — every brand under '+cur+' is using sample data</div>';
+    : '<div class="md-status off">Not configured — every brand under '+cur+' shows no data yet</div>';
 
   var brandsHtml=(BRANDS_BY_CURRENCY[cur]||[]).map(function(brand){
     var st=statusForBrand_(cur,brand);
@@ -1499,6 +1479,15 @@ function renderSettings(){
       '<button class="brand-row-btn" title="Test connection" onclick="testBrandTab_(\''+brand+'\')"><i class="fa-solid fa-rotate"></i></button>'+
       '</div>';
   }).join('');
+
+  // Re-rendering replaces the whole brand list's markup, which would otherwise
+  // reset its scroll position to the top every time — very annoying when you're
+  // working your way down a 17-brand list filling in Tab names one at a time.
+  // Grab the old scroll position(s) before the swap, restore them after.
+  var oldList=document.querySelector('#settings-body .brand-row-list');
+  var listScroll=oldList?oldList.scrollTop:0;
+  var oldBody=document.getElementById('settings-body');
+  var bodyScroll=oldBody?oldBody.parentElement.scrollTop:0;
 
   document.getElementById('settings-body').innerHTML=
     '<div class="md-brand-title">'+cur+' Sheet</div>'+
@@ -1514,6 +1503,11 @@ function renderSettings(){
     '<div class="md-label" style="margin-top:20px;margin-bottom:8px">Brand tab names — '+cur+'</div>'+
     '<div class="md-hint" style="margin-bottom:8px">Defaults to the brand name shown below. Only fill this in if the Sheet\'s actual tab label is different (case-sensitive) — e.g. "Sbi66" instead of "SBJ66".</div>'+
     '<div class="brand-row-list">'+brandsHtml+'</div>';
+
+  var newList=document.querySelector('#settings-body .brand-row-list');
+  if(newList) newList.scrollTop=listScroll;
+  var newBody=document.getElementById('settings-body');
+  if(newBody&&newBody.parentElement) newBody.parentElement.scrollTop=bodyScroll;
 }
 
 function saveCurrencySheet_(){
@@ -1565,9 +1559,17 @@ function saveBrandTab_(inputEl){
   var newTab=tabNameFor_(cur,brand);
   if(oldTab!==newTab) delete sheetTabCache[sheetTabKey_(cfg.sheetId,oldTab)];
   persistSheetLinks();
-  getSheetTabData(cfg.sheetId,newTab); // trigger a fetch right away
-  renderSettings();
+  getSheetTabData(cfg.sheetId,newTab); // trigger a fetch right away — onSheetDataUpdated() will refresh the dot once it resolves
+  updateBrandRowDot_(inputEl,cur,brand); // update just this row's status dot instead of rebuilding the whole list — keeps scroll position and focus intact while you're filling in several brands in a row
   renderAll();
+}
+
+function updateBrandRowDot_(inputEl,cur,brand){
+  var row=inputEl.closest?inputEl.closest('.brand-row'):null;
+  var dot=row?row.querySelector('.mb-dot'):null;
+  if(!dot) return;
+  var st=statusForBrand_(cur,brand);
+  dot.className='mb-dot '+((st==='ready')?'on':(st==='error')?'error':(st==='loading')?'loading':'');
 }
 
 function testBrandTab_(brand){
@@ -1733,9 +1735,9 @@ function buildMonthReportHtml_(cur,periodKey){
   } else {
     takeaways.push('This is the earliest period with data on file — no prior period comparison yet.');
   }
-  var sampleBrands=brandRanking.filter(function(b){return !b.live;});
-  if(sampleBrands.length){
-    takeaways.push('⚠️ '+sampleBrands.length+' of '+brands.length+' brand(s) are showing sample data — connect their Sheet link for accurate figures: '+sampleBrands.map(function(b){return b.brand;}).join(', ')+'.');
+  var unconnectedBrands=brandRanking.filter(function(b){return !b.live;});
+  if(unconnectedBrands.length){
+    takeaways.push('⚠️ '+unconnectedBrands.length+' of '+brands.length+' brand(s) have no data yet — connect their Sheet link for accurate figures: '+unconnectedBrands.map(function(b){return b.brand;}).join(', ')+'.');
   }
   if(!takeaways.length) takeaways.push('Not enough data available yet to generate takeaways.');
 
@@ -1817,7 +1819,7 @@ var REPORT_STYLE_CSS=
   'table{width:100%;border-collapse:collapse;font-size:11px}th{text-align:left;color:var(--muted);text-transform:uppercase;font-size:9px;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;user-select:none}'+
   'td{padding:8px 10px;border-bottom:1px solid var(--border)}tr:last-child td{border-bottom:none}'+
   '.badge{font-size:8px;font-weight:800;padding:2px 6px;border-radius:4px;letter-spacing:.04em}'+
-  '.badge.live{background:rgba(0,230,118,.14);color:var(--green)}.badge.sample{background:rgba(255,64,129,.14);color:var(--red)}'+
+  '.badge.live{background:rgba(0,230,118,.14);color:var(--green)}.badge.nodata{background:rgba(255,64,129,.14);color:var(--red)}'+
   '.pos{color:var(--green)}.neg{color:var(--red)}'+
   '.rp-list{list-style:none;padding:0;margin:0}.rp-list li{padding:10px 0;border-bottom:1px solid var(--border);font-size:12px;line-height:1.6}.rp-list li:last-child{border-bottom:none}'+
   '.rp-foot{color:var(--muted);font-size:10px;margin-top:30px;text-align:center}';
@@ -1845,7 +1847,7 @@ var REPORT_ENGINE_JS=[
 '  \'</div>\';',
 'html+=\'<div class="rp-panel"><h2>Turnover &amp; Revenue Trend</h2><canvas id="trendChart" height="90"></canvas></div>\';',
 'var brandRows=DATA.brandRanking.map(function(b){',
-'  var badge = b.live ? \'<span class="badge live">LIVE</span>\' : (b.partialLive ? \'<span class="badge sample">PARTIAL</span>\' : \'<span class="badge sample">SAMPLE</span>\');',
+'  var badge = b.live ? \'<span class="badge live">LIVE</span>\' : (b.partialLive ? \'<span class="badge nodata">PARTIAL</span>\' : \'<span class="badge nodata">NO DATA</span>\');',
 '  return \'<tr><td>\'+b.brand+\'</td><td>\'+badge+\'</td><td>\'+fmt(b.signup)+\'</td><td>\'+fmt(b.ftd)+\'</td><td>\'+money(b.turnover)+\'</td><td>\'+money(b.deposit)+\'</td><td>\'+money(b.withdraw)+\'</td><td>\'+money(b.revenue)+\'</td><td>\'+(b.turnoverMomPct!=null?momSpan(b.turnoverMomPct):"—")+\'</td></tr>\';',
 '}).join("");',
 'html+=\'<div class="rp-panel"><h2>Brand Ranking (by Turnover)</h2><div style="overflow-x:auto"><table><tr><th>Brand</th><th>Source</th><th>Signup</th><th>FTD</th><th>Turnover</th><th>Deposit</th><th>Withdraw</th><th>Revenue</th><th>Turnover MoM</th></tr>\'+brandRows+\'</table></div></div>\';',
