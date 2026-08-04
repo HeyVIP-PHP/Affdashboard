@@ -131,12 +131,12 @@ table.dt td{padding:7px 10px;border-bottom:1px solid var(--border);font-family:v
 .ph-daycount{font-size:9px;color:var(--dim);font-weight:600;margin-left:8px;text-transform:none;letter-spacing:0}
 .dt-scroll{max-height:440px;overflow-y:auto}
 .dt-grp{text-align:center!important;font-size:9px}
-.dt-grp.acq{background:var(--teal-d);color:var(--teal);position:sticky;top:0;z-index:2}
-.dt-grp.fin{background:var(--gold-d);color:var(--gold);position:sticky;top:0;z-index:2}
-.dt-date-hd{position:sticky;top:0;z-index:3;background:var(--card);vertical-align:bottom}
-.dt-sub.acq{position:sticky;top:29px;z-index:2;background:var(--card);border-bottom:2px solid var(--teal)}
-.dt-sub.fin{position:sticky;top:29px;z-index:2;background:var(--card);border-bottom:2px solid var(--gold)}
-tr.dt-total td{font-weight:800;background:var(--card);border-top:2px solid var(--border2);border-bottom:none;position:sticky;bottom:0}
+.dt-grp.acq{background:var(--teal-d);color:var(--teal)}
+.dt-grp.fin{background:var(--gold-d);color:var(--gold)}
+.dt-date-hd{background:var(--card);vertical-align:bottom}
+.dt-sub.acq{background:var(--card);border-bottom:2px solid var(--teal)}
+.dt-sub.fin{background:var(--card);border-bottom:2px solid var(--gold)}
+tr.dt-total td{font-weight:800;background:var(--card);border-top:2px solid var(--border2);border-bottom:none}
 tr.dt-total td:first-child{color:var(--gold)}
 table.dt tbody tr:hover{background:rgba(255,255,255,.02)}
 .up{color:var(--green);font-weight:700}
@@ -351,11 +351,11 @@ table.dt td.pv-brand{font-weight:800}
       <div class="panel ag">
         <div class="ph">
           <span class="ph-t"><span>📈</span><select class="fsel" id="trend-metric-sel" onchange="switchTrendMetric(this.value)">
-            <option value="all">All (Sign Up, FTD, Active, Deposit)</option>
+            <option value="all">All</option>
             <option value="signup">Total Sign Up</option>
             <option value="ftd">Total FTD</option>
             <option value="active">Active Player</option>
-            <option value="deposit">Total Deposit</option>
+            <option value="ftdAmt">FTD Amount</option>
           </select></span>
           <span class="ph-tag" id="chart-tag">January · daily</span>
         </div>
@@ -376,7 +376,7 @@ table.dt td.pv-brand{font-weight:800}
       <div class="kpi-grid g4" id="trend-mom-kpis"></div>
 
       <div class="panel ag">
-        <div class="ph"><span>📊</span><span class="ph-t">Sign Up, FTD, Active &amp; FTD Amount by Month</span><span class="ph-tag" id="trend-chart-tag">Jan – Mar comparison</span></div>
+        <div class="ph"><span>📊</span><span class="ph-t">Sign Up, FTD, Active &amp; FTD Amount</span><span class="ph-tag" id="trend-chart-tag">Jan – Mar comparison</span></div>
         <div class="cw" style="height:260px"><canvas id="mom-chart"></canvas></div>
       </div>
 
@@ -799,8 +799,8 @@ var currentBrand='Crickex';
 var currentMonth='Jan';
 var displayMode='local'; // 'local' | 'usd'
 var trendChart=null;
-var trendMetric='all'; // 'all' | 'signup' | 'ftd' | 'active' | 'deposit' — must match the <select>'s first/default <option>, or the label shown and the chart actually drawn will disagree on first load
-var TREND_METRIC_ISMONEY={signup:false,ftd:false,active:false,deposit:true};
+var trendMetric='all'; // 'all' | 'signup' | 'ftd' | 'active' | 'ftdAmt' — must match the <select>'s first/default <option>, or the label shown and the chart actually drawn will disagree on first load
+var TREND_METRIC_ISMONEY={signup:false,ftd:false,active:false,ftdAmt:true};
 function switchTrendMetric(v){ trendMetric=v; renderAll(); }
 var SHEET_LINKS={}; // cur -> brand -> {sheetId, tab, rawUrl} · persisted via window.storage (shared)
 
@@ -974,7 +974,7 @@ function showPage(id,el){
     overview:'💰 Sales Overview — '+brandLabel_(currentBrand),
     trends:'📈 Trends — '+brandLabel_(currentBrand),
     salespv:'🏔️ Sales Peaks & Valleys — '+brandLabel_(currentBrand),
-    brandcomp:'🆚 Brand Comparison — '+currentCurrency
+    brandcomp:'🆚 Brand Comparison — '+brandLabel_(currentBrand)
   };
   document.getElementById('pg-title').textContent=titles[id];
   if(id==='trends') renderTrends();
@@ -1008,7 +1008,7 @@ function renderTrends(){
   });
 
   var last=monthly[monthly.length-1], prev=monthly.length>1?monthly[monthly.length-2]:null;
-  document.getElementById('trend-chart-tag').textContent=months.length>1?(monthNames[months[0]]+' – '+monthNames[months[months.length-1]]+' comparison'):monthNames[months[0]];
+  document.getElementById('trend-chart-tag').textContent=monthNames[currentMonth];
   document.getElementById('trend-mom-kpis').innerHTML=
     kpiCard('teal','Sign Up MoM',prev?pct(last.signup,prev.signup):'—',prev?(monthNames[last.month]+' vs '+monthNames[prev.month]):'no prior month yet')+
     kpiCard('gold','FTD MoM',prev?pct(last.ftd,prev.ftd):'—')+
@@ -1018,11 +1018,11 @@ function renderTrends(){
   if(momChart) momChart.destroy();
   momChart=new Chart(document.getElementById('mom-chart').getContext('2d'),{
     type:'bar',
-    data:{labels:monthly.map(function(m){return monthNames[m.month];}),datasets:[
-      {label:'Sign Up',data:monthly.map(function(m){return m.signup;}),backgroundColor:'#00b0ff',borderRadius:4,yAxisID:'y'},
-      {label:'FTD',data:monthly.map(function(m){return m.ftd;}),backgroundColor:'#facc15',borderRadius:4,yAxisID:'y'},
-      {label:'Active Player',data:monthly.map(function(m){return m.active;}),backgroundColor:'#9b7ff4',borderRadius:4,yAxisID:'y'},
-      {label:'FTD Amount',data:monthly.map(function(m){return pickMoney(m,'ftdAmt',displayMode);}),backgroundColor:'#00e676',borderRadius:4,yAxisID:'y1'}
+    data:{labels:[monthNames[currentMonth]],datasets:[
+      {label:'Sign Up',data:[last.signup],backgroundColor:'#00b0ff',borderRadius:4,yAxisID:'y'},
+      {label:'FTD',data:[last.ftd],backgroundColor:'#facc15',borderRadius:4,yAxisID:'y'},
+      {label:'Active Player',data:[last.active],backgroundColor:'#9b7ff4',borderRadius:4,yAxisID:'y'},
+      {label:'FTD Amount',data:[pickMoney(last,'ftdAmt',displayMode)],backgroundColor:'#00e676',borderRadius:4,yAxisID:'y1'}
     ]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:10,font:{size:10}}}},
       scales:{
@@ -1213,7 +1213,9 @@ function renderSalesPV(){
 var bcChart=null;
 function renderBrandComparison(){
   var metric=document.getElementById('bc-metric').value;
-  var brands=BRANDS_BY_CURRENCY[currentCurrency];
+  // Same rule as Sales Peaks & Valleys: "All Brands" compares everyone under this
+  // currency; picking one brand filters this page down to just that brand.
+  var brands=currentBrand===ALL_BRANDS ? BRANDS_BY_CURRENCY[currentCurrency] : [currentBrand];
   var thisMonthIdx=MO_ORDER.indexOf(currentMonth);
   var lastMonth=thisMonthIdx>0?MO_ORDER[thisMonthIdx-1]:'Dec';
   document.getElementById('bc-months-lbl').textContent=monthNames[currentMonth]+' vs '+(monthNames[lastMonth]||lastMonth);
@@ -1303,7 +1305,7 @@ function renderAll(){
     overview:'💰 Sales Overview — '+brandLabel_(currentBrand),
     trends:'📈 Trends — '+brandLabel_(currentBrand),
     salespv:'🏔️ Sales Peaks & Valleys — '+brandLabel_(currentBrand),
-    brandcomp:'🆚 Brand Comparison — '+currentCurrency
+    brandcomp:'🆚 Brand Comparison — '+brandLabel_(currentBrand)
   };
   document.getElementById('pg-title').textContent=pgTitles[activePageId];
   var dataLabel=res.status==='ready'?'Live data':res.status==='mixed'?('Mixed data — '+res.liveCount+'/'+res.brandCount+' brands live'):res.status==='loading'?'Syncing…':res.status==='error'?'Sync error':'No data';
@@ -1345,23 +1347,23 @@ function renderAll(){
   // Chart
   var labels=rows.map(function(r){return r.date;});
   if(trendChart) trendChart.destroy();
-  var lblMap={signup:'Total Sign Up',ftd:'Total FTD',active:'Active Player',deposit:'Total Deposit'};
-  var colorMap={signup:'#00b0ff',ftd:'#facc15',active:'#9b7ff4',deposit:'#00e676'};
+  var lblMap={signup:'Total Sign Up',ftd:'Total FTD',active:'Active Player',ftdAmt:'FTD Amount'};
+  var colorMap={signup:'#00b0ff',ftd:'#facc15',active:'#9b7ff4',ftdAmt:'#00e676'};
   var trendDatasets, trendScales;
   if(trendMetric==='all'){
-    // Deposit is money-scaled (hundreds of thousands) vs. the other three being
-    // simple counts (tens/hundreds) — sharing one axis would flatten Sign Up/FTD/
-    // Active into a flat line near zero, so Deposit gets its own axis on the right.
-    trendDatasets=['signup','ftd','active','deposit'].map(function(k){
+    // FTD Amount is money-scaled (thousands) vs. the other three being simple
+    // counts (tens/hundreds) — sharing one axis would flatten Sign Up/FTD/Active
+    // into a flat line near zero, so FTD Amount gets its own axis on the right.
+    trendDatasets=['signup','ftd','active','ftdAmt'].map(function(k){
       var isMoney=TREND_METRIC_ISMONEY[k];
       return {label:lblMap[k],data:rows.map(function(r){return isMoney?pickMoney(r,k,displayMode):r[k];}),
         borderColor:colorMap[k],backgroundColor:colorMap[k]+'1a',fill:false,tension:.35,pointRadius:0,borderWidth:2,
-        yAxisID:(k==='deposit'?'y1':'y')};
+        yAxisID:(k==='ftdAmt'?'y1':'y')};
     });
     trendScales={
       x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:8},autoSkip:false,maxRotation:60,minRotation:60}},
       y:{position:'left',grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'Sign Up / FTD / Active',color:'#64748b',font:{size:9}}},
-      y1:{position:'right',grid:{display:false},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'Deposit',color:'#64748b',font:{size:9}}}
+      y1:{position:'right',grid:{display:false},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'FTD Amount',color:'#64748b',font:{size:9}}}
     };
   } else {
     var isMoney=TREND_METRIC_ISMONEY[trendMetric];
