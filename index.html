@@ -989,19 +989,20 @@ function renderTrends(){
     var rows=getBrandSelectionRows_(currentCurrency,currentBrand,m).rows;
     return rows.reduce(function(a,r){
       a.signup+=r.signup;a.ftd+=r.ftd;a.active+=r.active;
+      a.ftdAmt+=r.ftdAmt;a.ftdAmtUsd+=r.ftdAmtUsd||0;
       a.turnover+=r.turnover;a.turnoverUsd+=r.turnoverUsd||0;
       a.deposit+=r.deposit;a.withdraw+=r.withdraw;a.promo+=r.promo;
       a.revenue+=r.revenue;a.revenueUsd+=r.revenueUsd||0;
       return a;
-    },{month:m,signup:0,ftd:0,active:0,turnover:0,turnoverUsd:0,deposit:0,withdraw:0,promo:0,revenue:0,revenueUsd:0});
+    },{month:m,signup:0,ftd:0,active:0,ftdAmt:0,ftdAmtUsd:0,turnover:0,turnoverUsd:0,deposit:0,withdraw:0,promo:0,revenue:0,revenueUsd:0});
   });
 
   var last=monthly[monthly.length-1], prev=monthly[monthly.length-2];
   document.getElementById('trend-mom-kpis').innerHTML=
     kpiCard('teal','Sign Up MoM',pct(last.signup,prev.signup),monthNames[last.month]+' vs '+monthNames[prev.month])+
     kpiCard('gold','FTD MoM',pct(last.ftd,prev.ftd))+
-    kpiCard('green','Turnover MoM',pct(last.turnover,prev.turnover))+
-    kpiCard('purple','Revenue MoM',pct(last.revenue,prev.revenue));
+    kpiCard('green','Active Player MoM',pct(last.active,prev.active))+
+    kpiCard('purple','FTD Amount MoM',pct(pickMoney(last,'ftdAmt',displayMode),pickMoney(prev,'ftdAmt',displayMode)));
 
   if(momChart) momChart.destroy();
   momChart=new Chart(document.getElementById('mom-chart').getContext('2d'),{
@@ -1135,7 +1136,7 @@ function renderSalesPV(){
   // ── Brand Weekly Split — multi-line so each brand's shape is easy to follow,
   //    hovering anywhere on a week shows every brand's value for that week at once ──
   document.getElementById('spv-wsplit-tag').textContent=monthNames[currentMonth]+' · by brand';
-  var weekLabels=weekTotals.map(function(w){return w.label;});
+  var weekLabels=weekTotals.map(function(w){return w.range?[w.label,w.range]:w.label;});
   if(spvWeekSplitChart) spvWeekSplitChart.destroy();
   spvWeekSplitChart=new Chart(document.getElementById('spv-wsplit-chart').getContext('2d'),{
     type:'line',
