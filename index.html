@@ -125,17 +125,19 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 .collapsed-panel .cp-tag{font-size:9px;font-family:var(--mono)}
 
 /* TABLE */
-table.dt{width:100%;border-collapse:collapse;font-size:11px}
+table.dt{width:100%;border-collapse:separate;border-spacing:0;font-size:11px}
 table.dt th{text-align:left;padding:8px 10px;color:var(--muted);font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border);white-space:nowrap}
 table.dt td{padding:7px 10px;border-bottom:1px solid var(--border);font-family:var(--mono);white-space:nowrap}
 .ph-daycount{font-size:9px;color:var(--dim);font-weight:600;margin-left:8px;text-transform:none;letter-spacing:0}
 .dt-scroll{max-height:440px;overflow-y:auto;overflow-x:auto}
 .dt-grp{text-align:center!important;font-size:9px}
-/* Deliberately NOT sticky. Tried it twice, both times it visually broke (data
-   rows showing through the header while scrolling) in ways that couldn't be
-   verified or reproduced in the sandbox before shipping. A normal header that
-   scrolls away with the content is reliable everywhere — not worth the risk
-   for a "stays pinned while scrolling" nicety. */
+/* Third attempt at a frozen header, different technique: stick the whole
+   <thead> as ONE unit instead of positioning each header row/cell separately
+   with a hand-calculated "top" offset — that per-row math is what broke the
+   previous two attempts (any tiny mismatch in row height let data show through
+   the header while scrolling). Sticking the thead as a single block means its
+   two rows just flow normally inside it; there's no offset to get wrong. */
+.dt-scroll table.dt thead{position:sticky;top:0;z-index:2}
 .dt-grp.acq{background:var(--teal-d);color:var(--teal)}
 .dt-grp.fin{background:var(--gold-d);color:var(--gold)}
 .dt-date-hd{background:var(--card);vertical-align:bottom}
@@ -391,7 +393,12 @@ table.dt td.pv-brand{font-weight:800}
       </div>
 
       <div class="panel">
-        <div class="ph"><span>📋</span><span class="ph-t">Daily Breakdown<span class="ph-daycount" id="trend-daily-daycount">· 31 days</span></span><span class="ph-tag" id="trend-daily-tag">January</span></div>
+        <div class="ph"><span>📋</span><span class="ph-t">Breakdown<span class="ph-daycount" id="trend-daily-daycount">· 31 days</span>
+          <select class="fsel" id="trend-daily-gran" onchange="renderTrends()" style="margin-left:10px">
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select></span><span class="ph-tag" id="trend-daily-tag">January</span></div>
         <div class="pb dt-scroll" style="overflow-x:auto"><table class="dt" id="trend-daily-table"></table></div>
       </div>
 
@@ -454,7 +461,12 @@ table.dt td.pv-brand{font-weight:800}
         </div>
 
         <div class="panel" style="margin-top:16px">
-          <div class="ph"><span>📋</span><span class="ph-t">Daily Breakdown<span class="ph-daycount" id="spv-daily-daycount">· 31 days</span></span><span class="ph-tag" id="spv-daily-tag">January</span></div>
+          <div class="ph"><span>📋</span><span class="ph-t">Breakdown<span class="ph-daycount" id="spv-daily-daycount">· 31 days</span>
+            <select class="fsel" id="spv-daily-gran" onchange="renderSalesPV()" style="margin-left:10px">
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+            </select></span><span class="ph-tag" id="spv-daily-tag">January</span></div>
           <div class="pb dt-scroll" style="overflow-x:auto"><table class="dt" id="spv-daily-table"></table></div>
         </div>
       </div>
@@ -1012,6 +1024,15 @@ function pctCls(cur,prev){
   if(!prev) return '';
   return cur>=prev?'up':'dn';
 }
+// Renders " (28%)" style inline next to a number, colored green/red by
+// direction — no leading + / - sign, matching the reference layout where the
+// percentage sits right beside the value instead of in its own column.
+function pctInline_(cur,prev){
+  if(!prev) return '';
+  var p=(cur-prev)/prev*100;
+  var cls=p>=0?'up':'dn';
+  return ' <span class="'+cls+'">('+Math.round(Math.abs(p))+'%)</span>';
+}
 function renderTrends(){
   var months=MO_ORDER.slice(0, MO_ORDER.indexOf(currentMonth)+1); // Jan through whichever month is selected — grows as more months get data
   var monthly=months.map(function(m){
@@ -1052,19 +1073,19 @@ function renderTrends(){
   });
 
   document.getElementById('trend-table').innerHTML=
-    '<tr><th>Month</th><th>Sign Up</th><th>MoM %</th><th>FTD</th><th>Active</th><th>FTD Amount</th><th>MoM %</th></tr>'+
+    '<tr><th>Month</th><th>Sign Up</th><th>FTD</th><th>Active</th><th>FTD Amount</th></tr>'+
     monthly.map(function(m,i){
       var p=monthly[i-1];
-      var signupPct=p?'<span class="'+pctCls(m.signup,p.signup)+'">'+pct(m.signup,p.signup)+'</span>':'—';
-      var ftdAmtPct=p?'<span class="'+pctCls(pickMoney(m,'ftdAmt',displayMode),pickMoney(p,'ftdAmt',displayMode))+'">'+pct(pickMoney(m,'ftdAmt',displayMode),pickMoney(p,'ftdAmt',displayMode))+'</span>':'—';
-      return '<tr><td>'+monthNames[m.month]+'</td><td>'+fmtInt(m.signup)+'</td><td>'+signupPct+'</td><td>'+fmtInt(m.ftd)+'</td><td>'+fmtInt(m.active)+'</td>'+
-        '<td>'+money(pickMoney(m,'ftdAmt',displayMode),displayMode)+'</td><td>'+ftdAmtPct+'</td></tr>';
+      return '<tr><td>'+monthNames[m.month]+'</td><td>'+fmtInt(m.signup)+pctInline_(m.signup,p&&p.signup)+'</td><td>'+fmtInt(m.ftd)+'</td><td>'+fmtInt(m.active)+'</td>'+
+        '<td>'+money(pickMoney(m,'ftdAmt',displayMode),displayMode)+pctInline_(pickMoney(m,'ftdAmt',displayMode),p?pickMoney(p,'ftdAmt',displayMode):null)+'</td></tr>';
     }).join('');
 
-  // Same day-level table as Overview, for whichever month is currently selected
-  document.getElementById('trend-daily-tag').textContent=monthNames[currentMonth];
-  var dailyRows=getBrandSelectionRows_(currentCurrency,currentBrand,currentMonth).rows;
-  renderDailyBreakdownTable_('trend-daily-table','trend-daily-daycount',dailyRows);
+  // Same breakdown table as Overview, but can be viewed daily / weekly / monthly
+  var trendGran=document.getElementById('trend-daily-gran').value;
+  var granLabel={daily:'days',weekly:'weeks',monthly:'months'}[trendGran];
+  document.getElementById('trend-daily-tag').textContent=trendGran==='monthly'?('Jan – '+monthNames[currentMonth]):monthNames[currentMonth];
+  var dailyRows=buildBreakdownBuckets_(currentCurrency,currentBrand,currentMonth,trendGran);
+  renderDailyBreakdownTable_('trend-daily-table','trend-daily-daycount',dailyRows,granLabel);
 }
 
 /* ═══════════ SALES PEAKS & VALLEYS ═══════════ */
@@ -1228,10 +1249,13 @@ function renderSalesPV(){
       scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9}}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
   });
 
-  // Daily Breakdown for whatever's currently selected (single brand, or All Brands combined)
-  document.getElementById('spv-daily-tag').textContent=monthNames[currentMonth]+' · '+selLabel;
-  var spvDailyRows=getBrandSelectionRows_(currentCurrency,currentBrand,currentMonth).rows;
-  renderDailyBreakdownTable_('spv-daily-table','spv-daily-daycount',spvDailyRows);
+  // Breakdown for whatever's currently selected (single brand, or All Brands combined) — daily / weekly / monthly
+  var spvGran=document.getElementById('spv-daily-gran').value;
+  var spvGranLabel={daily:'days',weekly:'weeks',monthly:'months'}[spvGran];
+  var spvPeriodLabel=spvGran==='monthly'?('Jan – '+monthNames[currentMonth]):monthNames[currentMonth];
+  document.getElementById('spv-daily-tag').textContent=spvPeriodLabel+' · '+selLabel;
+  var spvDailyRows=buildBreakdownBuckets_(currentCurrency,currentBrand,currentMonth,spvGran);
+  renderDailyBreakdownTable_('spv-daily-table','spv-daily-daycount',spvDailyRows,spvGranLabel);
 }
 
 /* ═══════════ BRAND COMPARISON ═══════════
@@ -1325,11 +1349,41 @@ function updateLiveBadges_(res){
 // Sales Peaks & Valleys so all three pages can show the same day-level detail
 // for whatever brand/month is currently selected, without duplicating this
 // ~25-line block three times.
-function renderDailyBreakdownTable_(tableElId,daycountElId,rows){
+// Regroups a brand selection's data into daily / weekly / monthly buckets.
+// Each bucket comes out shaped exactly like a normal day row (same fields via
+// emptyAgg_/addRowToAgg_), just with a different "date" label — so it can be
+// fed straight into renderDailyBreakdownTable_ without that function needing
+// to know or care which granularity it's looking at.
+function buildBreakdownBuckets_(cur,brandSel,month,granularity){
+  if(granularity==='monthly'){
+    var months=MO_ORDER.slice(0,MO_ORDER.indexOf(month)+1); // Jan through the selected month
+    return months.map(function(m){
+      var agg=emptyAgg_();
+      getBrandSelectionRows_(cur,brandSel,m).rows.forEach(function(r){ addRowToAgg_(agg,r); });
+      agg.date=monthNames[m];
+      return agg;
+    });
+  }
+  if(granularity==='weekly'){
+    var dayRows=getBrandSelectionRows_(cur,brandSel,month).rows;
+    var weeks=[];
+    for(var i=0;i<dayRows.length;i+=7){
+      var chunk=dayRows.slice(i,i+7);
+      var agg=emptyAgg_();
+      chunk.forEach(function(r){ addRowToAgg_(agg,r); });
+      agg.date='W'+(weeks.length+1)+' ('+chunk[0].date+'–'+chunk[chunk.length-1].date+')';
+      weeks.push(agg);
+    }
+    return weeks;
+  }
+  return getBrandSelectionRows_(cur,brandSel,month).rows; // 'daily' (default)
+}
+
+function renderDailyBreakdownTable_(tableElId,daycountElId,rows,unitLabel){
   var sum=rows.reduce(function(a,r){ addRowToAgg_(a,r); return a; },emptyAgg_());
   var showRevenue=sum.revenueFilled;
   var dc=daycountElId?document.getElementById(daycountElId):null;
-  if(dc) dc.textContent='· '+rows.length+' days';
+  if(dc) dc.textContent='· '+rows.length+' '+(unitLabel||'days');
   var el=document.getElementById(tableElId);
   if(!el) return;
   el.innerHTML=
@@ -1426,8 +1480,8 @@ function renderAll(){
     });
     trendScales={
       x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:8},autoSkip:false,maxRotation:60,minRotation:60}},
-      y:{position:'left',grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'Sign Up / FTD / Active',color:'#64748b',font:{size:9}}},
-      y1:{position:'right',grid:{display:false},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'FTD Amount',color:'#64748b',font:{size:9}}}
+      y:{position:'left',beginAtZero:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'Sign Up / FTD / Active',color:'#64748b',font:{size:9}}},
+      y1:{position:'right',beginAtZero:true,grid:{display:false},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'FTD Amount',color:'#64748b',font:{size:9}}}
     };
   } else {
     var isMoney=TREND_METRIC_ISMONEY[trendMetric];
@@ -1438,7 +1492,7 @@ function renderAll(){
     ];
     trendScales={
       x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:8},autoSkip:false,maxRotation:60,minRotation:60}},
-      y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}
+      y:{beginAtZero:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}
     };
   }
   trendChart=new Chart(document.getElementById('trend-chart').getContext('2d'),{
