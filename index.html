@@ -1174,8 +1174,10 @@ function renderTrends(){
   var trendIsAll=currentMonth===ALL_MONTHS;
   if(trendGran==='monthly'){
     document.getElementById('trend-daily-tag').textContent=trendIsAll?'Jan – Dec':('Jan – '+monthNames[currentMonth]);
+  } else if(trendGran==='weekly'){
+    document.getElementById('trend-daily-tag').textContent=trendIsAll?'Jan–Dec (All Months) — week positions summed':monthNames[currentMonth];
   } else {
-    document.getElementById('trend-daily-tag').textContent=trendIsAll?'December (All Months selected)':monthNames[currentMonth];
+    document.getElementById('trend-daily-tag').textContent=trendIsAll?'December (All Months selected — daily view needs one month)':monthNames[currentMonth];
   }
   var dailyRows=buildBreakdownBuckets_(currentCurrency,currentBrand,effectiveMonth_(),trendGran);
   renderDailyBreakdownTable_('trend-daily-table','trend-daily-daycount',dailyRows,granLabel,'acq');
@@ -1226,13 +1228,32 @@ function renderSalesPV(){
     document.getElementById(id).textContent=selLabel;
   });
 
-  // ── per-brand weekly peak/valley, within the currently selected month ──
-  var brandWeekData=brands.map(function(b){
-    var rows=getMonthRows(cur,b,effectiveMonth_()).rows; // weekly view needs one real month — falls back to December if "All Months" is selected
-    var weeks=weekChunks_(rows).map(function(chunk,i){
+  // ── per-brand weekly peak/valley ──
+  // Normal mode: 4 weeks within the currently selected month.
+  // "All Months": every real week across the whole year (up to 12 months × 4
+  // weeks = 48 individual weeks) is its own entry — peak/valley picks the
+  // actual highest/lowest week (e.g. "March, week 2"), not a synthetic total
+  // built by adding every month's W1 together.
+  function brandWeeklyBuckets_(b){
+    if(currentMonth===ALL_MONTHS){
+      var allWeeks=[];
+      MO_ORDER.forEach(function(m){
+        var mrows=getMonthRows(cur,b,m).rows;
+        weekChunks_(mrows).forEach(function(chunk,i){
+          var val=chunk.reduce(function(s,r){return s+mv(r);},0);
+          allWeeks.push({label:monthNames[m].slice(0,3)+' W'+(i+1),val:val,range:chunk[0].date+'–'+chunk[chunk.length-1].date});
+        });
+      });
+      return allWeeks; // up to 48 real weeks, each a distinct entry
+    }
+    var rows=getMonthRows(cur,b,currentMonth).rows;
+    return weekChunks_(rows).map(function(chunk,i){
       var val=chunk.reduce(function(s,r){return s+mv(r);},0);
       return {label:'W'+(i+1),val:val,range:chunk[0].date+'–'+chunk[chunk.length-1].date};
     });
+  }
+  var brandWeekData=brands.map(function(b){
+    var weeks=brandWeeklyBuckets_(b);
     var peak=weeks.reduce(function(a,w){return w.val>a.val?w:a;});
     var valley=weeks.reduce(function(a,w){return w.val<a.val?w:a;});
     return {brand:b,weeks:weeks,peak:peak,valley:valley};
@@ -1245,7 +1266,7 @@ function renderSalesPV(){
         '<td><span class="pv-pill peak">'+d.peak.label+'</span></td><td>'+fmtVal(d.peak.val)+'</td>'+
         '<td><span class="pv-pill valley">'+d.valley.label+'</span></td><td>'+fmtVal(d.valley.val)+'</td></tr>';
     }).join('');
-  document.getElementById('spv-w-tag').textContent=(currentMonth===ALL_MONTHS?'December (All Months selected)':monthNames[currentMonth])+' · by '+METRIC_LABEL[metric];
+  document.getElementById('spv-w-tag').textContent=(currentMonth===ALL_MONTHS?'Jan–Dec (All Months) — week positions summed across the year':monthNames[currentMonth])+' · by '+METRIC_LABEL[metric];
 
   // ── per-brand monthly peak/valley, Jan through the currently selected month ──
   var brandMonthData=brands.map(function(b){
@@ -1271,9 +1292,9 @@ function renderSalesPV(){
   brandWeekData.forEach(function(d){ if(d.weeks.length>maxWeeks) maxWeeks=d.weeks.length; });
   var weekTotals=[];
   for(var w=0; w<maxWeeks; w++){
-    var sum=0, range='';
-    brandWeekData.forEach(function(d){ if(d.weeks[w]){ sum+=d.weeks[w].val; range=d.weeks[w].range; } });
-    weekTotals.push({label:'W'+(w+1),range:range,val:sum});
+    var sum=0, range='', label='W'+(w+1);
+    brandWeekData.forEach(function(d){ if(d.weeks[w]){ sum+=d.weeks[w].val; range=d.weeks[w].range; label=d.weeks[w].label; } });
+    weekTotals.push({label:label,range:range,val:sum});
   }
   var topWeeks=weekTotals.slice().sort(function(a,b){return b.val-a.val;}).slice(0,3)
     .map(function(w){ return {label:w.label+' ('+w.range+')', val:w.val}; });
@@ -1289,7 +1310,7 @@ function renderSalesPV(){
 
   // ── Brand Weekly Split — multi-line so each brand's shape is easy to follow,
   //    hovering anywhere on a week shows every brand's value for that week at once ──
-  document.getElementById('spv-wsplit-tag').textContent=(currentMonth===ALL_MONTHS?'December (All Months selected)':monthNames[currentMonth])+' · by brand';
+  document.getElementById('spv-wsplit-tag').textContent=(currentMonth===ALL_MONTHS?'Jan–Dec (All Months)':monthNames[currentMonth])+' · by brand';
   var weekLabels=weekTotals.map(function(w){return w.range?[w.label,w.range]:w.label;});
   if(spvWeekSplitChart) spvWeekSplitChart.destroy();
   spvWeekSplitChart=new Chart(document.getElementById('spv-wsplit-chart').getContext('2d'),{
@@ -1347,7 +1368,8 @@ function renderSalesPV(){
   var spvIsAll=currentMonth===ALL_MONTHS;
   var spvPeriodLabel;
   if(spvGran==='monthly') spvPeriodLabel=spvIsAll?'Jan – Dec':('Jan – '+monthNames[currentMonth]);
-  else spvPeriodLabel=spvIsAll?'December (All Months selected)':monthNames[currentMonth];
+  else if(spvGran==='weekly') spvPeriodLabel=spvIsAll?'Jan–Dec (All Months) — week positions summed':monthNames[currentMonth];
+  else spvPeriodLabel=spvIsAll?'December (All Months selected — daily view needs one month)':monthNames[currentMonth];
   document.getElementById('spv-daily-tag').textContent=spvPeriodLabel+' · '+selLabel;
   var spvDailyRows=buildBreakdownBuckets_(currentCurrency,currentBrand,effectiveMonth_(),spvGran);
   renderDailyBreakdownTable_('spv-daily-table','spv-daily-daycount',spvDailyRows,spvGranLabel,'fin');
@@ -1523,6 +1545,19 @@ function buildBreakdownBuckets_(cur,brandSel,month,granularity){
     });
   }
   if(granularity==='weekly'){
+    if(currentMonth===ALL_MONTHS){
+      // Same idea as the Sales Peaks & Valleys weekly panels: sum each
+      // week-position (W1/W2/W3/W4) across all 12 months instead of falling
+      // back to one arbitrary (possibly empty) month.
+      var weekAggs=[emptyAgg_(),emptyAgg_(),emptyAgg_(),emptyAgg_()];
+      MO_ORDER.forEach(function(m){
+        var mrows=getBrandSelectionRows_(cur,brandSel,m).rows;
+        weekChunks_(mrows).forEach(function(chunk,i){
+          chunk.forEach(function(r){ addRowToAgg_(weekAggs[i],r); });
+        });
+      });
+      return weekAggs.map(function(agg,i){ agg.date='W'+(i+1)+' (Jan–Dec)'; return agg; });
+    }
     var dayRows=getBrandSelectionRows_(cur,brandSel,month).rows;
     return weekChunks_(dayRows).map(function(chunk,i){
       var agg=emptyAgg_();
