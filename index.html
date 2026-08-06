@@ -519,8 +519,13 @@ table.dt td.pv-brand{font-weight:800}
         </div>
 
         <div class="panel" id="bc-multichart-panel" style="display:none;margin-top:16px">
-          <div class="ph"><span>📊</span><span class="ph-t">Monthly Trend — All Metrics</span></div>
+          <div class="ph"><span>📊</span><span class="ph-t">Monthly Trend — Performance</span></div>
           <div id="bc-multichart-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px"></div>
+        </div>
+
+        <div class="panel" id="bc-multichart-panel-fin" style="display:none;margin-top:16px">
+          <div class="ph"><span>📊</span><span class="ph-t">Monthly Trend — Financials</span></div>
+          <div id="bc-multichart-grid-fin" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px"></div>
         </div>
       </div>
 
@@ -1406,12 +1411,18 @@ var bcChart=null;
 var bcMiniCharts=[]; // the 4 separate per-metric charts, when active
 function showBcTable2_(show){
   document.getElementById('bc-table2-panel').style.display=show?'':'none';
-  document.getElementById('bc-tables-row').classList.toggle('single-col',!show);
+  // Always stack full-width (Performance table on top, Financials below) rather
+  // than side-by-side. The Financials table has 6 columns of large currency
+  // values (e.g. "Rs. 436,888,955.xx") — squeezed into a 50%-width grid column
+  // they get clipped with an ellipsis (table.dt uses text-overflow:ellipsis).
+  // Stacking both at full width avoids that regardless of how many tables are showing.
+  document.getElementById('bc-tables-row').classList.add('single-col');
 }
 function showBcChartMode_(mode){
-  // mode: 'single' (one chart, the normal case) | 'multi' (4 separate per-metric charts)
+  // mode: 'single' (one chart, the normal case) | 'multi' (8 separate per-metric charts: 4 Performance + 4 Financials)
   document.getElementById('bc-chart-panel').style.display=(mode==='single')?'':'none';
   document.getElementById('bc-multichart-panel').style.display=(mode==='multi')?'':'none';
+  document.getElementById('bc-multichart-panel-fin').style.display=(mode==='multi')?'':'none';
   if(mode==='single' && bcMiniCharts.length){
     bcMiniCharts.forEach(function(c){ c.destroy(); });
     bcMiniCharts=[];
@@ -1539,6 +1550,13 @@ var BC_PERF_KEYS_=['signup','ftd','active','ftdAmt'];
 var BC_PERF_LABELS_={signup:'Sign Up',ftd:'FTD',active:'Active Player',ftdAmt:'FTD Amount'};
 var BC_PERF_COLORS_={signup:'#00b0ff',ftd:'#facc15',active:'#9b7ff4',ftdAmt:'#00e676'};
 
+// Financials trend mini-charts (mirrors BC_PERF_* above). Revenue is left out
+// on purpose for now — add 'revenue' back into this list (with a label/color)
+// once it's needed.
+var BC_FIN_KEYS_=['turnover','deposit','withdraw','promo'];
+var BC_FIN_LABELS_={turnover:'Turnover',deposit:'Deposit',withdraw:'Withdraw',promo:'Promotion'};
+var BC_FIN_COLORS_={turnover:'#facc15',deposit:'#00b0ff',withdraw:'#ff9100',promo:'#ff4081'};
+
 function renderBrandComparisonAllMetrics_(brand){
   showBcTable2_(true);
   showBcChartMode_('multi');
@@ -1564,6 +1582,25 @@ function renderBrandComparisonAllMetrics_(brand){
     var c=new Chart(document.getElementById('bc-mini-'+k).getContext('2d'),{
       type:'line',
       data:{labels:labels,datasets:[{label:BC_PERF_LABELS_[k],data:data,borderColor:BC_PERF_COLORS_[k],backgroundColor:BC_PERF_COLORS_[k]+'26',fill:true,tension:.3,pointRadius:2,pointHoverRadius:5,borderWidth:2}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+        scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:8},maxRotation:0}},
+                y:{beginAtZero:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:8}}}}}
+    });
+    bcMiniCharts.push(c);
+  });
+
+  // Financials trend charts (Turnover/Deposit/Withdraw/Promotion) — same shape
+  // as the Performance grid above, just a separate panel + separate metric set.
+  var gridFin=document.getElementById('bc-multichart-grid-fin');
+  gridFin.innerHTML=BC_FIN_KEYS_.map(function(k){
+    return '<div><div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px">'+brand+' — '+BC_FIN_LABELS_[k]+'</div>'+
+      '<div style="height:180px"><canvas id="bc-mini-fin-'+k+'"></canvas></div></div>';
+  }).join('');
+  BC_FIN_KEYS_.forEach(function(k){
+    var data=monthly.map(function(a){return pickMoney(a,k,displayMode);});
+    var c=new Chart(document.getElementById('bc-mini-fin-'+k).getContext('2d'),{
+      type:'line',
+      data:{labels:labels,datasets:[{label:BC_FIN_LABELS_[k],data:data,borderColor:BC_FIN_COLORS_[k],backgroundColor:BC_FIN_COLORS_[k]+'26',fill:true,tension:.3,pointRadius:2,pointHoverRadius:5,borderWidth:2}]},
       options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
         scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:8},maxRotation:0}},
                 y:{beginAtZero:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:8}}}}}
