@@ -119,7 +119,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 .sum-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 18px}
 .sum-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 .sum-card-title{font-size:13px;font-weight:700;color:var(--text)}
-.sum-card-badge{font-size:10px;color:var(--muted);background:var(--bg);padding:4px 9px;border-radius:6px;font-family:var(--mono)}
+.sum-card-badge{font-size:13px;font-weight:800;color:var(--red);background:var(--bg);padding:5px 11px;border-radius:6px;font-family:var(--mono)}
 .sum-bar-row{margin-bottom:9px}
 .sum-bar-row:last-child{margin-bottom:0}
 .sum-bar-lbl{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:4px}
@@ -952,19 +952,21 @@ function extractSheetId_(input){
 var sheetTabCache={};
 function sheetTabKey_(sheetId,tab){ return sheetId+'|'+tab; }
 
-function getSheetTabData(sheetId,tab){
-  var key=sheetTabKey_(sheetId,tab);
-  var entry=sheetTabCache[key];
-  if(entry) return entry;
-  entry={status:'loading',rawRows:null,error:null};
-  sheetTabCache[key]=entry;
+// Quota-exceeded (429 "Read requests per minute") is transient — Google's
+// per-minute quota resets on its own, so retrying a few seconds later
+// usually just works without the person needing to click Retry manually.
+// Other errors (bad sheetId, missing permissions, malformed service account
+// key, etc.) are NOT retried — retrying a config problem just wastes more of
+// the same quota and delays showing the real error.
+var SHEET_FETCH_RETRY_DELAYS_=[3000,6000,12000];
+function fetchSheetTab_(entry,sheetId,tab,attempt){
   var url='/api/sheet?sheetId='+encodeURIComponent(sheetId)+'&tab='+encodeURIComponent(tab);
   fetch(url).then(function(resp){
     return resp.text().then(function(text){
       var data;
       try{ data=JSON.parse(text); }
-      catch(e){ throw new Error('Backend proxy did not return JSON — /api/sheet may not be deployed correctly, or this page is not deployed on the same domain as /api'); }
-      if(!resp.ok) throw new Error(data.error||('HTTP '+resp.status));
+      catch(e){ throw {message:'Backend proxy did not return JSON — /api/sheet may not be deployed correctly, or this page is not deployed on the same domain as /api',retryable:false}; }
+      if(!resp.ok) throw {message:data.error||('HTTP '+resp.status),retryable:!!data.retryable};
       return data;
     });
   }).then(function(data){
@@ -972,10 +974,24 @@ function getSheetTabData(sheetId,tab){
     entry.status='ready';
     onSheetDataUpdated();
   }).catch(function(err){
+    var retryable=err&&err.retryable;
+    if(retryable && attempt<SHEET_FETCH_RETRY_DELAYS_.length){
+      var delay=SHEET_FETCH_RETRY_DELAYS_[attempt];
+      setTimeout(function(){ fetchSheetTab_(entry,sheetId,tab,attempt+1); },delay);
+      return; // stays status:'loading' ("Syncing…") through the retry, no error flash
+    }
     entry.status='error';
-    entry.error=err.message||String(err);
+    entry.error=(err&&err.message)||String(err);
     onSheetDataUpdated();
   });
+}
+function getSheetTabData(sheetId,tab){
+  var key=sheetTabKey_(sheetId,tab);
+  var entry=sheetTabCache[key];
+  if(entry) return entry;
+  entry={status:'loading',rawRows:null,error:null};
+  sheetTabCache[key]=entry;
+  fetchSheetTab_(entry,sheetId,tab,0);
   return entry;
 }
 
@@ -1753,42 +1769,69 @@ var SUMMARY_MAIN_ROWS_=[
 ];
 function renderSummaryPage(){
   var cur=currentCurrency, brand=currentBrand;
-  var yearlySum=emptyAgg_();
-  var liveMonths=0, liveDays=0;
-  MO_ORDER.forEach(function(m){
-    var res=getBrandSelectionRows_(cur,brand,m);
-    res.rows.forEach(function(r){ addRowToAgg_(yearlySum,r); });
-    if(res.live){ liveMonths++; liveDays+=daysInMonth_(m); }
-  });
+  var isAllMonths=currentMonth===ALL_MONTHS;
+  var periodSum=emptyAgg_();
+  var liveUnits=0, liveDays=0, totalUnits=0; // "units" = months when isAllMonths, else just 1 month
+  var periodBadgeLbl, dailyPctBase;
 
-  function valOf(field,isMoney){ return isMoney?pickMoney(yearlySum,field,displayMode):(yearlySum[field]||0); }
+  if(isAllMonths){
+    MO_ORDER.forEach(function(m){
+      var res=getBrandSelectionRows_(cur,brand,m);
+      res.rows.forEach(function(r){ addRowToAgg_(periodSum,r); });
+      if(res.live){ liveUnits++; liveDays+=daysInMonth_(m); }
+    });
+    totalUnits=12;
+    periodBadgeLbl='Yearly';
+  } else {
+    var res=getBrandSelectionRows_(cur,brand,currentMonth);
+    res.rows.forEach(function(r){ addRowToAgg_(periodSum,r); });
+    if(res.live){ liveUnits=1; liveDays=daysInMonth_(currentMonth); }
+    totalUnits=1;
+    periodBadgeLbl=monthNames[currentMonth]+' Total';
+  }
+
+  function valOf(field,isMoney){ return isMoney?pickMoney(periodSum,field,displayMode):(periodSum[field]||0); }
   function fmtOf(v,isMoney){ return isMoney?money(v,displayMode):fmtInt(v); }
 
   var mainHtml=SUMMARY_MAIN_ROWS_.map(function(rw){
-    var yearly=valOf(rw.field,rw.isMoney);
-    var avgM=liveMonths>0?yearly/liveMonths:0;
-    var avgD=liveDays>0?yearly/liveDays:0;
-    var pctM=yearly>0?Math.min(100,avgM/yearly*100):0;
-    var pctD=yearly>0?Math.min(100,avgD/yearly*100):0;
+    var total=valOf(rw.field,rw.isMoney);
+    var avgD=liveDays>0?total/liveDays:0;
+    var pctD=total>0?Math.min(100,avgD/total*100):0;
+    var barsHtml='';
+    if(isAllMonths){
+      // Full-year view: two bars — avg per (live) month, and avg per (live) day —
+      // each filled to its real share of the yearly total.
+      var avgM=liveUnits>0?total/liveUnits:0;
+      var pctM=total>0?Math.min(100,avgM/total*100):0;
+      barsHtml=
+        '<div class="sum-bar-row"><div class="sum-bar-lbl"><span>avg. monthly</span><b>'+fmtOf(avgM,rw.isMoney)+'</b></div><div class="sum-bar-track"><div class="sum-bar-fill" style="width:'+pctM.toFixed(2)+'%;background:'+rw.color+'"></div></div></div>'+
+        '<div class="sum-bar-row"><div class="sum-bar-lbl"><span>avg. daily</span><b>'+fmtOf(avgD,rw.isMoney)+'</b></div><div class="sum-bar-track"><div class="sum-bar-fill" style="width:'+pctD.toFixed(2)+'%;background:'+rw.color+'"></div></div></div>';
+    } else {
+      // Single-month view: "avg monthly" doesn't mean anything when there's
+      // only one month selected — just the one avg. daily bar for that month.
+      barsHtml=
+        '<div class="sum-bar-row"><div class="sum-bar-lbl"><span>avg. daily</span><b>'+fmtOf(avgD,rw.isMoney)+'</b></div><div class="sum-bar-track"><div class="sum-bar-fill" style="width:'+pctD.toFixed(2)+'%;background:'+rw.color+'"></div></div></div>';
+    }
     return '<div class="sum-card">'+
-      '<div class="sum-card-head"><span class="sum-card-title"><i class="fa-solid '+rw.icon+'" style="color:'+rw.color+';margin-right:7px;font-size:12px"></i>'+rw.label+'</span><span class="sum-card-badge">Yearly '+fmtOf(yearly,rw.isMoney)+'</span></div>'+
-      '<div class="sum-bar-row"><div class="sum-bar-lbl"><span>avg. monthly</span><b>'+fmtOf(avgM,rw.isMoney)+'</b></div><div class="sum-bar-track"><div class="sum-bar-fill" style="width:'+pctM.toFixed(2)+'%;background:'+rw.color+'"></div></div></div>'+
-      '<div class="sum-bar-row"><div class="sum-bar-lbl"><span>avg. daily</span><b>'+fmtOf(avgD,rw.isMoney)+'</b></div><div class="sum-bar-track"><div class="sum-bar-fill" style="width:'+pctD.toFixed(2)+'%;background:'+rw.color+'"></div></div></div>'+
+      '<div class="sum-card-head"><span class="sum-card-title"><i class="fa-solid '+rw.icon+'" style="color:'+rw.color+';margin-right:7px;font-size:12px"></i>'+rw.label+'</span><span class="sum-card-badge">'+periodBadgeLbl+' '+fmtOf(total,rw.isMoney)+'</span></div>'+
+      barsHtml+
       '</div>';
   }).join('');
   var mainEl=document.getElementById('summary-kpi-main');
   if(mainEl) mainEl.innerHTML=mainHtml;
 
-  var signupY=yearlySum.signup||0, ftdY=yearlySum.ftd||0;
-  var ftdAmtY=pickMoney(yearlySum,'ftdAmt',displayMode);
-  var successRate=signupY>0?(ftdY/signupY*100):null;
-  var perFtdAmt=ftdY>0?(ftdAmtY/ftdY):null;
-  var liveNote=liveMonths<12?liveDays+' of 365 days live':'Full year live';
+  var signupP=periodSum.signup||0, ftdP=periodSum.ftd||0;
+  var ftdAmtP=pickMoney(periodSum,'ftdAmt',displayMode);
+  var successRate=signupP>0?(ftdP/signupP*100):null;
+  var perFtdAmt=ftdP>0?(ftdAmtP/ftdP):null;
+  var periodWord=isAllMonths?'yearly':monthNames[currentMonth].toLowerCase();
+  var coverageVal=isAllMonths?(liveUnits+'/12 months'):(res.live?'Full month':'No data yet');
+  var coverageNote=isAllMonths?(liveUnits<12?liveDays+' of 365 days live':'Full year live'):(liveDays+' days in '+monthNames[currentMonth]);
   var ratesHtml=
-    kpiCard('teal','FTD Success Rate',successRate==null?'—':successRate.toFixed(2)+'%','FTD ÷ Sign Up (yearly)')+
-    kpiCard('green','Per FTD Amount',perFtdAmt==null?'—':money(perFtdAmt,displayMode),'FTD Amount ÷ FTD (yearly)')+
-    kpiCard('purple','Live Coverage',liveMonths+'/12 months',liveNote)+
-    kpiCard('gold',brandLabel_(brand),cur,'Jan – Dec');
+    kpiCard('teal','FTD Success Rate',successRate==null?'—':successRate.toFixed(2)+'%','FTD ÷ Sign Up ('+periodWord+')')+
+    kpiCard('green','Per FTD Amount',perFtdAmt==null?'—':money(perFtdAmt,displayMode),'FTD Amount ÷ FTD ('+periodWord+')')+
+    kpiCard('purple','Live Coverage',coverageVal,coverageNote)+
+    kpiCard('gold',brandLabel_(brand),cur,isAllMonths?'Jan – Dec':monthNames[currentMonth]);
   var ratesEl=document.getElementById('summary-kpi-rates');
   if(ratesEl) ratesEl.innerHTML=ratesHtml;
 }

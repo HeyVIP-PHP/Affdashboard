@@ -124,7 +124,14 @@ export async function onRequestGet(context) {
     var resp = await fetch(sheetsUrl, { headers: { Authorization: 'Bearer ' + accessToken } });
     var data = await resp.json();
     if (!resp.ok) {
-      return json({ error: (data.error && data.error.message) || 'Sheets API 请求失败' }, 500);
+      // 429 = quota exceeded ("Read requests per minute" 之类) — 这是暂时性的，
+      // 过几秒配额恢复就好了，把真实状态码透传给前端，让前端能区分"这个可以自动重试"
+      // 和"这个是配置错误/权限问题、重试也没用"。
+      var isQuota = resp.status === 429;
+      return json({
+        error: (data.error && data.error.message) || 'Sheets API 请求失败',
+        retryable: isQuota
+      }, isQuota ? 429 : 500);
     }
 
     return json({ values: data.values || [] }, 200, {
