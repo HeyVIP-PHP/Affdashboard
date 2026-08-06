@@ -96,6 +96,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 .g5{grid-template-columns:repeat(5,minmax(0,1fr))}
 .g4{grid-template-columns:repeat(4,minmax(0,1fr))}
 .kpi{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;position:relative;overflow:hidden}
+.kpi.kpi-jump{cursor:zoom-in}
+.kpi-jump-hint{position:absolute;top:8px;right:10px;font-size:11px;color:var(--muted);opacity:0;transition:opacity .15s}
+.kpi.kpi-jump:hover .kpi-jump-hint{opacity:1}
+.kpi.kpi-jump:hover{border-color:var(--border2)}
 .kpi::before{content:"";position:absolute;top:0;left:0;right:0;height:2px}
 .kpi.c-gold::before{background:var(--gold)}.kpi.c-teal::before{background:var(--teal)}
 .kpi.c-green::before{background:var(--green)}.kpi.c-amber::before{background:var(--amber)}
@@ -299,7 +303,7 @@ table.dt td.pv-brand{font-weight:800}
 
     <div class="nav-sec">Report</div>
     <div class="nav-item" onclick="showPage('dailyreport',this)"><div class="nav-dot" style="background:#00e676"></div>Daily Report</div>
-    <div class="nav-item" onclick="showPage('trends',this)"><div class="nav-dot" style="background:#00b0ff"></div>Performance &amp; Peaks</div>
+    <div class="nav-item" onclick="showPage('trends',this)"><div class="nav-dot" style="background:#00b0ff"></div>Performance Peaks &amp; Valleys</div>
 
     <div class="nav-sec">Analysis</div>
     <div class="nav-item" onclick="showPage('brandcomp',this)"><div class="nav-dot" style="background:#9b7ff4"></div>Brand Comparison</div>
@@ -373,6 +377,12 @@ table.dt td.pv-brand{font-weight:800}
         <option value="Nov">November</option>
         <option value="Dec">December</option>
       </select>
+      <span class="tfb-lbl" id="dr-gran-lbl" style="display:none">VIEW</span>
+      <select class="tfb-sel" id="dr-gran" onchange="renderDailyReportPage()" style="display:none">
+        <option value="daily">Daily</option>
+        <option value="weekly">Weekly</option>
+        <option value="monthly">Monthly</option>
+      </select>
       <span class="tfb-summary" id="tfb-summary">Crickex · January</span>
     </div>
 
@@ -381,11 +391,8 @@ table.dt td.pv-brand{font-weight:800}
       <!-- OVERVIEW -->
       <div class="page active" id="page-overview">
 
-      <!-- Player acquisition -->
+      <!-- Core KPIs — just the essentials; the full set (FTD Amount, FTD Conv Rate, Turnover, Promotion, Revenue) lives on the Daily Report page now -->
       <div class="kpi-grid g5" id="kpi-acq"></div>
-
-      <!-- Financials -->
-      <div class="kpi-grid g5" id="kpi-fin"></div>
 
       <!-- Trend chart -->
       <div class="panel ag">
@@ -412,50 +419,41 @@ table.dt td.pv-brand{font-weight:800}
 
       <!-- DAILY REPORT — the one-stop full breakdown (Performance + Financials together), with its own Daily/Weekly/Monthly granularity switch. Overview/Performance/Peaks pages no longer carry their own copies of this table. -->
       <div class="page" id="page-dailyreport">
+        <div class="kpi-grid g5" id="dr-kpi-acq"></div>
+        <div class="kpi-grid g5" id="dr-kpi-fin"></div>
         <div class="panel">
-          <div class="ph"><span class="ph-t">📋 Daily Report<span class="ph-daycount" id="dr-daycount">· 31 days</span>
-            <select class="fsel" id="dr-gran" onchange="renderDailyReportPage()" style="margin-left:10px">
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-            </select></span><span class="ph-tag" id="dr-tag">January</span></div>
-          <div class="pb dt-scroll" style="overflow-x:auto"><table class="dt" id="dr-table"></table></div>
+          <div class="ph"><span class="ph-t">📋 Daily Report<span class="ph-daycount" id="dr-daycount">· 31 days</span></span><span class="ph-tag" id="dr-tag">January</span></div>
+          <div class="pb" style="overflow-x:auto"><table class="dt" id="dr-table"></table></div>
         </div>
       </div>
 
-      <!-- TRENDS -->
+      <!-- PERFORMANCE & PEAKS — one metric selector drives everything below, whether the metric is a count (Sign Up/FTD/Active) or money (FTD Amount/Turnover/Deposit/Withdraw/Promotion/Revenue) -->
       <div class="page" id="page-trends">
 
-      <div class="kpi-grid g4" id="trend-mom-kpis"></div>
-
-      <div class="panel ag">
-        <div class="ph"><span class="ph-t">📊 <select class="fsel" id="trend-chart-metric" onchange="renderTrends()">
-            <option value="all">All</option>
+      <div class="filter-bar">
+        <span class="filter-lbl">Metric</span>
+        <select class="fsel" id="perf-metric" onchange="renderPerformancePeaks()">
+          <optgroup label="Performance">
             <option value="signup">Sign Up</option>
             <option value="ftd">FTD</option>
             <option value="active">Active Player</option>
             <option value="ftdAmt">FTD Amount</option>
-          </select></span><span class="ph-tag" id="trend-chart-tag">Jan – Mar comparison</span></div>
-        <div class="cw" style="height:260px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="mom-chart"></canvas></div>
-      </div>
-
-      <div class="panel">
-        <div class="ph"><span>📋</span><span class="ph-t">Monthly Comparison</span><span class="ph-tag">MoM %</span></div>
-        <div class="pb" style="overflow-x:auto"><table class="dt" id="trend-table"></table></div>
-      </div>
-
-      <!-- ── Section divider: Trend analysis above, Peaks & Valleys below (merged into one page so both live under one nav entry) ── -->
-      <div class="section-divider"><span>🏔️ Peaks &amp; Valleys</span></div>
-
-      <div class="filter-bar">
-        <span class="filter-lbl">Metric</span>
-        <select class="fsel" id="spv-metric" onchange="renderSalesPV()">
-          <option value="turnover">Turnover</option>
-          <option value="deposit">Deposit</option>
-          <option value="withdraw">Withdraw</option>
-          <option value="promo">Promotion</option>
-          <option value="revenue">Revenue</option>
+          </optgroup>
+          <optgroup label="Financials">
+            <option value="turnover">Turnover</option>
+            <option value="deposit">Deposit</option>
+            <option value="withdraw">Withdraw</option>
+            <option value="promo">Promotion</option>
+            <option value="revenue">Revenue</option>
+          </optgroup>
         </select>
+      </div>
+
+      <div class="kpi-grid g4" id="perf-kpis"></div>
+
+      <div class="panel ag">
+        <div class="ph"><span class="ph-t" id="perf-chart-title">📊 Monthly Trend</span><span class="ph-tag" id="perf-chart-tag">Jan – Mar</span></div>
+        <div class="cw" style="height:260px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="perf-chart"></canvas></div>
       </div>
 
       <div class="row2 c66">
@@ -491,15 +489,9 @@ table.dt td.pv-brand{font-weight:800}
         </div>
       </div>
 
-      <div class="row2 c66" style="margin-top:16px">
-        <div class="panel">
-          <div class="ph"><span>📈</span><span class="ph-t">Weekly Volume Trend</span><span class="ph-tag" id="spv-wtrend-tag">all brands</span></div>
-          <div class="cw" style="height:260px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="spv-wtrend-chart"></canvas></div>
-        </div>
-        <div class="panel">
-          <div class="ph"><span>📈</span><span class="ph-t">Monthly Volume Trend</span><span class="ph-tag" id="spv-mtrend-tag">all brands</span></div>
-          <div class="cw" style="height:200px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="spv-mtrend-chart"></canvas></div>
-        </div>
+      <div class="panel" style="margin-top:16px">
+        <div class="ph"><span>📈</span><span class="ph-t">Weekly Volume Trend</span><span class="ph-tag" id="spv-wtrend-tag">all brands</span></div>
+        <div class="cw" style="height:260px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="spv-wtrend-chart"></canvas></div>
       </div>
 
       </div>
@@ -1018,8 +1010,9 @@ function pickMoney(obj,field,mode){
   return mode==='usd' ? (obj[field+'Usd']||0) : (obj[field]||0);
 }
 
-function kpiCard(cls,lbl,val,sub){
-  return '<div class="kpi c-'+cls+'"><div class="kpi-lbl">'+lbl+'</div><div class="kpi-val">'+val+'</div><div class="kpi-d">'+(sub||'')+'</div></div>';
+function kpiCard(cls,lbl,val,sub,jump){
+  if(!jump) return '<div class="kpi c-'+cls+'"><div class="kpi-lbl">'+lbl+'</div><div class="kpi-val">'+val+'</div><div class="kpi-d">'+(sub||'')+'</div></div>';
+  return '<div class="kpi c-'+cls+' kpi-jump" ondblclick="'+jump+'"><span class="kpi-jump-hint">⤢</span><div class="kpi-lbl">'+lbl+'</div><div class="kpi-val">'+val+'</div><div class="kpi-d">'+(sub||'')+'</div></div>';
 }
 
 var brandDDOpen=false;
@@ -1186,6 +1179,18 @@ function effectiveMonth_(){ return currentMonth===ALL_MONTHS?'Dec':currentMonth;
 // year; otherwise it's Jan through whichever month is currently selected.
 function monthlyRangeMonths_(){ return currentMonth===ALL_MONTHS?MO_ORDER.slice():MO_ORDER.slice(0,MO_ORDER.indexOf(currentMonth)+1); }
 
+// Double-click a KPI card on Overview to jump straight to the page that
+// explains that number, pre-selecting the matching metric there (e.g.
+// double-clicking "Total Turnover" lands on Performance & Peaks with the
+// unified metric selector already set to Turnover).
+function ovJumpTo_(pageId,opts){
+  var navEl=document.querySelector('.nav-item[onclick*="showPage(\'"+pageId+"\'"]');
+  showPage(pageId,navEl);
+  if(opts&&opts.metric){
+    var sel=document.getElementById('perf-metric');
+    if(sel){ sel.value=opts.metric; renderPerformancePeaks(); }
+  }
+}
 function showPage(id,el){
   if(id==='salespv') id='trends'; // pre-merge saved state pointed at a page that no longer exists on its own
   var pageEl=document.getElementById('page-'+id);
@@ -1202,17 +1207,19 @@ function showPage(id,el){
   var titles={
     overview:'💰 Sales Overview — '+brandLabel_(currentBrand),
     dailyreport:'📋 Daily Report — '+brandLabel_(currentBrand),
-    trends:'📈 Performance & Peaks — '+brandLabel_(currentBrand),
+    trends:'📈 Performance Peaks & Valleys — '+brandLabel_(currentBrand),
     brandcomp:'🆚 Brand Comparison — '+brandLabel_(currentBrand)
   };
   document.getElementById('pg-title').textContent=titles[id];
+  var showGran=(id==='dailyreport');
+  document.getElementById('dr-gran-lbl').style.display=showGran?'':'none';
+  document.getElementById('dr-gran').style.display=showGran?'':'none';
   if(id==='dailyreport') renderDailyReportPage();
-  if(id==='trends'){ renderTrends(); renderSalesPV(); }
+  if(id==='trends') renderPerformancePeaks();
   if(id==='brandcomp') renderBrandComparison();
   saveUiState_();
 }
 
-var momChart=null;
 function pct(cur,prev){
   if(!prev) return '—';
   var p=((cur-prev)/prev*100);
@@ -1232,78 +1239,15 @@ function pctInline_(cur,prev){
   var cls=p>=0?'up':'dn';
   return ' <span class="'+cls+'">('+Math.round(Math.abs(p))+'%)</span>';
 }
-function renderTrends(){
-  var months=monthlyRangeMonths_(); // Jan through whichever month is selected, or the full year if "All Months" is picked
-  var monthly=months.map(function(m){
-    var rows=getBrandSelectionRows_(currentCurrency,currentBrand,m).rows;
-    var agg=emptyAgg_();
-    agg.month=m;
-    rows.forEach(function(r){ addRowToAgg_(agg,r); });
-    return agg;
-  });
-
-  var last=monthly[monthly.length-1], prev=monthly.length>1?monthly[monthly.length-2]:null;
-  document.getElementById('trend-chart-tag').textContent=(months.length>1?(monthNames[months[0]]+' – '+monthNames[months[months.length-1]]):monthNames[months[0]])+' trend';
-  document.getElementById('trend-mom-kpis').innerHTML=
-    kpiCard('teal','Sign Up MoM',prev?pct(last.signup,prev.signup):'—',prev?(monthNames[last.month]+' vs '+monthNames[prev.month]):'no prior month yet')+
-    kpiCard('gold','FTD MoM',prev?pct(last.ftd,prev.ftd):'—',prev?(monthNames[last.month]+' vs '+monthNames[prev.month]):'no prior month yet')+
-    kpiCard('green','Active Player MoM',prev?pct(last.active,prev.active):'—',prev?(monthNames[last.month]+' vs '+monthNames[prev.month]):'no prior month yet')+
-    kpiCard('purple','FTD Amount MoM',prev?pct(pickMoney(last,'ftdAmt',displayMode),pickMoney(prev,'ftdAmt',displayMode)):'—',prev?(monthNames[last.month]+' vs '+monthNames[prev.month]):'no prior month yet');
-
-  // Trend across months (Jan through the selected month, or the full year for
-  // "All Months") for whichever metric(s) the dropdown has picked — same
-  // All/single-metric pattern as the Overview page's trend chart, just plotted
-  // month-by-month instead of day-by-day.
-  if(momChart) momChart.destroy();
-  var trendChartMetric=document.getElementById('trend-chart-metric').value;
-  var momLabels=monthly.map(function(m){return monthNames[m.month];});
-  var momLblMap={signup:'Sign Up',ftd:'FTD',active:'Active Player',ftdAmt:'FTD Amount'};
-  var momColorMap={signup:'#00b0ff',ftd:'#facc15',active:'#9b7ff4',ftdAmt:'#00e676'};
-  var momDatasets,momScales;
-  if(trendChartMetric==='all'){
-    momDatasets=['signup','ftd','active','ftdAmt'].map(function(k){
-      var isMoney=(k==='ftdAmt');
-      return {label:momLblMap[k],data:monthly.map(function(m){return isMoney?pickMoney(m,'ftdAmt',displayMode):m[k];}),
-        borderColor:momColorMap[k],backgroundColor:momColorMap[k]+'1a',fill:false,tension:.3,pointRadius:3,pointHoverRadius:5,borderWidth:2,
-        yAxisID:(k==='ftdAmt'?'y1':'y')};
-    });
-    momScales={
-      x:{grid:{display:false},ticks:{color:'#64748b',font:{size:10}}},
-      y:{position:'left',beginAtZero:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'Sign Up / FTD / Active',color:'#64748b',font:{size:9}}},
-      y1:{position:'right',beginAtZero:true,grid:{display:false},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'FTD Amount',color:'#64748b',font:{size:9}}}
-    };
-  } else {
-    var isMoney=(trendChartMetric==='ftdAmt');
-    var c=momColorMap[trendChartMetric];
-    momDatasets=[{label:momLblMap[trendChartMetric],
-      data:monthly.map(function(m){return isMoney?pickMoney(m,'ftdAmt',displayMode):m[trendChartMetric];}),
-      borderColor:c,backgroundColor:c+'26',fill:true,tension:.3,pointRadius:3,pointHoverRadius:5,borderWidth:2}];
-    momScales={
-      x:{grid:{display:false},ticks:{color:'#64748b',font:{size:10}}},
-      y:{beginAtZero:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}
-    };
-  }
-  momChart=new Chart(document.getElementById('mom-chart').getContext('2d'),{
-    type:'line',
-    data:{labels:momLabels,datasets:momDatasets},
-    options:{responsive:true,maintainAspectRatio:false,
-      interaction:{mode:'index',intersect:false},
-      plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:10,font:{size:10}}}},
-      scales:momScales}
-  });
-  attachChartZoom_('mom-chart','Performance — Month-over-Month',function(){return momChart;});
-
-  document.getElementById('trend-table').innerHTML=
-    '<tr><th>Month</th><th>Sign Up</th><th>FTD</th><th>Active</th><th>FTD Amount</th></tr>'+
-    monthly.map(function(m,i){
-      var p=monthly[i-1];
-      return '<tr><td>'+monthNames[m.month]+'</td><td>'+fmtInt(m.signup)+pctInline_(m.signup,p&&p.signup)+'</td><td>'+fmtInt(m.ftd)+'</td><td>'+fmtInt(m.active)+'</td>'+
-        '<td>'+money(pickMoney(m,'ftdAmt',displayMode),displayMode)+pctInline_(pickMoney(m,'ftdAmt',displayMode),p?pickMoney(p,'ftdAmt',displayMode):null)+'</td></tr>';
-    }).join('');
-}
-
-/* ═══════════ SALES PEAKS & VALLEYS ═══════════ */
-var spvWeekSplitChart=null, spvMonthSplitChart=null, spvWeekTrendChart=null, spvMonthTrendChart=null;
+/* ═══════════ PERFORMANCE & PEAKS (merged page) ═══════════
+   One metric selector (#perf-metric, 9 options spanning both Performance
+   counts and Financials money fields) drives the whole page: KPI strip,
+   Monthly Trend chart+table, and every Peaks & Valleys table/chart below it.
+   Nothing here is hardcoded to a fixed set of metrics anymore — mv()/fmtVal()
+   look up MONEY_METRICS_/METRIC_LABEL generically for whichever metric is picked.
+*/
+var perfChart=null;
+var spvWeekSplitChart=null, spvMonthSplitChart=null, spvWeekTrendChart=null;
 var METRIC_LABEL={turnover:'Turnover',deposit:'Deposit',withdraw:'Withdraw',promo:'Promotion',revenue:'Revenue',signup:'Sign Up',ftd:'FTD',active:'Active Player',ftdAmt:'FTD Amount'};
 var MONEY_METRICS_={turnover:1,deposit:1,withdraw:1,promo:1,revenue:1,ftdAmt:1}; // signup/ftd/active are counts, everything else is money
 
@@ -1338,6 +1282,22 @@ function renderPeakBarList_(elId,items,fmtVal){
    their own (partial) copy of this table; now there's exactly one, here.
 */
 function renderDailyReportPage(){
+  var summary=computeSelectionSummary_();
+  var sum=summary.sum;
+  var showRevenue=sum.revenueFilled;
+  document.getElementById('dr-kpi-acq').innerHTML=
+    kpiCard('teal','Total Sign Up',fmtInt(sum.signup))+
+    kpiCard('gold','Total FTD',fmtInt(sum.ftd),'first-time deposit')+
+    kpiCard('purple','Active Player',fmtInt(sum.active))+
+    kpiCard('teal','FTD Amount',money(pickMoney(sum,'ftdAmt',displayMode),displayMode))+
+    kpiCard('green','FTD Conv. Rate',sum.signup>0?(sum.ftd/sum.signup*100).toFixed(2)+'%':'—');
+  document.getElementById('dr-kpi-fin').innerHTML=
+    kpiCard('gold','Total Turnover',money(pickMoney(sum,'turnover',displayMode),displayMode))+
+    kpiCard('teal','Total Deposit',money(pickMoney(sum,'deposit',displayMode),displayMode))+
+    kpiCard('amber','Total Withdraw',money(pickMoney(sum,'withdraw',displayMode),displayMode))+
+    kpiCard('red','Total Promotion',money(pickMoney(sum,'promo',displayMode),displayMode))+
+    (showRevenue?kpiCard('green','Revenue',money(pickMoney(sum,'revenue',displayMode),displayMode)):'');
+
   var gran=document.getElementById('dr-gran').value;
   var granLabel={daily:'days',weekly:'weeks',monthly:'months'}[gran];
   var isAll=currentMonth===ALL_MONTHS;
@@ -1350,9 +1310,9 @@ function renderDailyReportPage(){
   renderDailyBreakdownTable_('dr-table','dr-daycount',rows,granLabel,'both');
 }
 
-function renderSalesPV(){
-  var metric=document.getElementById('spv-metric').value;
-  var isMoney=true; // all 5 options here (Turnover/Deposit/Withdraw/Promotion/Revenue) are money fields
+function renderPerformancePeaks(){
+  var metric=document.getElementById('perf-metric').value;
+  var isMoney=!!MONEY_METRICS_[metric];
   var mv=function(r){ return isMoney?pickMoney(r,metric,displayMode):r[metric]; };
   var fmtVal=function(v){ return isMoney?money(v,displayMode):fmtInt(v); };
   var cur=currentCurrency;
@@ -1362,7 +1322,7 @@ function renderSalesPV(){
   var brands=currentBrand===ALL_BRANDS ? (BRANDS_BY_CURRENCY[cur]||[]) : [currentBrand];
   var months=monthlyRangeMonths_(); // Jan through the selected month, or the full year if "All Months" is picked
   var selLabel=brandLabel_(currentBrand)==='All Brands' ? 'all brands' : currentBrand;
-  ['spv-topw-tag','spv-topm-tag','spv-wtrend-tag','spv-mtrend-tag'].forEach(function(id){
+  ['spv-topw-tag','spv-topm-tag','spv-wtrend-tag'].forEach(function(id){
     document.getElementById(id).textContent=selLabel;
   });
 
@@ -1445,8 +1405,38 @@ function renderSalesPV(){
   var monthTotals=months.map(function(m,i){
     var sum=0;
     brandMonthData.forEach(function(d){ sum+=d.monthly[i].val; });
-    return {label:monthNames[m],val:sum};
+    return {month:m,label:monthNames[m],val:sum};
   });
+
+  // ── Unified KPI strip + Monthly Trend chart —
+  //    all driven by the same `metric` the rest of this page uses, so
+  //    switching the dropdown changes everything on the page consistently ──
+  var lastMo=monthTotals[monthTotals.length-1], prevMo=monthTotals.length>1?monthTotals[monthTotals.length-2]:null;
+  var pkMo=monthTotals.reduce(function(a,b){return b.val>a.val?b:a;});
+  var vlMo=monthTotals.reduce(function(a,b){return b.val<a.val?b:a;});
+  var surgeMo=vlMo.val>0?(pkMo.val/vlMo.val).toFixed(1)+'×':'—';
+  document.getElementById('perf-chart-title').textContent='📊 '+METRIC_LABEL[metric]+' — Monthly Trend';
+  document.getElementById('perf-chart-tag').textContent=months.length>1?(monthNames[months[0]]+' – '+monthNames[months[months.length-1]]):monthNames[months[0]];
+  document.getElementById('perf-kpis').innerHTML=
+    kpiCard('teal',METRIC_LABEL[metric]+' — '+monthNames[lastMo.month],fmtVal(lastMo.val))+
+    kpiCard(prevMo&&lastMo.val>=prevMo.val?'green':'red','MoM Change',prevMo?pct(lastMo.val,prevMo.val):'—',prevMo?(monthNames[prevMo.month]+' → '+monthNames[lastMo.month]):'no prior month yet')+
+    kpiCard('gold','Peak Month',pkMo.label,fmtVal(pkMo.val))+
+    kpiCard('purple','Surge Factor',surgeMo,vlMo.label+' → '+pkMo.label);
+
+  if(perfChart) perfChart.destroy();
+  var moBarColors=monthTotals.map(function(m){
+    return m.month===pkMo.month?'rgba(255,145,0,0.85)':m.month===vlMo.month?'rgba(0,230,118,0.85)':'rgba(155,127,244,0.6)';
+  });
+  perfChart=new Chart(document.getElementById('perf-chart').getContext('2d'),{
+    type:'bar',
+    data:{labels:monthTotals.map(function(m){return m.label;}),datasets:[{data:monthTotals.map(function(m){return m.val;}),backgroundColor:moBarColors,borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:function(ctx){return fmtVal(ctx.parsed.y);}}}},
+      scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:10}}},
+              y:{beginAtZero:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
+  });
+  bindChartZoom_('perf-chart',METRIC_LABEL[metric]+' — Monthly Trend',perfChart);
+
   var topMonths=monthTotals.slice().sort(function(a,b){return b.val-a.val;}).slice(0,3);
   renderPeakBarList_('spv-top-months',topMonths,fmtVal);
 
@@ -1502,15 +1492,6 @@ function renderSalesPV(){
       scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9},autoSkip:false,maxRotation:90,minRotation:90}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
   });
   attachChartZoom_('spv-wtrend-chart','Sales Peaks & Valleys — Weekly Volume Trend',function(){return spvWeekTrendChart;});
-
-  if(spvMonthTrendChart) spvMonthTrendChart.destroy();
-  spvMonthTrendChart=new Chart(document.getElementById('spv-mtrend-chart').getContext('2d'),{
-    type:'bar',
-    data:{labels:months.map(function(m){return monthNames[m];}),datasets:[{label:METRIC_LABEL[metric],data:monthTotals.map(function(m){return m.val;}),backgroundColor:'#00b0ff',borderRadius:4}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
-      scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9}}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
-  });
-  attachChartZoom_('spv-mtrend-chart','Sales Peaks & Valleys — Monthly Volume Trend',function(){return spvMonthTrendChart;});
 }
 
 /* ═══════════ BRAND COMPARISON ═══════════
@@ -2103,17 +2084,28 @@ function renderOverviewAlerts_(cur,brand,month){
   }).join('');
 }
 
-function renderAll(){
+// Shared by Overview and Daily Report — both show totals for whatever
+// brand/month/currency is currently selected, just with a different set of
+// KPI cards. Computing this once here means they can never drift out of sync.
+function computeSelectionSummary_(){
   var isAllMonths=currentMonth===ALL_MONTHS;
   var res, rows, yearRowsByMonth=null;
   if(isAllMonths){
     yearRowsByMonth=MO_ORDER.map(function(m){ return {month:m,res:getBrandSelectionRows_(currentCurrency,currentBrand,m)}; });
-    rows=[].concat.apply([],yearRowsByMonth.map(function(x){return x.res.rows;})); // every day of the year, for the KPI totals
+    rows=[].concat.apply([],yearRowsByMonth.map(function(x){return x.res.rows;}));
     res=aggregateStatusAcross_(yearRowsByMonth.map(function(x){return x.res;}));
   } else {
     res=getBrandSelectionRows_(currentCurrency,currentBrand,currentMonth);
     rows=res.rows;
   }
+  var sum=emptyAgg_();
+  rows.forEach(function(r){ addRowToAgg_(sum,r); });
+  return {isAllMonths:isAllMonths,res:res,rows:rows,yearRowsByMonth:yearRowsByMonth,sum:sum};
+}
+
+function renderAll(){
+  var summary=computeSelectionSummary_();
+  var isAllMonths=summary.isAllMonths, res=summary.res, rows=summary.rows, yearRowsByMonth=summary.yearRowsByMonth, sum=summary.sum;
   updateLiveBadges_(res);
   var monthLabel=isAllMonths?'Full Year (Jan–Dec)':monthNames[currentMonth];
   var onOverview=document.getElementById('page-overview').classList.contains('active');
@@ -2124,7 +2116,7 @@ function renderAll(){
   var pgTitles={
     overview:'💰 Sales Overview — '+brandLabel_(currentBrand),
     dailyreport:'📋 Daily Report — '+brandLabel_(currentBrand),
-    trends:'📈 Performance & Peaks — '+brandLabel_(currentBrand),
+    trends:'📈 Performance Peaks & Valleys — '+brandLabel_(currentBrand),
     brandcomp:'🆚 Brand Comparison — '+brandLabel_(currentBrand)
   };
   document.getElementById('pg-title').textContent=pgTitles[activePageId];
@@ -2132,27 +2124,14 @@ function renderAll(){
   document.getElementById('pg-sub').textContent=dataLabel+' · '+monthLabel+' · '+currentCurrency+' sheet';
   document.getElementById('chart-tag').textContent=isAllMonths?'Jan – Dec · monthly':monthLabel+' · daily';
 
-  var sum=emptyAgg_();
-  rows.forEach(function(r){ addRowToAgg_(sum,r); });
-
-  // Revenue is only shown at all when at least one day this month actually has a
-  // number in the Sheet's Revenue column — otherwise the KPI card and the whole
-  // table column just disappear instead of showing a wall of misleading zeros.
-  var showRevenue=sum.revenueFilled;
-
+  // Core Overview KPIs — the full set (FTD Amount, FTD Conv Rate, Turnover,
+  // Promotion, Revenue) moved to the Daily Report page (renderDailyReportPage).
   document.getElementById('kpi-acq').innerHTML=
-    kpiCard('teal','Total Sign Up',fmtInt(sum.signup))+
-    kpiCard('gold','Total FTD',fmtInt(sum.ftd),'first-time deposit')+
-    kpiCard('purple','Active Player',fmtInt(sum.active))+
-    kpiCard('teal','FTD Amount',money(pickMoney(sum,'ftdAmt',displayMode),displayMode))+
-    kpiCard('green','FTD Conv. Rate',sum.signup>0?(sum.ftd/sum.signup*100).toFixed(2)+'%':'—');
-
-  document.getElementById('kpi-fin').innerHTML=
-    kpiCard('gold','Total Turnover',money(pickMoney(sum,'turnover',displayMode),displayMode))+
-    kpiCard('teal','Total Deposit',money(pickMoney(sum,'deposit',displayMode),displayMode))+
-    kpiCard('amber','Total Withdraw',money(pickMoney(sum,'withdraw',displayMode),displayMode))+
-    kpiCard('red','Total Promotion',money(pickMoney(sum,'promo',displayMode),displayMode))+
-    (showRevenue?kpiCard('green','Revenue',money(pickMoney(sum,'revenue',displayMode),displayMode)):'');
+    kpiCard('teal','Total Sign Up',fmtInt(sum.signup),null,"ovJumpTo_('trends',{metric:'signup'})")+
+    kpiCard('gold','Total FTD',fmtInt(sum.ftd),'first-time deposit',"ovJumpTo_('trends',{metric:'ftd'})")+
+    kpiCard('purple','Active Player',fmtInt(sum.active),null,"ovJumpTo_('trends',{metric:'active'})")+
+    kpiCard('teal','Total Deposit',money(pickMoney(sum,'deposit',displayMode),displayMode),null,"ovJumpTo_('trends',{metric:'deposit'})")+
+    kpiCard('amber','Total Withdraw',money(pickMoney(sum,'withdraw',displayMode),displayMode),null,"ovJumpTo_('trends',{metric:'withdraw'})");
 
   // Chart — monthly line (Jan–Dec) when "All Months" is selected, daily otherwise
   var chartRows;
@@ -2212,7 +2191,7 @@ function renderAll(){
 
   if(!onOverview){
     if(activePageId==='dailyreport') renderDailyReportPage();
-    else if(activePageId==='trends'){ renderTrends(); renderSalesPV(); }
+    else if(activePageId==='trends') renderPerformancePeaks();
     else if(activePageId==='brandcomp') renderBrandComparison();
   }
 }
