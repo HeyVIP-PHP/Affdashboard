@@ -257,8 +257,8 @@ table.dt td.pv-brand{font-weight:800}
 .md-status.loading{background:var(--teal-d);color:var(--teal)}
 .md-status.off{background:rgba(255,255,255,.03);color:var(--muted)}
 .modal-foot{padding:10px 18px;border-top:1px solid var(--border);font-size:9px;color:var(--dim);line-height:1.6}
-.chart-zoom-box{max-width:min(1100px,92vw);width:100%}
-.chart-zoom-body{height:min(640px,72vh);padding:20px}
+.chart-zoom-box{max-width:min(1500px,96vw);width:100%}
+.chart-zoom-body{height:min(820px,85vh);padding:24px}
 .chart-zoom-body canvas{width:100%!important;height:100%!important}
 </style>
 </head>
@@ -298,6 +298,7 @@ table.dt td.pv-brand{font-weight:800}
         <div class="conn-sub" id="conn-sub">Awaiting Sales Sheet ID for PKR</div>
       </div>
       <button class="conn-gear" onclick="openSettings()"><i class="fa-solid fa-gear"></i> Sheet Links</button>
+      <button class="conn-gear" onclick="openRawInspector()" style="margin-top:6px"><i class="fa-solid fa-magnifying-glass"></i> Raw Data</button>
     </div>
   </div>
 
@@ -468,7 +469,7 @@ table.dt td.pv-brand{font-weight:800}
         <div class="row2 c66" style="margin-top:16px">
           <div class="panel ag">
             <div class="ph"><span>📊</span><span class="ph-t">Brand Weekly Split</span><span class="ph-tag" id="spv-wsplit-tag">by brand</span></div>
-            <div class="cw" style="height:240px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="spv-wsplit-chart"></canvas></div>
+            <div class="cw" style="height:300px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="spv-wsplit-chart"></canvas></div>
           </div>
           <div class="panel ag">
             <div class="ph"><span>📊</span><span class="ph-t">Brand Monthly Split</span><span class="ph-tag">by brand</span></div>
@@ -479,7 +480,7 @@ table.dt td.pv-brand{font-weight:800}
         <div class="row2 c66" style="margin-top:16px">
           <div class="panel">
             <div class="ph"><span>📈</span><span class="ph-t">Weekly Volume Trend</span><span class="ph-tag" id="spv-wtrend-tag">all brands</span></div>
-            <div class="cw" style="height:200px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="spv-wtrend-chart"></canvas></div>
+            <div class="cw" style="height:260px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="spv-wtrend-chart"></canvas></div>
           </div>
           <div class="panel">
             <div class="ph"><span>📈</span><span class="ph-t">Monthly Volume Trend</span><span class="ph-tag" id="spv-mtrend-tag">all brands</span></div>
@@ -557,6 +558,30 @@ table.dt td.pv-brand{font-weight:800}
     </div>
     <div class="modal-body single chart-zoom-body">
       <canvas id="chart-zoom-canvas"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ RAW DATA INSPECTOR — see exactly what the parser read from the Sheet, day by day, to compare against the Sheet yourself (or copy as text to send over) ═══════════ -->
+<div class="modal-overlay" id="raw-overlay" onclick="if(event.target===this) closeRawInspector()">
+  <div class="modal-box" style="max-width:min(1100px,94vw)">
+    <div class="modal-head">
+      <div class="modal-title">🔍 Raw Data Inspector — exactly what got read from your Sheet</div>
+      <button class="modal-close" onclick="closeRawInspector()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body single">
+      <div class="modal-detail" style="padding:14px 18px">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+          <select id="raw-brand-sel" class="fsel" onchange="renderRawInspector()" style="min-width:140px"></select>
+          <select id="raw-month-sel" class="fsel" onchange="renderRawInspector()" style="min-width:100px"></select>
+          <span style="font-size:9px;color:var(--muted);font-family:var(--mono)" id="raw-src-tag"></span>
+          <button class="conn-gear" style="width:auto;margin:0;padding:6px 12px" onclick="copyRawInspector()"><i class="fa-solid fa-copy"></i> Copy as text</button>
+        </div>
+        <div style="overflow-x:auto"><table class="dt" id="raw-table" style="table-layout:auto;width:auto;min-width:100%"></table></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      这里显示的是代码从 Sheet 原始行(A~Y 列)解析出来、还没做任何汇总/换算的逐日数值——跟你 Sheet 里对应那一行的原始数字应该完全一致。如果这里显示的数字本身就跟 Sheet 对不上,说明是解析环节的问题；如果这里的数字是对的,但汇总/月度合计对不上,问题就出在汇总逻辑,不是读取环节。
     </div>
   </div>
 </div>
@@ -1411,7 +1436,7 @@ function renderSalesPV(){
   // ── Brand Weekly Split — multi-line so each brand's shape is easy to follow,
   //    hovering anywhere on a week shows every brand's value for that week at once ──
   document.getElementById('spv-wsplit-tag').textContent=(currentMonth===ALL_MONTHS?'Jan–Dec (All Months)':monthNames[currentMonth])+' · by brand';
-  var weekLabels=weekTotals.map(function(w){return w.range?[w.label,w.range]:w.label;});
+  var weekLabels=weekTotals.map(function(w){return w.label;});
   if(spvWeekSplitChart) spvWeekSplitChart.destroy();
   spvWeekSplitChart=new Chart(document.getElementById('spv-wsplit-chart').getContext('2d'),{
     type:'line',
@@ -1423,8 +1448,11 @@ function renderSalesPV(){
     options:{responsive:true,maintainAspectRatio:false,
       interaction:{mode:'index',intersect:false},
       plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:9,font:{size:9}}},
-        tooltip:{mode:'index',intersect:false,callbacks:{label:function(ctx){return ctx.dataset.label+': '+fmt(ctx.parsed.y);}}}},
-      scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9},autoSkip:false,maxRotation:60,minRotation:60}},
+        tooltip:{mode:'index',intersect:false,callbacks:{
+          title:function(items){ var w=weekTotals[items[0].dataIndex]; return w.range?w.label+' ('+w.range+')':w.label; },
+          label:function(ctx){return ctx.dataset.label+': '+fmt(ctx.parsed.y);}
+        }}},
+      scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9},autoSkip:false,maxRotation:90,minRotation:90}},
               y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
   });
   attachChartZoom_('spv-wsplit-chart','Sales Peaks & Valleys — Brand Weekly Split',function(){return spvWeekSplitChart;});
@@ -1452,8 +1480,9 @@ function renderSalesPV(){
   spvWeekTrendChart=new Chart(document.getElementById('spv-wtrend-chart').getContext('2d'),{
     type:'bar',
     data:{labels:weekLabels,datasets:[{label:METRIC_LABEL[metric],data:weekTotals.map(function(w){return w.val;}),backgroundColor:'#00b0ff',borderRadius:4}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
-      scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9},autoSkip:false,maxRotation:60,minRotation:60}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+        tooltip:{callbacks:{title:function(items){ var w=weekTotals[items[0].dataIndex]; return w.range?w.label+' ('+w.range+')':w.label; }}}},
+      scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9},autoSkip:false,maxRotation:90,minRotation:90}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
   });
   attachChartZoom_('spv-wtrend-chart','Sales Peaks & Valleys — Weekly Volume Trend',function(){return spvWeekTrendChart;});
 
@@ -2207,6 +2236,82 @@ function openChartModal_(title,chart){
 function closeChartModal_(){
   document.getElementById('chart-zoom-overlay').classList.remove('open');
   if(chartZoomInstance_){ chartZoomInstance_.destroy(); chartZoomInstance_=null; }
+}
+
+/* ═══════════ RAW DATA INSPECTOR ═══════════ */
+function openRawInspector(){
+  var brandSel=document.getElementById('raw-brand-sel');
+  brandSel.innerHTML=(BRANDS_BY_CURRENCY[currentCurrency]||[]).map(function(b){return '<option value="'+b+'">'+b+'</option>';}).join('');
+  brandSel.value=(currentBrand!==ALL_BRANDS && brandSel.querySelector('option[value="'+currentBrand+'"]'))?currentBrand:(BRANDS_BY_CURRENCY[currentCurrency]||[])[0];
+  var monthSel=document.getElementById('raw-month-sel');
+  monthSel.innerHTML=MO_ORDER.map(function(m){return '<option value="'+m+'">'+monthNames[m]+'</option>';}).join('');
+  monthSel.value=(currentMonth!==ALL_MONTHS)?currentMonth:'Jan';
+  document.getElementById('raw-overlay').classList.add('open');
+  renderRawInspector();
+}
+function closeRawInspector(){
+  document.getElementById('raw-overlay').classList.remove('open');
+}
+function renderRawInspector(){
+  var brand=document.getElementById('raw-brand-sel').value;
+  var month=document.getElementById('raw-month-sel').value;
+  var cfg=SHEET_LINKS[currentCurrency];
+  var tab=cfg?tabNameFor_(currentCurrency,brand):'';
+  document.getElementById('raw-src-tag').textContent=cfg&&cfg.sheetId
+    ? ('Sheet '+cfg.sheetId+' · tab "'+tab+'" · '+currentCurrency)
+    : (currentCurrency+' has no Sheet configured yet');
+  var res=getMonthRows(currentCurrency,brand,month);
+  var cur=CUR_SYMBOL[currentCurrency];
+  var cols=[
+    {h:'Date',get:function(r){return r.date;}},
+    {h:'Sign Up',get:function(r){return fmtInt(r.signup);}},
+    {h:'FTD',get:function(r){return fmtInt(r.ftd);}},
+    {h:'Active',get:function(r){return fmtInt(r.active);}},
+    {h:'FTD Amt',get:function(r){return cur+' '+fmt(r.ftdAmt);}},
+    {h:'FTD Amt USD',get:function(r){return '$'+fmt(r.ftdAmtUsd);}},
+    {h:'Turnover',get:function(r){return cur+' '+fmt(r.turnover);}},
+    {h:'Turnover USD',get:function(r){return '$'+fmt(r.turnoverUsd);}},
+    {h:'Deposit',get:function(r){return cur+' '+fmt(r.deposit);}},
+    {h:'Deposit USD',get:function(r){return '$'+fmt(r.depositUsd);}},
+    {h:'Withdraw',get:function(r){return cur+' '+fmt(r.withdraw);}},
+    {h:'Withdraw USD',get:function(r){return '$'+fmt(r.withdrawUsd);}},
+    {h:'Promo',get:function(r){return cur+' '+fmt(r.promo);}},
+    {h:'Promo USD',get:function(r){return '$'+fmt(r.promoUsd);}},
+    {h:'Revenue',get:function(r){return r.revenueFilled?cur+' '+fmt(r.revenue):'—';}},
+    {h:'Revenue USD',get:function(r){return r.revenueUsdFilled?'$'+fmt(r.revenueUsd):'—';}}
+  ];
+  var agg=emptyAgg_();
+  res.rows.forEach(function(r){ addRowToAgg_(agg,r); });
+  agg.date='SUM ('+res.rows.length+' rows)';
+  var statusNote=res.status==='ready'?'':(' — status: '+res.status+(res.error?' ('+res.error+')':''));
+  document.getElementById('raw-table').innerHTML=
+    '<tr>'+cols.map(function(c){return '<th>'+c.h+'</th>';}).join('')+'</tr>'+
+    res.rows.map(function(r){ return '<tr>'+cols.map(function(c){return '<td>'+c.get(r)+'</td>';}).join('')+'</tr>'; }).join('')+
+    '<tr class="dt-total">'+cols.map(function(c){return '<td>'+c.get(agg)+'</td>';}).join('')+'</tr>'+
+    (statusNote?'<tr><td colspan="'+cols.length+'" style="color:var(--red);font-size:9px">'+statusNote.replace(/^ — /,'')+'</td></tr>':'');
+}
+function copyRawInspector(){
+  var brand=document.getElementById('raw-brand-sel').value;
+  var month=document.getElementById('raw-month-sel').value;
+  var res=getMonthRows(currentCurrency,brand,month);
+  var cur=CUR_SYMBOL[currentCurrency];
+  var header=['Date','SignUp','FTD','Active','FTDAmt','FTDAmtUSD','Turnover','TurnoverUSD','Deposit','DepositUSD','Withdraw','WithdrawUSD','Promo','PromoUSD','Revenue','RevenueUSD'];
+  var lines=[header.join('\t')];
+  res.rows.forEach(function(r){
+    lines.push([r.date,r.signup,r.ftd,r.active,r.ftdAmt,r.ftdAmtUsd,r.turnover,r.turnoverUsd,r.deposit,r.depositUsd,r.withdraw,r.withdrawUsd,r.promo,r.promoUsd,(r.revenueFilled?r.revenue:''),(r.revenueUsdFilled?r.revenueUsd:'')].join('\t'));
+  });
+  var agg=emptyAgg_();
+  res.rows.forEach(function(r){ addRowToAgg_(agg,r); });
+  lines.push(['SUM',agg.signup,agg.ftd,agg.active,agg.ftdAmt,agg.ftdAmtUsd,agg.turnover,agg.turnoverUsd,agg.deposit,agg.depositUsd,agg.withdraw,agg.withdrawUsd,agg.promo,agg.promoUsd,agg.revenue,agg.revenueUsd].join('\t'));
+  var text=brand+' · '+month+' · '+currentCurrency+'\n'+lines.join('\n');
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(function(){
+      var btn=event&&event.target&&event.target.closest?event.target.closest('button'):null;
+      if(btn){ var old=btn.innerHTML; btn.innerHTML='<i class="fa-solid fa-check"></i> Copied'; setTimeout(function(){btn.innerHTML=old;},1500); }
+    }).catch(function(){ window.prompt('Copy this text:',text); });
+  } else {
+    window.prompt('Copy this text:',text);
+  }
 }
 
 function openSettings(){
