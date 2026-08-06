@@ -491,7 +491,7 @@ table.dt td.pv-brand{font-weight:800}
           <span class="filter-lbl" style="margin-left:10px" id="bc-months-lbl">Feb vs Jan</span>
         </div>
         <div class="panel ap">
-          <div class="ph"><span>📊</span><span class="ph-t">This Month vs Last Month — by Brand</span><span class="ph-tag" id="bc-chart-tag">Turnover</span></div>
+          <div class="ph"><span>📊</span><span class="ph-t" id="bc-chart-title">This Month vs Last Month — by Brand</span><span class="ph-tag" id="bc-chart-tag">Turnover</span></div>
           <div class="cw" style="height:260px"><canvas id="bc-chart"></canvas></div>
         </div>
         <div class="panel">
@@ -1107,9 +1107,9 @@ function renderTrends(){
   document.getElementById('trend-chart-tag').textContent=(months.length>1?(monthNames[months[0]]+' – '+monthNames[months[months.length-1]]):monthNames[months[0]])+' trend';
   document.getElementById('trend-mom-kpis').innerHTML=
     kpiCard('teal','Sign Up MoM',prev?pct(last.signup,prev.signup):'—',prev?(monthNames[last.month]+' vs '+monthNames[prev.month]):'no prior month yet')+
-    kpiCard('gold','FTD MoM',prev?pct(last.ftd,prev.ftd):'—')+
-    kpiCard('green','Active Player MoM',prev?pct(last.active,prev.active):'—')+
-    kpiCard('purple','FTD Amount MoM',prev?pct(pickMoney(last,'ftdAmt',displayMode),pickMoney(prev,'ftdAmt',displayMode)):'—');
+    kpiCard('gold','FTD MoM',prev?pct(last.ftd,prev.ftd):'—',prev?(monthNames[last.month]+' vs '+monthNames[prev.month]):'no prior month yet')+
+    kpiCard('green','Active Player MoM',prev?pct(last.active,prev.active):'—',prev?(monthNames[last.month]+' vs '+monthNames[prev.month]):'no prior month yet')+
+    kpiCard('purple','FTD Amount MoM',prev?pct(pickMoney(last,'ftdAmt',displayMode),pickMoney(prev,'ftdAmt',displayMode)):'—',prev?(monthNames[last.month]+' vs '+monthNames[prev.month]):'no prior month yet');
 
   // Trend across months (Jan through the selected month, or the full year for
   // "All Months") for whichever metric(s) the dropdown has picked — same
@@ -1356,15 +1356,21 @@ function renderBrandComparison(){
   // Same rule as Sales Peaks & Valleys: "All Brands" compares everyone under this
   // currency; picking one brand filters this page down to just that brand.
   var brands=currentBrand===ALL_BRANDS ? BRANDS_BY_CURRENCY[currentCurrency] : [currentBrand];
-  var bcMonth=effectiveMonth_(); // This Month vs Last Month needs one real month — falls back to December if "All Months" is selected
-  var thisMonthIdx=MO_ORDER.indexOf(bcMonth);
-  var lastMonth=thisMonthIdx>0?MO_ORDER[thisMonthIdx-1]:'Dec';
-  document.getElementById('bc-months-lbl').textContent=(currentMonth===ALL_MONTHS?'December (All Months selected)':monthNames[bcMonth])+' vs '+(monthNames[lastMonth]||lastMonth);
-  document.getElementById('bc-chart-tag').textContent=METRIC_LABEL[metric];
-
   var isMoney=(metric==='turnover'||metric==='revenue');
   var fmtVal=function(v){ return isMoney?money(v,displayMode):fmtInt(v); };
   var mv=function(r){ return isMoney?pickMoney(r,metric,displayMode):r[metric]; };
+
+  if(currentMonth===ALL_MONTHS){
+    renderBrandComparisonAllMonths_(metric,brands,fmtVal,mv);
+    return;
+  }
+
+  document.getElementById('bc-chart-title').textContent='This Month vs Last Month — by Brand';
+  var bcMonth=currentMonth;
+  var thisMonthIdx=MO_ORDER.indexOf(bcMonth);
+  var lastMonth=thisMonthIdx>0?MO_ORDER[thisMonthIdx-1]:'Dec';
+  document.getElementById('bc-months-lbl').textContent=monthNames[bcMonth]+' vs '+(monthNames[lastMonth]||lastMonth);
+  document.getElementById('bc-chart-tag').textContent=METRIC_LABEL[metric];
 
   var data=brands.map(function(b){
     var curRows=getMonthRows(currentCurrency,b,bcMonth).rows;
@@ -1390,6 +1396,47 @@ function renderBrandComparison(){
     data.map(function(d){
       return '<tr><td>'+d.brand+'</td><td>'+fmtVal(d.prev)+'</td><td>'+fmtVal(d.cur)+'</td>'+
         '<td><span class="'+pctCls(d.cur,d.prev)+'">'+pct(d.cur,d.prev)+'</span></td></tr>';
+    }).join('');
+}
+
+// "All Months": rather than picking one arbitrary month to stand in for the
+// whole year, show every month of the year, each one compared to the month
+// right before it — a trend line per brand, and a Brand × Month matrix table
+// with the MoM% sitting right next to each month's number.
+function renderBrandComparisonAllMonths_(metric,brands,fmtVal,mv){
+  document.getElementById('bc-chart-title').textContent='Monthly Trend — by Brand';
+  document.getElementById('bc-months-lbl').textContent='Each month vs the month before it (Jan–Dec)';
+  document.getElementById('bc-chart-tag').textContent=METRIC_LABEL[metric];
+
+  var brandMonthly=brands.map(function(b){
+    var vals=MO_ORDER.map(function(m){
+      var rows=getMonthRows(currentCurrency,b,m).rows;
+      return rows.reduce(function(s,r){return s+mv(r);},0);
+    });
+    return {brand:b,vals:vals};
+  });
+
+  if(bcChart) bcChart.destroy();
+  bcChart=new Chart(document.getElementById('bc-chart').getContext('2d'),{
+    type:'line',
+    data:{labels:MO_ORDER.map(function(m){return monthNames[m];}),datasets:brandMonthly.map(function(bm){
+      var c=brandColor_(brands,bm.brand);
+      return {label:bm.brand,data:bm.vals,borderColor:c,backgroundColor:c+'1a',fill:false,tension:.3,pointRadius:3,pointHoverRadius:5,borderWidth:2};
+    })},
+    options:{responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:9,font:{size:9}}}},
+      scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9}}},y:{beginAtZero:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
+  });
+
+  document.getElementById('bc-table').innerHTML=
+    '<tr><th>Brand</th>'+MO_ORDER.map(function(m){return '<th>'+monthNames[m]+'</th>';}).join('')+'</tr>'+
+    brandMonthly.map(function(bm){
+      var cells=bm.vals.map(function(v,i){
+        var prev=i>0?bm.vals[i-1]:null;
+        return '<td>'+fmtVal(v)+pctInline_(v,prev)+'</td>';
+      }).join('');
+      return '<tr><td class="pv-brand" style="color:'+brandColor_(brands,bm.brand)+'">'+bm.brand+'</td>'+cells+'</tr>';
     }).join('');
 }
 
