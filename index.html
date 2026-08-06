@@ -155,6 +155,7 @@ table.dt tbody tr:hover td{background:rgba(255,255,255,.03)}
 /* ANALYTICS helpers */
 .row2{display:grid;gap:16px}
 .c66{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+#bc-tables-row.single-col{grid-template-columns:1fr}
 .filter-bar{display:flex;gap:10px;align-items:center;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 16px;flex-wrap:wrap}
 .filter-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-right:6px}
 .fsel{background:var(--panel);border:1px solid var(--border2);color:var(--text);font-size:11px;font-family:var(--mono);padding:6px 10px;border-radius:6px;cursor:pointer}
@@ -500,17 +501,26 @@ table.dt td.pv-brand{font-weight:800}
           </select>
           <span class="filter-lbl" style="margin-left:10px" id="bc-months-lbl">Feb vs Jan</span>
         </div>
-        <div class="panel ap">
+
+        <div class="row2 c66" id="bc-tables-row">
+          <div class="panel">
+            <div class="ph"><span>📋</span><span class="ph-t" id="bc-table-title">Brand Monthly Breakdown</span><span class="ph-tag">MoM %</span></div>
+            <div class="pb" style="overflow-x:auto"><table class="dt" id="bc-table"></table></div>
+          </div>
+          <div class="panel" id="bc-table2-panel" style="display:none">
+            <div class="ph"><span>📋</span><span class="ph-t">Brand Monthly Breakdown — Financials</span><span class="ph-tag">MoM %</span></div>
+            <div class="pb" style="overflow-x:auto"><table class="dt" id="bc-table2"></table></div>
+          </div>
+        </div>
+
+        <div class="panel ap" id="bc-chart-panel" style="margin-top:16px">
           <div class="ph"><span>📊</span><span class="ph-t" id="bc-chart-title">This Month vs Last Month — by Brand</span><span class="ph-tag" id="bc-chart-tag">Turnover</span></div>
           <div class="cw" style="height:260px"><canvas id="bc-chart"></canvas></div>
         </div>
-        <div class="panel">
-          <div class="ph"><span>📋</span><span class="ph-t" id="bc-table-title">Brand Monthly Breakdown</span><span class="ph-tag">MoM %</span></div>
-          <div class="pb" style="overflow-x:auto"><table class="dt" id="bc-table"></table></div>
-        </div>
-        <div class="panel" id="bc-table2-panel" style="display:none;margin-top:16px">
-          <div class="ph"><span>📋</span><span class="ph-t">Brand Monthly Breakdown — Financials</span><span class="ph-tag">MoM %</span></div>
-          <div class="pb" style="overflow-x:auto"><table class="dt" id="bc-table2"></table></div>
+
+        <div class="panel" id="bc-multichart-panel" style="display:none;margin-top:16px">
+          <div class="ph"><span>📊</span><span class="ph-t">Monthly Trend — All Metrics</span></div>
+          <div id="bc-multichart-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px"></div>
         </div>
       </div>
 
@@ -1393,16 +1403,30 @@ function renderSalesPV(){
    (not Bot vs Agent), laid out side by side per brand.
 */
 var bcChart=null;
+var bcMiniCharts=[]; // the 4 separate per-metric charts, when active
+function showBcTable2_(show){
+  document.getElementById('bc-table2-panel').style.display=show?'':'none';
+  document.getElementById('bc-tables-row').classList.toggle('single-col',!show);
+}
+function showBcChartMode_(mode){
+  // mode: 'single' (one chart, the normal case) | 'multi' (4 separate per-metric charts)
+  document.getElementById('bc-chart-panel').style.display=(mode==='single')?'':'none';
+  document.getElementById('bc-multichart-panel').style.display=(mode==='multi')?'':'none';
+  if(mode==='single' && bcMiniCharts.length){
+    bcMiniCharts.forEach(function(c){ c.destroy(); });
+    bcMiniCharts=[];
+  }
+}
 function renderBrandComparison(){
   var metricSel=document.getElementById('bc-metric').value;
   // Same rule as Sales Peaks & Valleys: "All Brands" compares everyone under this
   // currency; picking one brand filters this page down to just that brand.
   var brands=currentBrand===ALL_BRANDS ? BRANDS_BY_CURRENCY[currentCurrency] : [currentBrand];
-  // Metric "All" only gets its special multi-line/two-table treatment when
-  // exactly one brand is selected and we're already in the Full Year view —
-  // with multiple brands it'd be brand×metric lines (too crowded), so that
-  // case just falls back to Turnover instead, same as picking it manually.
-  var singleBrandAllMetrics=(metricSel==='all' && brands.length===1 && currentMonth===ALL_MONTHS);
+  // Metric "All" gets its special multi-metric treatment whenever exactly one
+  // brand is selected — works the same whether a specific month or "All
+  // Months" is picked. With multiple brands it'd be brand×metric lines (too
+  // crowded), so that case just falls back to Turnover instead.
+  var singleBrandAllMetrics=(metricSel==='all' && brands.length===1);
   var metric=(metricSel==='all')?'turnover':metricSel;
   var isMoney=!!MONEY_METRICS_[metric];
   var fmtVal=function(v){ return isMoney?money(v,displayMode):fmtInt(v); };
@@ -1413,13 +1437,20 @@ function renderBrandComparison(){
     return;
   }
 
-  document.getElementById('bc-table2-panel').style.display='none';
-  document.getElementById('bc-table-title').textContent='Brand Monthly Breakdown';
-  document.getElementById('bc-chart-title').textContent='This Month vs Last Month — by Brand';
   var bcMonth=currentMonth;
   var thisMonthIdx=MO_ORDER.indexOf(bcMonth);
   var lastMonth=thisMonthIdx>0?MO_ORDER[thisMonthIdx-1]:'Dec';
   document.getElementById('bc-months-lbl').textContent=monthNames[bcMonth]+' vs '+(monthNames[lastMonth]||lastMonth);
+
+  if(singleBrandAllMetrics){
+    renderBrandComparisonSingleMonthAllMetrics_(brands[0],bcMonth,lastMonth);
+    return;
+  }
+
+  showBcTable2_(false);
+  showBcChartMode_('single');
+  document.getElementById('bc-table-title').textContent='Brand Monthly Breakdown';
+  document.getElementById('bc-chart-title').textContent='This Month vs Last Month — by Brand';
   document.getElementById('bc-chart-tag').textContent=METRIC_LABEL[metric];
 
   var data=brands.map(function(b){
@@ -1461,9 +1492,10 @@ function renderBrandComparisonAllMonths_(metric,brands,fmtVal,mv,singleBrandAllM
     return;
   }
 
-  document.getElementById('bc-table2-panel').style.display='none';
+  showBcTable2_(false);
+  showBcChartMode_('single');
   document.getElementById('bc-table-title').textContent='Brand Monthly Breakdown';
-  document.getElementById('bc-chart-title').textContent='Monthly Trend — by Brand';
+  document.getElementById('bc-chart-title').textContent='Monthly Trend — '+METRIC_LABEL[metric];
   document.getElementById('bc-chart-tag').textContent=METRIC_LABEL[metric];
 
   var brandMonthly=brands.map(function(b){
@@ -1498,40 +1530,45 @@ function renderBrandComparisonAllMonths_(metric,brands,fmtVal,mv,singleBrandAllM
     }).join('');
 }
 
-// Metric = "All" + exactly one brand selected: normally these extra lines
-// stay hidden (only one metric shows at a time) — this is what makes them
-// all appear together. Chart gets the 4 Performance metrics (Sign Up/FTD/
-// Active/FTD Amount, dual axis — same pattern as Overview's "All" chart).
-// The single table splits into two: Performance and Financials.
+// Metric = "All" + exactly one brand selected + Full Year view: normally
+// only one metric's chart shows at a time — this is what makes all four
+// appear together. Each metric gets its OWN small line chart (not merged
+// into one multi-line chart), laid out 2-up in a grid. The single table
+// splits into two: Performance and Financials.
+var BC_PERF_KEYS_=['signup','ftd','active','ftdAmt'];
+var BC_PERF_LABELS_={signup:'Sign Up',ftd:'FTD',active:'Active Player',ftdAmt:'FTD Amount'};
+var BC_PERF_COLORS_={signup:'#00b0ff',ftd:'#facc15',active:'#9b7ff4',ftdAmt:'#00e676'};
+
 function renderBrandComparisonAllMetrics_(brand){
-  document.getElementById('bc-chart-title').textContent='Monthly Trend — '+brand+' (All Metrics)';
-  document.getElementById('bc-chart-tag').textContent='All';
+  showBcTable2_(true);
+  showBcChartMode_('multi');
+  if(bcChart){ bcChart.destroy(); bcChart=null; }
 
   var monthly=MO_ORDER.map(function(m){
     var agg=emptyAgg_();
     getMonthRows(currentCurrency,brand,m).rows.forEach(function(r){ addRowToAgg_(agg,r); });
     return agg;
   });
+  var labels=MO_ORDER.map(function(m){return monthNames[m];});
 
-  var perfColors={signup:'#00b0ff',ftd:'#facc15',active:'#9b7ff4',ftdAmt:'#00e676'};
-  var perfLabels={signup:'Sign Up',ftd:'FTD',active:'Active Player',ftdAmt:'FTD Amount'};
-  if(bcChart) bcChart.destroy();
-  bcChart=new Chart(document.getElementById('bc-chart').getContext('2d'),{
-    type:'line',
-    data:{labels:MO_ORDER.map(function(m){return monthNames[m];}),datasets:['signup','ftd','active','ftdAmt'].map(function(k){
-      var isMoney=(k==='ftdAmt');
-      return {label:perfLabels[k],data:monthly.map(function(a){return isMoney?pickMoney(a,'ftdAmt',displayMode):a[k];}),
-        borderColor:perfColors[k],backgroundColor:perfColors[k]+'1a',fill:false,tension:.3,pointRadius:3,pointHoverRadius:5,borderWidth:2,
-        yAxisID:(k==='ftdAmt'?'y1':'y')};
-    })},
-    options:{responsive:true,maintainAspectRatio:false,
-      interaction:{mode:'index',intersect:false},
-      plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:9,font:{size:9}}}},
-      scales:{
-        x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9}}},
-        y:{position:'left',beginAtZero:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'Sign Up / FTD / Active',color:'#64748b',font:{size:9}}},
-        y1:{position:'right',beginAtZero:true,grid:{display:false},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'FTD Amount',color:'#64748b',font:{size:9}}}
-      }}
+  bcMiniCharts.forEach(function(c){ c.destroy(); });
+  bcMiniCharts=[];
+  var grid=document.getElementById('bc-multichart-grid');
+  grid.innerHTML=BC_PERF_KEYS_.map(function(k){
+    return '<div><div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px">'+brand+' — '+BC_PERF_LABELS_[k]+'</div>'+
+      '<div style="height:180px"><canvas id="bc-mini-'+k+'"></canvas></div></div>';
+  }).join('');
+  BC_PERF_KEYS_.forEach(function(k){
+    var isMoney=(k==='ftdAmt');
+    var data=monthly.map(function(a){return isMoney?pickMoney(a,'ftdAmt',displayMode):a[k];});
+    var c=new Chart(document.getElementById('bc-mini-'+k).getContext('2d'),{
+      type:'line',
+      data:{labels:labels,datasets:[{label:BC_PERF_LABELS_[k],data:data,borderColor:BC_PERF_COLORS_[k],backgroundColor:BC_PERF_COLORS_[k]+'26',fill:true,tension:.3,pointRadius:2,pointHoverRadius:5,borderWidth:2}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+        scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:8},maxRotation:0}},
+                y:{beginAtZero:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:8}}}}}
+    });
+    bcMiniCharts.push(c);
   });
 
   document.getElementById('bc-table-title').textContent='Brand Monthly Breakdown — Performance';
@@ -1546,8 +1583,6 @@ function renderBrandComparisonAllMetrics_(brand){
         '<td>'+money(pickMoney(a,'ftdAmt',displayMode),displayMode)+pctInline_(pickMoney(a,'ftdAmt',displayMode),p?pickMoney(p,'ftdAmt',displayMode):null)+'</td></tr>';
     }).join('');
 
-  var finPanel=document.getElementById('bc-table2-panel');
-  finPanel.style.display='';
   document.getElementById('bc-table2').innerHTML=
     '<tr><th>Month</th><th>Turnover</th><th>Deposit</th><th>Withdraw</th><th>Promotion</th><th>Revenue</th></tr>'+
     MO_ORDER.map(function(m,i){
@@ -1557,6 +1592,63 @@ function renderBrandComparisonAllMetrics_(brand){
           var v=pickMoney(a,k,displayMode), pv=p?pickMoney(p,k,displayMode):null;
           return '<td>'+money(v,displayMode)+pctInline_(v,pv)+'</td>';
         }).join('')+'</tr>';
+    }).join('');
+}
+
+// Same idea as renderBrandComparisonAllMetrics_ but for a specific month
+// instead of the full year: This Month vs Last Month, broken out by metric
+// instead of by brand, for the one selected brand. Chart becomes a grouped
+// bar per Performance metric; two tables (Performance / Financials) list
+// each metric with its own MoM%, instead of one table listing brands.
+function renderBrandComparisonSingleMonthAllMetrics_(brand,bcMonth,lastMonth){
+  showBcTable2_(true);
+  showBcChartMode_('single');
+  document.getElementById('bc-chart-title').textContent=brand+' — This Month vs Last Month, All Metrics';
+  document.getElementById('bc-chart-tag').textContent='All';
+
+  var cur=emptyAgg_(), prev=emptyAgg_();
+  getMonthRows(currentCurrency,brand,bcMonth).rows.forEach(function(r){ addRowToAgg_(cur,r); });
+  getMonthRows(currentCurrency,brand,lastMonth).rows.forEach(function(r){ addRowToAgg_(prev,r); });
+
+  var perfKeys=['signup','ftd','active','ftdAmt'];
+  var perfLabels={signup:'Sign Up',ftd:'FTD',active:'Active Player',ftdAmt:'FTD Amount'};
+  var perfVal=function(agg,k){ return k==='ftdAmt'?pickMoney(agg,'ftdAmt',displayMode):agg[k]; };
+
+  if(bcChart) bcChart.destroy();
+  bcChart=new Chart(document.getElementById('bc-chart').getContext('2d'),{
+    type:'bar',
+    data:{labels:perfKeys.map(function(k){return perfLabels[k];}),datasets:[
+      {label:monthNames[lastMonth]||lastMonth,data:perfKeys.map(function(k){return k==='ftdAmt'?null:perfVal(prev,k);}),backgroundColor:'#243050',borderRadius:4,yAxisID:'y'},
+      {label:monthNames[bcMonth],data:perfKeys.map(function(k){return k==='ftdAmt'?null:perfVal(cur,k);}),backgroundColor:'#9b7ff4',borderRadius:4,yAxisID:'y'},
+      {label:(monthNames[lastMonth]||lastMonth)+' FTD Amount',data:perfKeys.map(function(k){return k==='ftdAmt'?perfVal(prev,k):null;}),backgroundColor:'#0f6e56',borderRadius:4,yAxisID:'y1'},
+      {label:monthNames[bcMonth]+' FTD Amount',data:perfKeys.map(function(k){return k==='ftdAmt'?perfVal(cur,k):null;}),backgroundColor:'#00e676',borderRadius:4,yAxisID:'y1'}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:10,font:{size:9}}}},
+      scales:{
+        x:{grid:{display:false},ticks:{color:'#64748b',font:{size:10}}},
+        y:{position:'left',beginAtZero:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'Sign Up / FTD / Active',color:'#64748b',font:{size:9}}},
+        y1:{position:'right',beginAtZero:true,grid:{display:false},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'FTD Amount',color:'#64748b',font:{size:9}}}
+      }}
+  });
+
+  document.getElementById('bc-table-title').textContent=brand+' — Performance';
+  document.getElementById('bc-table').innerHTML=
+    '<tr><th>Metric</th><th>'+(monthNames[lastMonth]||lastMonth)+'</th><th>'+monthNames[bcMonth]+'</th><th>MoM %</th></tr>'+
+    perfKeys.map(function(k){
+      var p=perfVal(prev,k), c=perfVal(cur,k);
+      var fmt_=(k==='ftdAmt')?function(v){return money(v,displayMode);}:fmtInt;
+      return '<tr><td>'+perfLabels[k]+'</td><td>'+fmt_(p)+'</td><td>'+fmt_(c)+'</td>'+
+        '<td><span class="'+pctCls(c,p)+'">'+pct(c,p)+'</span></td></tr>';
+    }).join('');
+
+  var finKeys=['turnover','deposit','withdraw','promo','revenue'];
+  var finLabels={turnover:'Turnover',deposit:'Deposit',withdraw:'Withdraw',promo:'Promotion',revenue:'Revenue'};
+  document.getElementById('bc-table2').innerHTML=
+    '<tr><th>Metric</th><th>'+(monthNames[lastMonth]||lastMonth)+'</th><th>'+monthNames[bcMonth]+'</th><th>MoM %</th></tr>'+
+    finKeys.map(function(k){
+      var p=pickMoney(prev,k,displayMode), c=pickMoney(cur,k,displayMode);
+      return '<tr><td>'+finLabels[k]+'</td><td>'+money(p,displayMode)+'</td><td>'+money(c,displayMode)+'</td>'+
+        '<td><span class="'+pctCls(c,p)+'">'+pct(c,p)+'</span></td></tr>';
     }).join('');
 }
 
