@@ -1567,7 +1567,7 @@ var BC_FIN_LABELS_={turnover:'Turnover',deposit:'Deposit',withdraw:'Withdraw',pr
 var BC_FIN_COLORS_={turnover:'#facc15',deposit:'#00b0ff',withdraw:'#ff9100',promo:'#ff4081'};
 
 function renderBrandComparisonAllMetrics_(brand){
-  showBcTable2_(true);
+  showBcTable2_(false);
   showBcChartMode_('multi');
   if(bcChart){ bcChart.destroy(); bcChart=null; }
   document.getElementById('bc-multichart-title').textContent='Monthly Trend — Performance';
@@ -1619,29 +1619,38 @@ function renderBrandComparisonAllMetrics_(brand){
     bcMiniCharts.push(c);
   });
 
-  document.getElementById('bc-table-title').textContent='Brand Monthly Breakdown — Performance';
-  document.getElementById('bc-table2-title').textContent='Brand Monthly Breakdown — Financials';
-  document.getElementById('bc-table').innerHTML=
-    '<tr><th>Month</th><th>Sign Up</th><th>FTD</th><th>Active</th><th>FTD Amount</th></tr>'+
-    MO_ORDER.map(function(m,i){
-      var a=monthly[i], p=i>0?monthly[i-1]:null;
-      return '<tr><td>'+monthNames[m]+'</td>'+
-        '<td>'+fmtInt(a.signup)+pctInline_(a.signup,p&&p.signup)+'</td>'+
-        '<td>'+fmtInt(a.ftd)+pctInline_(a.ftd,p&&p.ftd)+'</td>'+
-        '<td>'+fmtInt(a.active)+pctInline_(a.active,p&&p.active)+'</td>'+
-        '<td>'+money(pickMoney(a,'ftdAmt',displayMode),displayMode)+pctInline_(pickMoney(a,'ftdAmt',displayMode),p?pickMoney(p,'ftdAmt',displayMode):null)+'</td></tr>';
-    }).join('');
+  document.getElementById('bc-table-title').textContent=brand+' — Monthly Breakdown';
+  var anyRevenue=monthly.some(function(a){return a.revenueFilled;});
+  var finCols=FIN_COLS_BASE_.concat(anyRevenue?[{key:'revenue',label:'Revenue'}]:[]);
+  var groupHeaderHtml='<th class="dt-grp acq" colspan="4">● Performance</th>'+
+    '<th class="dt-grp fin" colspan="'+finCols.length+'">● Financials</th>';
+  var subHeaderHtml='<th class="dt-sub acq">Sign Up</th><th class="dt-sub acq">FTD</th><th class="dt-sub acq">Active</th><th class="dt-sub acq">FTD Amount</th>'+
+    finCols.map(function(c){return '<th class="dt-sub fin">'+c.label+'</th>';}).join('');
 
-  document.getElementById('bc-table2').innerHTML=
-    '<tr><th>Month</th><th>Turnover</th><th>Deposit</th><th>Withdraw</th><th>Promotion</th><th>Revenue</th></tr>'+
+  function bcRowCells_(a,p){
+    var html='<td>'+fmtInt(a.signup)+pctInline_(a.signup,p&&p.signup)+'</td>'+
+      '<td>'+fmtInt(a.ftd)+pctInline_(a.ftd,p&&p.ftd)+'</td>'+
+      '<td>'+fmtInt(a.active)+pctInline_(a.active,p&&p.active)+'</td>'+
+      '<td>'+money(pickMoney(a,'ftdAmt',displayMode),displayMode)+pctInline_(pickMoney(a,'ftdAmt',displayMode),p?pickMoney(p,'ftdAmt',displayMode):null)+'</td>';
+    html+=finCols.map(function(c){
+      var filled=(c.key!=='revenue')||a.revenueFilled;
+      if(!filled) return '<td>—</td>';
+      var v=pickMoney(a,c.key,displayMode), pv=p?pickMoney(p,c.key,displayMode):null;
+      return '<td>'+money(v,displayMode)+pctInline_(v,pv)+'</td>';
+    }).join('');
+    return html;
+  }
+
+  var grandTotal=emptyAgg_();
+  monthly.forEach(function(a){ addRowToAgg_(grandTotal,a); });
+
+  document.getElementById('bc-table').innerHTML=
+    '<thead><tr><th class="dt-date-hd" rowspan="2">Month</th>'+groupHeaderHtml+'</tr><tr>'+subHeaderHtml+'</tr></thead><tbody>'+
     MO_ORDER.map(function(m,i){
       var a=monthly[i], p=i>0?monthly[i-1]:null;
-      return '<tr><td>'+monthNames[m]+'</td>'+
-        ['turnover','deposit','withdraw','promo','revenue'].map(function(k){
-          var v=pickMoney(a,k,displayMode), pv=p?pickMoney(p,k,displayMode):null;
-          return '<td>'+money(v,displayMode)+pctInline_(v,pv)+'</td>';
-        }).join('')+'</tr>';
-    }).join('');
+      return '<tr><td>'+monthNames[m]+'</td>'+bcRowCells_(a,p)+'</tr>';
+    }).join('')+
+    '<tr class="dt-total"><td>YEAR TOTAL</td>'+bcRowCells_(grandTotal,null)+'</tr></tbody>';
 }
 
 // Same idea as renderBrandComparisonAllMetrics_ but for a specific month
