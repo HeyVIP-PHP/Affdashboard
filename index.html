@@ -709,12 +709,46 @@ function cellFilled_(cell){
 // only rolled up in the Total row — unreliable per day-row, so those two columns
 // aren't read here; instead Revenue = Deposit − Withdraw − Promotion is computed
 // on the fly, matching the mock data and the Total card's math.
+// True if a (lowercased, trimmed) column-A cell reads as some month's title —
+// used to detect "we've walked off the end of this month's real day-rows and
+// into the next month's title row" so parseMonthBlock_ can stop treating
+// rows as real days instead of misreading a title as data.
+function looksLikeMonthTitleCell_(cellLower){
+  for(var m=0;m<MO_ORDER.length;m++){
+    var key=MO_ORDER[m];
+    var names=(MO_TITLE_ALIASES[key]||[MO_FULLNAME[key]]);
+    for(var j=0;j<names.length;j++){ if(names[j].toLowerCase()===cellLower) return true; }
+  }
+  return false;
+}
+function zeroDayRow_(monthKey,d){
+  return {
+    date: monthKey+'-'+d,
+    signup:0, ftd:0, active:0, ftdAmount:0, ftdAmountUsd:0,
+    turnover:0, deposit:0, withdraw:0, promotion:0,
+    revenue:0, revenueFilled:false,
+    turnoverUsd:0, depositUsd:0, withdrawUsd:0, promotionUsd:0,
+    revenueUsd:0, revenueUsdFilled:false
+  };
+}
 function parseMonthBlock_(rawRows, titleRowIdx, monthKey){
   var days=daysInMonth_(monthKey);
   var firstDayRow=findFirstDayRow_(rawRows, titleRowIdx, monthKey);
   var out=[];
   for(var d=1; d<=days; d++){
     var r=rawRows[firstDayRow+d-1]||[];
+    // Sheets don't always reserve exactly `days` rows before the "Total" row
+    // (confirmed real case: a month's block was one row short, so the code
+    // was reading the Total row itself as if it were the last day — Total
+    // holds the whole month's SUM, so counting it as "one more day" doubled
+    // the month's totals almost exactly). If this row is actually "Total" or
+    // the next month's title, we've overrun the real days — treat the rest
+    // of this month's rows as missing (zero) rather than misreading them.
+    var cellA=(r[0]||'').toString().trim().toLowerCase();
+    if(cellA==='total' || looksLikeMonthTitleCell_(cellA)){
+      out.push(zeroDayRow_(monthKey,d));
+      continue;
+    }
     var deposit=parseMoney_(r[16]), withdraw=parseMoney_(r[17]), promotion=parseMoney_(r[18]);
     var depositUsd=parseMoney_(r[21]), withdrawUsd=parseMoney_(r[22]), promotionUsd=parseMoney_(r[23]);
     out.push({
@@ -1169,14 +1203,10 @@ function renderTrends(){
   var months=monthlyRangeMonths_(); // Jan through whichever month is selected, or the full year if "All Months" is picked
   var monthly=months.map(function(m){
     var rows=getBrandSelectionRows_(currentCurrency,currentBrand,m).rows;
-    return rows.reduce(function(a,r){
-      a.signup+=r.signup;a.ftd+=r.ftd;a.active+=r.active;
-      a.ftdAmt+=r.ftdAmt;a.ftdAmtUsd+=r.ftdAmtUsd||0;
-      a.turnover+=r.turnover;a.turnoverUsd+=r.turnoverUsd||0;
-      a.deposit+=r.deposit;a.withdraw+=r.withdraw;a.promo+=r.promo;
-      a.revenue+=r.revenue;a.revenueUsd+=r.revenueUsd||0;
-      return a;
-    },{month:m,signup:0,ftd:0,active:0,ftdAmt:0,ftdAmtUsd:0,turnover:0,turnoverUsd:0,deposit:0,withdraw:0,promo:0,revenue:0,revenueUsd:0});
+    var agg=emptyAgg_();
+    agg.month=m;
+    rows.forEach(function(r){ addRowToAgg_(agg,r); });
+    return agg;
   });
 
   var last=monthly[monthly.length-1], prev=monthly.length>1?monthly[monthly.length-2]:null;
@@ -2000,17 +2030,8 @@ function renderAll(){
   document.getElementById('chart-tag').textContent=isAllMonths?'Jan – Dec · monthly':monthLabel+' · daily';
   document.getElementById('table-tag').textContent=monthLabel;
 
-  var sum=rows.reduce(function(a,r){
-    a.signup+=r.signup;a.ftd+=r.ftd;a.active+=r.active;
-    a.ftdAmt+=r.ftdAmt;a.ftdAmtUsd+=r.ftdAmtUsd||0;
-    a.turnover+=r.turnover;a.turnoverUsd+=r.turnoverUsd||0;
-    a.deposit+=r.deposit;a.depositUsd+=r.depositUsd||0;
-    a.withdraw+=r.withdraw;a.withdrawUsd+=r.withdrawUsd||0;
-    a.promo+=r.promo;a.promoUsd+=r.promoUsd||0;
-    a.revenue+=r.revenue;a.revenueUsd+=r.revenueUsd||0;
-    a.revenueFilled=a.revenueFilled||!!r.revenueFilled;
-    return a;
-  },{signup:0,ftd:0,active:0,ftdAmt:0,ftdAmtUsd:0,turnover:0,turnoverUsd:0,deposit:0,depositUsd:0,withdraw:0,withdrawUsd:0,promo:0,promoUsd:0,revenue:0,revenueUsd:0,revenueFilled:false});
+  var sum=emptyAgg_();
+  rows.forEach(function(r){ addRowToAgg_(sum,r); });
 
   // Revenue is only shown at all when at least one day this month actually has a
   // number in the Sheet's Revenue column — otherwise the KPI card and the whole
@@ -2336,14 +2357,20 @@ function expandExportMonths_(val){
 function emptyAgg_(){
   return {signup:0,ftd:0,active:0,ftdAmt:0,ftdAmtUsd:0,turnover:0,turnoverUsd:0,deposit:0,depositUsd:0,withdraw:0,withdrawUsd:0,promo:0,promoUsd:0,revenue:0,revenueUsd:0,revenueFilled:false,revenueUsdFilled:false};
 }
+// Round to the nearest cent via integer cents, not just Math.round(x*100)/100
+// directly — that still leaves float noise in edge cases (e.g. 1.005). Going
+// through an integer intermediate keeps money fields exact to the cent so
+// summing 31+ days in a row can't drift by a few cents the way plain
+// floating-point addition does.
+function roundMoney_(n){ return Math.round((n||0)*100)/100; }
 function addRowToAgg_(agg,r){
   agg.signup+=r.signup; agg.ftd+=r.ftd; agg.active+=r.active;
-  agg.ftdAmt+=r.ftdAmt; agg.ftdAmtUsd+=r.ftdAmtUsd||0;
-  agg.turnover+=r.turnover; agg.turnoverUsd+=r.turnoverUsd||0;
-  agg.deposit+=r.deposit; agg.depositUsd+=r.depositUsd||0;
-  agg.withdraw+=r.withdraw; agg.withdrawUsd+=r.withdrawUsd||0;
-  agg.promo+=r.promo; agg.promoUsd+=r.promoUsd||0;
-  agg.revenue+=r.revenue; agg.revenueUsd+=r.revenueUsd||0;
+  agg.ftdAmt=roundMoney_(agg.ftdAmt+r.ftdAmt); agg.ftdAmtUsd=roundMoney_(agg.ftdAmtUsd+(r.ftdAmtUsd||0));
+  agg.turnover=roundMoney_(agg.turnover+r.turnover); agg.turnoverUsd=roundMoney_(agg.turnoverUsd+(r.turnoverUsd||0));
+  agg.deposit=roundMoney_(agg.deposit+r.deposit); agg.depositUsd=roundMoney_(agg.depositUsd+(r.depositUsd||0));
+  agg.withdraw=roundMoney_(agg.withdraw+r.withdraw); agg.withdrawUsd=roundMoney_(agg.withdrawUsd+(r.withdrawUsd||0));
+  agg.promo=roundMoney_(agg.promo+r.promo); agg.promoUsd=roundMoney_(agg.promoUsd+(r.promoUsd||0));
+  agg.revenue=roundMoney_(agg.revenue+r.revenue); agg.revenueUsd=roundMoney_(agg.revenueUsd+(r.revenueUsd||0));
   agg.revenueFilled=agg.revenueFilled||!!r.revenueFilled;
   agg.revenueUsdFilled=agg.revenueUsdFilled||!!r.revenueUsdFilled;
 }
@@ -2352,7 +2379,7 @@ function sumAggs_(list){
   list.forEach(function(a){
     Object.keys(out).forEach(function(k){
       if(k==='revenueFilled'||k==='revenueUsdFilled') out[k]=out[k]||!!a[k];
-      else out[k]+=a[k]||0;
+      else out[k]=roundMoney_(out[k]+(a[k]||0));
     });
   });
   return out;
