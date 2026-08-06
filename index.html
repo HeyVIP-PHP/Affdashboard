@@ -620,6 +620,12 @@ function daysInMonth_(monthKey){
   return new Date(SHEET_YEAR, idx+1, 0).getDate();
 }
 var MO_FULLNAME={Jan:'January',Feb:'February',Mar:'March',Apr:'April',May:'May',Jun:'June',Jul:'July',Aug:'August',Sep:'September',Oct:'October',Nov:'November',Dec:'December'};
+// Alternate title spellings seen in the actual Sheets, for matching a month's
+// title row ONLY — MO_FULLNAME itself stays correctly spelled since it's also
+// used to display month names in our own UI (dropdowns, chart labels, etc).
+// Confirmed from a raw export: every tab spells October's title "Octomber"
+// (extra "m"), so the title-row matcher needs to accept both.
+var MO_TITLE_ALIASES={Oct:['October','Octomber']};
 
 // Scan down from the month title row to find which row is actually "day 1" —
 // don't assume a fixed header row count
@@ -630,14 +636,16 @@ var MO_FULLNAME={Jan:'January',Feb:'February',Mar:'March',Apr:'April',May:'May',
 function findFirstDayRow_(rawRows, titleRowIdx, monthKey){
   // Real-world Sheets aren't always consistent about how each month's day
   // labels are spelled — some months might use the 3-letter abbreviation
-  // ("Jul-1") while others spell out the full name ("July-1"), AND the
-  // separator itself varies too — some tabs use a hyphen ("Feb-5") while
-  // others use a plain space ("Feb 5"). Accept any of these so one
-  // inconsistently-typed month/tab doesn't silently parse to all zeros
-  // (or worse, silently parse to the WRONG rows once the fallback below kicks in).
+  // ("Jul-1") while others spell out the full name ("July-1"), the separator
+  // varies (hyphen "Feb-5" vs plain space "Feb 5"), AND some tabs write the
+  // day BEFORE the month instead of after ("1 Jan" instead of "Jan-1" or
+  // "Jan 1"). Accept all of these so one inconsistently-typed month/tab
+  // doesn't silently parse to all zeros (or worse, silently parse to the
+  // WRONG rows once the fallback below kicks in).
   var full=MO_FULLNAME[monthKey];
-  var re=new RegExp('^('+monthKey+'|'+full+')[\\s-]*0?1$','i');
-  for(var i=titleRowIdx+1; i<Math.min(titleRowIdx+9, rawRows.length); i++){
+  var mon='('+monthKey+'|'+full+')';
+  var re=new RegExp('^(?:'+mon+'[\\s-]*0?1|0?1[\\s-]*'+mon+')$','i');
+  for(var i=titleRowIdx+1; i<Math.min(titleRowIdx+15, rawRows.length); i++){
     var cellA=(rawRows[i]&&rawRows[i][0]||'').toString().trim();
     if(re.test(cellA)) return i;
   }
@@ -649,9 +657,12 @@ function findFirstDayRow_(rawRows, titleRowIdx, monthKey){
 function findMonthBlocks_(rawRows){
   var blocks={};
   for(var i=0;i<rawRows.length;i++){
-    var cellA=(rawRows[i][0]||'').toString().trim();
+    var cellA=(rawRows[i][0]||'').toString().trim().toLowerCase();
     for(var m=0;m<MO_ORDER.length;m++){
-      if(cellA===MO_FULLNAME[MO_ORDER[m]]){ blocks[MO_ORDER[m]]=i; }
+      var key=MO_ORDER[m];
+      if(blocks[key]!==undefined) continue; // already locked onto this month's first title row — don't let a later duplicate/false match move it
+      var names=(MO_TITLE_ALIASES[key]||[MO_FULLNAME[key]]).map(function(s){return s.toLowerCase();});
+      if(names.indexOf(cellA)!==-1){ blocks[key]=i; }
     }
   }
   return blocks;
