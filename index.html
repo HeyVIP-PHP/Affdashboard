@@ -288,6 +288,8 @@ table.dt td.pv-brand{font-weight:800}
     <div class="nav-sec">Report</div>
     <div class="nav-item" onclick="showPage('trends',this)"><div class="nav-dot" style="background:#00b0ff"></div>Performance</div>
     <div class="nav-item" onclick="showPage('salespv',this)"><div class="nav-dot" style="background:#facc15"></div>Sales Peaks &amp; Valleys</div>
+
+    <div class="nav-sec">Analysis</div>
     <div class="nav-item" onclick="showPage('brandcomp',this)"><div class="nav-dot" style="background:#9b7ff4"></div>Brand Comparison</div>
 
     <div class="sb-footer">
@@ -628,10 +630,13 @@ var MO_FULLNAME={Jan:'January',Feb:'February',Mar:'March',Apr:'April',May:'May',
 function findFirstDayRow_(rawRows, titleRowIdx, monthKey){
   // Real-world Sheets aren't always consistent about how each month's day
   // labels are spelled — some months might use the 3-letter abbreviation
-  // ("Jul-1") while others spell out the full name ("July-1"). Accept either
-  // so one inconsistently-typed month doesn't silently parse to all zeros.
+  // ("Jul-1") while others spell out the full name ("July-1"), AND the
+  // separator itself varies too — some tabs use a hyphen ("Feb-5") while
+  // others use a plain space ("Feb 5"). Accept any of these so one
+  // inconsistently-typed month/tab doesn't silently parse to all zeros
+  // (or worse, silently parse to the WRONG rows once the fallback below kicks in).
   var full=MO_FULLNAME[monthKey];
-  var re=new RegExp('^('+monthKey+'|'+full+')-0?1$','i');
+  var re=new RegExp('^('+monthKey+'|'+full+')[\\s-]*0?1$','i');
   for(var i=titleRowIdx+1; i<Math.min(titleRowIdx+9, rawRows.length); i++){
     var cellA=(rawRows[i]&&rawRows[i][0]||'').toString().trim();
     if(re.test(cellA)) return i;
