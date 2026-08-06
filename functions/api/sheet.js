@@ -110,9 +110,17 @@ export async function onRequestGet(context) {
     // column Y) — AZ leaves generous headroom so a wider layout still gets
     // fetched instead of silently truncating.
     var range = tab + '!A1:AZ600';
+    // UNFORMATTED_VALUE on purpose: FORMATTED_VALUE returns each cell already
+    // rounded to its display precision (e.g. "$1,673.05" as text), so summing
+    // 30+ of those in the dashboard drifts a cent or two from the Sheet's own
+    // Total row, which sums the real underlying numbers. Unformatted gives the
+    // exact stored number instead, so the dashboard's sum matches the Sheet's
+    // SUM() formula precisely. Plain-text cells (month titles, "May-1" style
+    // day labels) come back unchanged either way, so this doesn't affect date
+    // parsing.
     var sheetsUrl =
       'https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(sheetId) +
-      '/values/' + encodeURIComponent(range) + '?valueRenderOption=FORMATTED_VALUE';
+      '/values/' + encodeURIComponent(range) + '?valueRenderOption=UNFORMATTED_VALUE';
     var resp = await fetch(sheetsUrl, { headers: { Authorization: 'Bearer ' + accessToken } });
     var data = await resp.json();
     if (!resp.ok) {

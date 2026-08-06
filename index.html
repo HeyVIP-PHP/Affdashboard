@@ -158,6 +158,10 @@ table.dt td{padding:7px 10px;border-bottom:1px solid var(--border);font-family:v
 .dt-date-hd{background:#0f1524;vertical-align:bottom}
 .dt-sub.acq{background:#0f1524;border-bottom:2px solid var(--teal)}
 .dt-sub.fin{background:#0f1524;border-bottom:2px solid var(--gold)}
+/* Vertical divider between the Performance and Financials column groups —
+   applied to the last Performance cell (FTD Amount) in both header rows and
+   every body/total row, only when both groups are actually shown side by side. */
+.grp-end{border-right:2px solid var(--border2)}
 /* Sticky header for #dr-table only, matching the exact technique confirmed
    working elsewhere: position:sticky on the <thead> as a whole (not on
    individual <th> — that per-cell approach is what bled through before),
@@ -310,6 +314,7 @@ table.dt td.pv-brand{font-weight:800}
     <div class="nav-item" onclick="showPage('trends',this)"><div class="nav-dot" style="background:#00b0ff"></div>Performance Peaks &amp; Valleys</div>
 
     <div class="nav-sec">Analysis</div>
+    <div class="nav-item" onclick="showPage('summary',this)"><div class="nav-dot" style="background:#00e5b4"></div>Summary</div>
     <div class="nav-item" onclick="showPage('brandcomp',this)"><div class="nav-dot" style="background:#9b7ff4"></div>Brand Comparison</div>
 
     <div class="sb-footer">
@@ -395,7 +400,7 @@ table.dt td.pv-brand{font-weight:800}
       <!-- OVERVIEW -->
       <div class="page active" id="page-overview">
 
-      <!-- Core KPIs — just the essentials; the full set (FTD Amount, FTD Conv Rate, Turnover, Promotion, Revenue) lives on the Daily Report page now -->
+      <!-- Core KPIs — just the essentials; the full set (FTD Amount, Turnover, Promotion, Revenue) lives on the Daily Report page now -->
       <div class="kpi-grid g5" id="kpi-acq"></div>
 
       <!-- Trend chart -->
@@ -407,6 +412,10 @@ table.dt td.pv-brand{font-weight:800}
             <option value="ftd">Total FTD</option>
             <option value="active">Active Player</option>
             <option value="ftdAmt">FTD Amount</option>
+            <option value="turnover">Total Turnover</option>
+            <option value="deposit">Total Deposit</option>
+            <option value="withdraw">Total Withdraw</option>
+            <option value="promo">Total Promotion</option>
           </select></span>
           <span class="ph-tag" id="chart-tag">January · daily</span>
         </div>
@@ -423,8 +432,8 @@ table.dt td.pv-brand{font-weight:800}
 
       <!-- DAILY REPORT — the one-stop full breakdown (Performance + Financials together), with its own Daily/Weekly/Monthly granularity switch. Overview/Performance/Peaks pages no longer carry their own copies of this table. -->
       <div class="page" id="page-dailyreport">
-        <div class="kpi-grid g5" id="dr-kpi-acq"></div>
-        <div class="kpi-grid g5" id="dr-kpi-fin"></div>
+        <div class="kpi-grid g4" id="dr-kpi-acq"></div>
+        <div class="kpi-grid g4" id="dr-kpi-fin"></div>
         <div class="panel">
           <div class="ph"><span class="ph-t">📋 Daily Report<span class="ph-daycount" id="dr-daycount">· 31 days</span></span><span class="ph-tag" id="dr-tag">January</span></div>
           <div class="pb dt-scroll"><table class="dt" id="dr-table"></table></div>
@@ -502,6 +511,18 @@ table.dt td.pv-brand{font-weight:800}
         </div>
       </div>
 
+      </div>
+
+      <!-- SUMMARY — full-year totals + monthly/daily averages + the two derived
+           rate rows (FTD Success Rate, Per FTD Amount), for whichever
+           Brand/Currency is currently selected. Always spans the full Jan–Dec
+           year regardless of the top Month selector, since "yearly total"
+           wouldn't mean anything scoped to one month. -->
+      <div class="page" id="page-summary">
+        <div class="panel">
+          <div class="ph"><span>📊</span><span class="ph-t">Summary</span><span class="ph-tag" id="summary-tag">Crickex · Jan–Dec</span></div>
+          <div class="pb" style="overflow-x:auto"><table class="dt" id="summary-table" style="table-layout:auto"></table></div>
+        </div>
       </div>
 
       <!-- BRAND COMPARISON -->
@@ -1052,8 +1073,8 @@ var currentBrand='Crickex';
 var currentMonth='Jan';
 var displayMode='local'; // 'local' | 'usd'
 var trendChart=null;
-var trendMetric='all'; // 'all' | 'signup' | 'ftd' | 'active' | 'ftdAmt' — must match the <select>'s first/default <option>, or the label shown and the chart actually drawn will disagree on first load
-var TREND_METRIC_ISMONEY={signup:false,ftd:false,active:false,ftdAmt:true};
+var trendMetric='all'; // 'all' | 'signup' | 'ftd' | 'active' | 'ftdAmt' | 'turnover' | 'deposit' | 'withdraw' | 'promo' — must match the <select>'s first/default <option>, or the label shown and the chart actually drawn will disagree on first load
+var TREND_METRIC_ISMONEY={signup:false,ftd:false,active:false,ftdAmt:true,turnover:true,deposit:true,withdraw:true,promo:true};
 function switchTrendMetric(v){ trendMetric=v; renderAll(); }
 var SHEET_LINKS={}; // cur -> brand -> {sheetId, tab, rawUrl} · persisted via window.storage (shared)
 
@@ -1342,6 +1363,7 @@ function showPage(id,el){
     overview:'💰 Sales Overview — '+brandLabel_(currentBrand),
     dailyreport:'📋 Daily Report — '+brandLabel_(currentBrand),
     trends:'📈 Performance Peaks & Valleys — '+brandLabel_(currentBrand),
+    summary:'📊 Summary — '+brandLabel_(currentBrand),
     brandcomp:'🆚 Brand Comparison — '+brandLabel_(currentBrand)
   };
   document.getElementById('pg-title').textContent=titles[id];
@@ -1351,6 +1373,7 @@ function showPage(id,el){
   requestAnimationFrame(syncGlobalStickyOffsets_);
   if(id==='dailyreport') renderDailyReportPage();
   if(id==='trends') renderPerformancePeaks();
+  if(id==='summary') renderSummaryPage();
   if(id==='brandcomp') renderBrandComparison();
   saveUiState_();
 }
@@ -1424,8 +1447,11 @@ function renderDailyReportPage(){
     kpiCard('teal','Total Sign Up',fmtInt(sum.signup))+
     kpiCard('gold','Total FTD',fmtInt(sum.ftd),'first-time deposit')+
     kpiCard('purple','Active Player',fmtInt(sum.active))+
-    kpiCard('teal','FTD Amount',money(pickMoney(sum,'ftdAmt',displayMode),displayMode))+
-    kpiCard('green','FTD Conv. Rate',sum.signup>0?(sum.ftd/sum.signup*100).toFixed(2)+'%':'—');
+    kpiCard('teal','FTD Amount',money(pickMoney(sum,'ftdAmt',displayMode),displayMode));
+  // Financials row is 4 cards normally, 5 when Revenue is actually filled in
+  // the Sheet — toggle the grid's column count to match so it stays evenly
+  // spaced either way instead of leaving a trailing empty column.
+  document.getElementById('dr-kpi-fin').className='kpi-grid '+(showRevenue?'g5':'g4');
   document.getElementById('dr-kpi-fin').innerHTML=
     kpiCard('gold','Total Turnover',money(pickMoney(sum,'turnover',displayMode),displayMode))+
     kpiCard('teal','Total Deposit',money(pickMoney(sum,'deposit',displayMode),displayMode))+
@@ -1681,6 +1707,67 @@ function showBcChartMode_(mode){
     bcMiniCharts=[];
   }
 }
+/* ═══════════ SUMMARY (Analysis) ═══════════
+   Full-year Total, plus avg per Month and avg per Day, for the currently
+   selected Brand/Currency — always Jan–Dec regardless of the top Month
+   selector, matching the "Total (Yearly)" framing from the reference Sheet.
+
+   Precision notes:
+   - avg (Monthly)/(Daily) divide by the number of months/days that actually
+     have LIVE synced data, not a blind /12 or /365. If only 5 months are
+     connected so far, averaging the yearly-so-far total over all 12 months
+     would understate it — dividing by the 5 live months is the number that's
+     actually true of the data you have.
+   - FTD Success Rate and Per FTD Amount are ratios, so there's no separate
+     "monthly" or "daily" version of them: (yearlyFTD/N) ÷ (yearlySignup/N)
+     is exactly the same number as yearlyFTD ÷ yearlySignup for any N — the
+     time-scaling cancels out. They're shown once, under Total (Yearly), with
+     the avg columns dashed out rather than repeating the identical number.
+*/
+var SUMMARY_METRIC_ROWS_=[
+  {label:'Total Sign Up', field:'signup', isMoney:false},
+  {label:'Total FTD', field:'ftd', isMoney:false},
+  {label:'Active Player', field:'active', isMoney:false},
+  {label:'FTD Amount', field:'ftdAmt', isMoney:true}
+];
+function renderSummaryPage(){
+  var cur=currentCurrency, brand=currentBrand;
+  var yearlySum=emptyAgg_();
+  var liveMonths=0, liveDays=0;
+  MO_ORDER.forEach(function(m){
+    var res=getBrandSelectionRows_(cur,brand,m);
+    res.rows.forEach(function(r){ addRowToAgg_(yearlySum,r); });
+    if(res.live){ liveMonths++; liveDays+=daysInMonth_(m); }
+  });
+
+  var tagEl=document.getElementById('summary-tag');
+  if(tagEl) tagEl.textContent=brandLabel_(brand)+' · Jan–Dec · '+cur+(liveMonths<12?' · '+liveMonths+'/12 months live so far':'');
+
+  function valOf(field,isMoney){ return isMoney?pickMoney(yearlySum,field,displayMode):(yearlySum[field]||0); }
+  function fmtOf(v,isMoney){ return isMoney?money(v,displayMode):fmtInt(v); }
+
+  var bodyHtml=SUMMARY_METRIC_ROWS_.map(function(rw){
+    var yearly=valOf(rw.field,rw.isMoney);
+    var avgM=liveMonths>0?yearly/liveMonths:0;
+    var avgD=liveDays>0?yearly/liveDays:0;
+    return '<tr><td>'+rw.label+'</td><td>'+fmtOf(yearly,rw.isMoney)+'</td><td>'+fmtOf(avgM,rw.isMoney)+'</td><td>'+fmtOf(avgD,rw.isMoney)+'</td></tr>';
+  }).join('');
+
+  var signupY=yearlySum.signup||0, ftdY=yearlySum.ftd||0;
+  var ftdAmtY=pickMoney(yearlySum,'ftdAmt',displayMode);
+  var successRate=signupY>0?(ftdY/signupY*100):null;
+  var perFtdAmt=ftdY>0?(ftdAmtY/ftdY):null;
+  var dashTd='<td style="color:var(--dim)">—</td>';
+  bodyHtml+='<tr><td>FTD Success Rate</td><td>'+(successRate==null?'—':successRate.toFixed(2)+'%')+'</td>'+dashTd+dashTd+'</tr>';
+  bodyHtml+='<tr><td>Per FTD Amount</td><td>'+(perFtdAmt==null?'—':money(perFtdAmt,displayMode))+'</td>'+dashTd+dashTd+'</tr>';
+
+  var el=document.getElementById('summary-table');
+  if(!el) return;
+  el.innerHTML=
+    '<thead><tr><th style="width:180px">'+brandLabel_(brand)+'</th><th>Total (Yearly)</th><th>avg. (Monthly)</th><th>avg. (Daily)</th></tr></thead>'+
+    '<tbody>'+bodyHtml+'</tbody>';
+}
+
 function renderBrandComparison(){
   var metricSel=document.getElementById('bc-metric').value;
   // Same rule as Sales Peaks & Valleys: "All Brands" compares everyone under this
@@ -2102,12 +2189,12 @@ function renderYearWeeklyBreakdownTable_(tableElId,daycountElId,cur,brandSel,col
   if(showAcq) groupHeaderHtml+='<th class="dt-grp acq" colspan="4">● Performance</th>';
   if(showFin) groupHeaderHtml+='<th class="dt-grp fin" colspan="'+finCols.length+'">● Financials</th>';
   var subHeaderHtml='';
-  if(showAcq) subHeaderHtml+='<th class="dt-sub acq">Sign Up</th><th class="dt-sub acq">FTD</th><th class="dt-sub acq">Active</th><th class="dt-sub acq">FTD Amount</th>';
+  if(showAcq) subHeaderHtml+='<th class="dt-sub acq">Sign Up</th><th class="dt-sub acq">FTD</th><th class="dt-sub acq">Active</th><th class="dt-sub acq'+(showFin?' grp-end':'')+'">FTD Amount</th>';
   if(showFin) subHeaderHtml+=finCols.map(function(c){return '<th class="dt-sub fin">'+c.label+'</th>';}).join('');
 
   function rowCells(r){
     var html='';
-    if(showAcq) html+='<td>'+fmtInt(r.signup)+'</td><td>'+fmtInt(r.ftd)+'</td><td>'+fmtInt(r.active)+'</td><td>'+money(pickMoney(r,'ftdAmt',displayMode),displayMode)+'</td>';
+    if(showAcq) html+='<td>'+fmtInt(r.signup)+'</td><td>'+fmtInt(r.ftd)+'</td><td>'+fmtInt(r.active)+'</td><td class="'+(showFin?'grp-end':'')+'">'+money(pickMoney(r,'ftdAmt',displayMode),displayMode)+'</td>';
     if(showFin) html+=finCols.map(function(c){
       return '<td>'+money(pickMoney(r,c.key,displayMode),displayMode)+'</td>';
     }).join('');
@@ -2149,12 +2236,12 @@ function renderYearBreakdownTable_(tableElId,daycountElId,yearRowsByMonth,column
   if(showAcq) groupHeaderHtml+='<th class="dt-grp acq" colspan="4">● Performance</th>';
   if(showFin) groupHeaderHtml+='<th class="dt-grp fin" colspan="'+finCols.length+'">● Financials</th>';
   var subHeaderHtml='';
-  if(showAcq) subHeaderHtml+='<th class="dt-sub acq">Sign Up</th><th class="dt-sub acq">FTD</th><th class="dt-sub acq">Active</th><th class="dt-sub acq">FTD Amount</th>';
+  if(showAcq) subHeaderHtml+='<th class="dt-sub acq">Sign Up</th><th class="dt-sub acq">FTD</th><th class="dt-sub acq">Active</th><th class="dt-sub acq'+(showFin?' grp-end':'')+'">FTD Amount</th>';
   if(showFin) subHeaderHtml+=finCols.map(function(c){return '<th class="dt-sub fin">'+c.label+'</th>';}).join('');
 
   function rowCells(r){
     var html='';
-    if(showAcq) html+='<td>'+fmtInt(r.signup)+'</td><td>'+fmtInt(r.ftd)+'</td><td>'+fmtInt(r.active)+'</td><td>'+money(pickMoney(r,'ftdAmt',displayMode),displayMode)+'</td>';
+    if(showAcq) html+='<td>'+fmtInt(r.signup)+'</td><td>'+fmtInt(r.ftd)+'</td><td>'+fmtInt(r.active)+'</td><td class="'+(showFin?'grp-end':'')+'">'+money(pickMoney(r,'ftdAmt',displayMode),displayMode)+'</td>';
     if(showFin) html+=finCols.map(function(c){
       return '<td>'+money(pickMoney(r,c.key,displayMode),displayMode)+'</td>';
     }).join('');
@@ -2199,12 +2286,12 @@ function renderDailyBreakdownTable_(tableElId,daycountElId,rows,unitLabel,column
   if(showFin) groupHeaderHtml+='<th class="dt-grp fin" colspan="'+finCols.length+'">● Financials</th>';
 
   var subHeaderHtml='';
-  if(showAcq) subHeaderHtml+='<th class="dt-sub acq">Sign Up</th><th class="dt-sub acq">FTD</th><th class="dt-sub acq">Active</th><th class="dt-sub acq">FTD Amount</th>';
+  if(showAcq) subHeaderHtml+='<th class="dt-sub acq">Sign Up</th><th class="dt-sub acq">FTD</th><th class="dt-sub acq">Active</th><th class="dt-sub acq'+(showFin?' grp-end':'')+'">FTD Amount</th>';
   if(showFin) subHeaderHtml+=finCols.map(function(c){return '<th class="dt-sub fin">'+c.label+'</th>';}).join('');
 
   function rowCells(r){
     var html='';
-    if(showAcq) html+='<td>'+fmtInt(r.signup)+'</td><td>'+fmtInt(r.ftd)+'</td><td>'+fmtInt(r.active)+'</td><td>'+money(pickMoney(r,'ftdAmt',displayMode),displayMode)+'</td>';
+    if(showAcq) html+='<td>'+fmtInt(r.signup)+'</td><td>'+fmtInt(r.ftd)+'</td><td>'+fmtInt(r.active)+'</td><td class="'+(showFin?'grp-end':'')+'">'+money(pickMoney(r,'ftdAmt',displayMode),displayMode)+'</td>';
     if(showFin) html+=finCols.map(function(c){
       return '<td>'+money(pickMoney(r,c.key,displayMode),displayMode)+'</td>';
     }).join('');
@@ -2212,7 +2299,7 @@ function renderDailyBreakdownTable_(tableElId,daycountElId,rows,unitLabel,column
   }
   function totalCells(){
     var html='';
-    if(showAcq) html+='<td>'+fmtInt(sum.signup)+'</td><td>'+fmtInt(sum.ftd)+'</td><td>'+fmtInt(sum.active)+'</td><td>'+money(pickMoney(sum,'ftdAmt',displayMode),displayMode)+'</td>';
+    if(showAcq) html+='<td>'+fmtInt(sum.signup)+'</td><td>'+fmtInt(sum.ftd)+'</td><td>'+fmtInt(sum.active)+'</td><td class="'+(showFin?'grp-end':'')+'">'+money(pickMoney(sum,'ftdAmt',displayMode),displayMode)+'</td>';
     if(showFin) html+=finCols.map(function(c){ return '<td>'+money(pickMoney(sum,c.key,displayMode),displayMode)+'</td>'; }).join('');
     return html;
   }
@@ -2336,13 +2423,14 @@ function renderAll(){
   var monthLabel=isAllMonths?'Full Year (Jan–Dec)':monthNames[currentMonth];
   var onOverview=document.getElementById('page-overview').classList.contains('active');
   var activePageId='overview';
-  ['dailyreport','trends','brandcomp'].forEach(function(p){
+  ['dailyreport','trends','summary','brandcomp'].forEach(function(p){
     if(document.getElementById('page-'+p).classList.contains('active')) activePageId=p;
   });
   var pgTitles={
     overview:'💰 Sales Overview — '+brandLabel_(currentBrand),
     dailyreport:'📋 Daily Report — '+brandLabel_(currentBrand),
     trends:'📈 Performance Peaks & Valleys — '+brandLabel_(currentBrand),
+    summary:'📊 Summary — '+brandLabel_(currentBrand),
     brandcomp:'🆚 Brand Comparison — '+brandLabel_(currentBrand)
   };
   document.getElementById('pg-title').textContent=pgTitles[activePageId];
@@ -2350,7 +2438,7 @@ function renderAll(){
   document.getElementById('pg-sub').textContent=dataLabel+' · '+monthLabel+' · '+currentCurrency+' sheet';
   document.getElementById('chart-tag').textContent=isAllMonths?'Jan – Dec · monthly':monthLabel+' · daily';
 
-  // Core Overview KPIs — the full set (FTD Amount, FTD Conv Rate, Turnover,
+  // Core Overview KPIs — the full set (FTD Amount, Turnover,
   // Promotion, Revenue) moved to the Daily Report page (renderDailyReportPage).
   document.getElementById('kpi-acq').innerHTML=
     kpiCard('teal','Total Sign Up',fmtInt(sum.signup),null,"ovJumpTo_('trends',{metric:'signup'})")+
@@ -2373,23 +2461,33 @@ function renderAll(){
   }
   var labels=chartRows.map(function(r){return r.date;});
   if(trendChart) trendChart.destroy();
-  var lblMap={signup:'Total Sign Up',ftd:'Total FTD',active:'Active Player',ftdAmt:'FTD Amount'};
-  var colorMap={signup:'#00b0ff',ftd:'#facc15',active:'#9b7ff4',ftdAmt:'#00e676'};
+  var lblMap={signup:'Total Sign Up',ftd:'Total FTD',active:'Active Player',ftdAmt:'FTD Amount',turnover:'Total Turnover',deposit:'Total Deposit',withdraw:'Total Withdraw',promo:'Total Promotion'};
+  var colorMap={signup:'#00b0ff',ftd:'#facc15',active:'#9b7ff4',ftdAmt:'#00e676',turnover:'#f97316',deposit:'#22c55e',withdraw:'#ef4444',promo:'#ec4899'};
   var trendDatasets, trendScales;
   if(trendMetric==='all'){
-    // FTD Amount is money-scaled (thousands) vs. the other three being simple
-    // counts (tens/hundreds) — sharing one axis would flatten Sign Up/FTD/Active
-    // into a flat line near zero, so FTD Amount gets its own axis on the right.
-    trendDatasets=['signup','ftd','active','ftdAmt'].map(function(k){
+    // Three different scales at once: Sign Up/FTD/Active are counts (tens to
+    // thousands), FTD Amount is a small money figure, and Turnover/Deposit/
+    // Withdraw/Promotion are money too but usually 100x+ larger than FTD
+    // Amount (turnover in the millions vs. FTD Amount in the thousands) — so
+    // all three groups get their own axis, or the two smaller groups get
+    // flattened into invisible flat lines near zero. The 3rd axis (y2) is
+    // hidden rather than drawn — showing three separate sets of tick labels
+    // gets cluttered — but each line still reports its exact value on hover
+    // (tooltip mode 'index' reads the real data regardless of which axis
+    // scales it, so nothing is lost, just the axis labels for that group).
+    var ALL_KEYS_=['signup','ftd','active','ftdAmt','turnover','deposit','withdraw','promo'];
+    trendDatasets=ALL_KEYS_.map(function(k){
       var isMoney=TREND_METRIC_ISMONEY[k];
+      var axis=(k==='ftdAmt')?'y1':(isMoney?'y2':'y');
       return {label:lblMap[k],data:chartRows.map(function(r){return isMoney?pickMoney(r,k,displayMode):r[k];}),
         borderColor:colorMap[k],backgroundColor:colorMap[k]+'1a',fill:false,tension:.35,pointRadius:0,borderWidth:2,
-        yAxisID:(k==='ftdAmt'?'y1':'y')};
+        yAxisID:axis};
     });
     trendScales={
       x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:8},autoSkip:false,maxRotation:60,minRotation:60}},
       y:{position:'left',beginAtZero:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'Sign Up / FTD / Active',color:'#64748b',font:{size:9}}},
-      y1:{position:'right',beginAtZero:true,grid:{display:false},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'FTD Amount',color:'#64748b',font:{size:9}}}
+      y1:{position:'right',beginAtZero:true,grid:{display:false},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'FTD Amount',color:'#64748b',font:{size:9}}},
+      y2:{display:false,beginAtZero:true}
     };
   } else {
     var isMoney=TREND_METRIC_ISMONEY[trendMetric];
@@ -2418,6 +2516,7 @@ function renderAll(){
   if(!onOverview){
     if(activePageId==='dailyreport') renderDailyReportPage();
     else if(activePageId==='trends') renderPerformancePeaks();
+    else if(activePageId==='summary') renderSummaryPage();
     else if(activePageId==='brandcomp') renderBrandComparison();
   }
 }
@@ -2735,20 +2834,22 @@ function expandExportMonths_(val){
 function emptyAgg_(){
   return {signup:0,ftd:0,active:0,ftdAmt:0,ftdAmtUsd:0,turnover:0,turnoverUsd:0,deposit:0,depositUsd:0,withdraw:0,withdrawUsd:0,promo:0,promoUsd:0,revenue:0,revenueUsd:0,revenueFilled:false,revenueUsdFilled:false};
 }
-// Round to the nearest cent via integer cents, not just Math.round(x*100)/100
-// directly — that still leaves float noise in edge cases (e.g. 1.005). Going
-// through an integer intermediate keeps money fields exact to the cent so
-// summing 31+ days in a row can't drift by a few cents the way plain
-// floating-point addition does.
+// Only round once, for display — NOT after every single addition. Rounding
+// mid-sum (the old behavior) throws away sub-cent precision on every day
+// before the next day gets added, which compounds into a few cents of drift
+// over a month versus the Sheet's own Total row (which sums the full-precision
+// numbers once). Now that the backend fetches UNFORMATTED_VALUE (exact stored
+// numbers, not display-rounded text), accumulating raw and rounding only at
+// the end keeps the dashboard's sum matching the Sheet's SUM() formula.
 function roundMoney_(n){ return Math.round((n||0)*100)/100; }
 function addRowToAgg_(agg,r){
   agg.signup+=r.signup; agg.ftd+=r.ftd; agg.active+=r.active;
-  agg.ftdAmt=roundMoney_(agg.ftdAmt+r.ftdAmt); agg.ftdAmtUsd=roundMoney_(agg.ftdAmtUsd+(r.ftdAmtUsd||0));
-  agg.turnover=roundMoney_(agg.turnover+r.turnover); agg.turnoverUsd=roundMoney_(agg.turnoverUsd+(r.turnoverUsd||0));
-  agg.deposit=roundMoney_(agg.deposit+r.deposit); agg.depositUsd=roundMoney_(agg.depositUsd+(r.depositUsd||0));
-  agg.withdraw=roundMoney_(agg.withdraw+r.withdraw); agg.withdrawUsd=roundMoney_(agg.withdrawUsd+(r.withdrawUsd||0));
-  agg.promo=roundMoney_(agg.promo+r.promo); agg.promoUsd=roundMoney_(agg.promoUsd+(r.promoUsd||0));
-  agg.revenue=roundMoney_(agg.revenue+r.revenue); agg.revenueUsd=roundMoney_(agg.revenueUsd+(r.revenueUsd||0));
+  agg.ftdAmt+=r.ftdAmt; agg.ftdAmtUsd+=(r.ftdAmtUsd||0);
+  agg.turnover+=r.turnover; agg.turnoverUsd+=(r.turnoverUsd||0);
+  agg.deposit+=r.deposit; agg.depositUsd+=(r.depositUsd||0);
+  agg.withdraw+=r.withdraw; agg.withdrawUsd+=(r.withdrawUsd||0);
+  agg.promo+=r.promo; agg.promoUsd+=(r.promoUsd||0);
+  agg.revenue+=r.revenue; agg.revenueUsd+=(r.revenueUsd||0);
   agg.revenueFilled=agg.revenueFilled||!!r.revenueFilled;
   agg.revenueUsdFilled=agg.revenueUsdFilled||!!r.revenueUsdFilled;
 }
@@ -2757,8 +2858,11 @@ function sumAggs_(list){
   list.forEach(function(a){
     Object.keys(out).forEach(function(k){
       if(k==='revenueFilled'||k==='revenueUsdFilled') out[k]=out[k]||!!a[k];
-      else out[k]=roundMoney_(out[k]+(a[k]||0));
+      else out[k]=out[k]+(a[k]||0);
     });
+  });
+  Object.keys(out).forEach(function(k){
+    if(k!=='revenueFilled'&&k!=='revenueUsdFilled') out[k]=roundMoney_(out[k]);
   });
   return out;
 }
