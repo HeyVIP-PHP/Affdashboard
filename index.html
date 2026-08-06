@@ -657,6 +657,84 @@ var MO_FULLNAME={Jan:'January',Feb:'February',Mar:'March',Apr:'April',May:'May',
 // (extra "m"), so the title-row matcher needs to accept both.
 var MO_TITLE_ALIASES={Oct:['October','Octomber']};
 
+// Fallback column positions (old hardcoded assumption: B–F right after Date,
+// then a fixed 9-col Ads Spend gap, then P–Y). Kept only as a last-resort
+// default — findColumnMap_ below overrides any of these it can actually
+// confirm from the Sheet's own header text, since confirmed real Sheets have
+// shown this fixed layout doesn't always hold (financial columns can start
+// at a different offset per tab/currency, e.g. Total Sign up starting at P
+// instead of B).
+var DEFAULT_COL_MAP_={
+  signup:1, ftd:2, active:3, ftdAmount:4, ftdAmountUsd:5,
+  turnover:15, deposit:16, withdraw:17, promotion:18, revenue:19,
+  turnoverUsd:20, depositUsd:21, withdrawUsd:22, promotionUsd:23, revenueUsd:24
+};
+// Normalize a header cell for matching: lowercase, strip everything except
+// letters, so "Total Turnover" / "turnover" / " Turnover " all become
+// "totalturnover"/"turnover" — punctuation/spacing differences in the Sheet
+// don't break matching.
+function normHeader_(s){ return String(s||'').toLowerCase().replace(/[^a-z]/g,''); }
+// One matcher per field we need. Order doesn't matter — each test is specific
+// enough (checks for "usd" presence/absence) that a header can only match one.
+var COL_MATCHERS_=[
+  {key:'signup', test:function(n){return n.indexOf('signup')!==-1;}},
+  {key:'ftd', test:function(n){return n.indexOf('ftd')!==-1 && n.indexOf('amount')===-1;}},
+  {key:'active', test:function(n){return n.indexOf('active')!==-1;}},
+  {key:'ftdAmount', test:function(n){return n.indexOf('ftdamount')!==-1 && n.indexOf('usd')===-1;}},
+  {key:'turnover', test:function(n){return n.indexOf('turnover')!==-1 && n.indexOf('usd')===-1;}},
+  {key:'deposit', test:function(n){return n.indexOf('deposit')!==-1 && n.indexOf('usd')===-1;}},
+  {key:'withdraw', test:function(n){return n.indexOf('withdraw')!==-1 && n.indexOf('usd')===-1;}},
+  {key:'promotion', test:function(n){return n.indexOf('promotion')!==-1 && n.indexOf('usd')===-1;}},
+  {key:'revenue', test:function(n){return n.indexOf('revenue')!==-1 && n.indexOf('usd')===-1;}},
+  {key:'turnoverUsd', test:function(n){return n.indexOf('turnover')!==-1 && n.indexOf('usd')!==-1;}},
+  {key:'depositUsd', test:function(n){return n.indexOf('deposit')!==-1 && n.indexOf('usd')!==-1;}},
+  {key:'withdrawUsd', test:function(n){return n.indexOf('withdraw')!==-1 && n.indexOf('usd')!==-1;}},
+  {key:'promotionUsd', test:function(n){return n.indexOf('promotion')!==-1 && n.indexOf('usd')!==-1;}},
+  {key:'revenueUsd', test:function(n){return n.indexOf('revenue')!==-1 && n.indexOf('usd')!==-1;}}
+];
+// Find the column-name row for a month block, and build {field: columnIndex}
+// from its actual header text instead of trusting a fixed offset. Real Sheets
+// have shown financial columns don't always start where earlier versions of
+// this file assumed (e.g. Total Sign up starting at column P, not column B),
+// so this reads the position straight from whatever the Sheet's own header
+// row says, per month block (each month repeats its own header rows above
+// the day rows), and only falls back to DEFAULT_COL_MAP_ for any field it
+// can't confidently find.
+function findColumnMap_(rawRows, titleRowIdx){
+  var map={}; var bestRow=-1, bestScore=-1;
+  for(var i=titleRowIdx+1; i<Math.min(titleRowIdx+8, rawRows.length); i++){
+    var row=rawRows[i]||[]; var score=0;
+    for(var c=0;c<row.length;c++){
+      var n=normHeader_(row[c]);
+      if(!n) continue;
+      for(var k=0;k<COL_MATCHERS_.length;k++){ if(COL_MATCHERS_[k].test(n)){ score++; break; } }
+    }
+    if(score>bestScore){ bestScore=score; bestRow=i; }
+  }
+  // Require at least 5 confirmed matches before trusting this row as the
+  // real header — otherwise a false positive (e.g. a stray "revenue" in a
+  // note cell) could point at the wrong row entirely.
+  if(bestRow===-1 || bestScore<5) return Object.assign({}, DEFAULT_COL_MAP_);
+  var row=rawRows[bestRow]||[];
+  for(var c=0;c<row.length;c++){
+    var n=normHeader_(row[c]);
+    if(!n) continue;
+    for(var k=0;k<COL_MATCHERS_.length;k++){
+      var m=COL_MATCHERS_[k];
+      if(map[m.key]===undefined && m.test(n)) map[m.key]=c;
+    }
+  }
+  // FTD Amount USD is a special case: the Sheet just labels that one column
+  // bare "USD" (same word as the group header above the whole USD block),
+  // so it can't be matched by keyword alone — instead it's identified by
+  // position: the column immediately to the right of FTD Amount.
+  if(map.ftdAmount!==undefined){
+    var nextCol=map.ftdAmount+1;
+    if(normHeader_(row[nextCol])==='usd') map.ftdAmountUsd=nextCol;
+  }
+  return Object.assign({}, DEFAULT_COL_MAP_, map);
+}
+
 // Scan down from the month title row to find which row is actually "day 1" —
 // don't assume a fixed header row count
 // (your Sheet's header is banner row + group-label row (CRICKEX/PKR/USD) + column-name row,
@@ -764,6 +842,7 @@ function zeroDayRow_(monthKey,d){
 function parseMonthBlock_(rawRows, titleRowIdx, monthKey){
   var days=daysInMonth_(monthKey);
   var firstDayRow=findFirstDayRow_(rawRows, titleRowIdx, monthKey);
+  var col=findColumnMap_(rawRows, titleRowIdx); // {field: columnIndex}, read from this block's own header row
   var out=[];
   for(var d=1; d<=days; d++){
     var r=rawRows[firstDayRow+d-1]||[];
@@ -779,27 +858,27 @@ function parseMonthBlock_(rawRows, titleRowIdx, monthKey){
       out.push(zeroDayRow_(monthKey,d));
       continue;
     }
-    var deposit=parseMoney_(r[16]), withdraw=parseMoney_(r[17]), promotion=parseMoney_(r[18]);
-    var depositUsd=parseMoney_(r[21]), withdrawUsd=parseMoney_(r[22]), promotionUsd=parseMoney_(r[23]);
+    var deposit=parseMoney_(r[col.deposit]), withdraw=parseMoney_(r[col.withdraw]), promotion=parseMoney_(r[col.promotion]);
+    var depositUsd=parseMoney_(r[col.depositUsd]), withdrawUsd=parseMoney_(r[col.withdrawUsd]), promotionUsd=parseMoney_(r[col.promotionUsd]);
     out.push({
       date: monthKey+'-'+d,
-      signup: parseMoney_(r[1]),  // was Number(r[1])||0 — broke on any value with a thousands-separator comma (e.g. "12,232" → NaN → 0)
-      ftd: parseMoney_(r[2]),
-      active: parseMoney_(r[3]),
-      ftdAmount: parseMoney_(r[4]),
-      ftdAmountUsd: parseMoney_(r[5]), // F
-      turnover: parseMoney_(r[15]),   // P
-      deposit: deposit,    // Q
-      withdraw: withdraw,  // R
-      promotion: promotion,// S
-      revenue: parseMoney_(r[19]),    // T — read straight from the Sheet, no computed fallback
-      revenueFilled: cellFilled_(r[19]),
-      turnoverUsd: parseMoney_(r[20]),  // U
-      depositUsd: depositUsd,   // V
-      withdrawUsd: withdrawUsd, // W
-      promotionUsd: promotionUsd, // X
-      revenueUsd: parseMoney_(r[24]),  // Y — read straight from the Sheet, no computed fallback
-      revenueUsdFilled: cellFilled_(r[24])
+      signup: parseMoney_(r[col.signup]),  // was Number(r[1])||0 — broke on any value with a thousands-separator comma (e.g. "12,232" → NaN → 0)
+      ftd: parseMoney_(r[col.ftd]),
+      active: parseMoney_(r[col.active]),
+      ftdAmount: parseMoney_(r[col.ftdAmount]),
+      ftdAmountUsd: parseMoney_(r[col.ftdAmountUsd]),
+      turnover: parseMoney_(r[col.turnover]),
+      deposit: deposit,
+      withdraw: withdraw,
+      promotion: promotion,
+      revenue: parseMoney_(r[col.revenue]),    // read straight from the Sheet, no computed fallback
+      revenueFilled: cellFilled_(r[col.revenue]),
+      turnoverUsd: parseMoney_(r[col.turnoverUsd]),
+      depositUsd: depositUsd,
+      withdrawUsd: withdrawUsd,
+      promotionUsd: promotionUsd,
+      revenueUsd: parseMoney_(r[col.revenueUsd]),  // read straight from the Sheet, no computed fallback
+      revenueUsdFilled: cellFilled_(r[col.revenueUsd])
     });
   }
   return out; // length is always exactly the month's day count, placeholder rows never leak in

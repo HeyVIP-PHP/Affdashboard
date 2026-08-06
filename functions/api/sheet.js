@@ -105,7 +105,11 @@ export async function onRequestGet(context) {
 
     var accessToken = await getAccessToken(context.env);
 
-    var range = tab + '!A1:Y600';
+    // Wide on purpose: real Sheets have shown the financial columns don't
+    // always sit within A–Y (e.g. a block starting further right, past
+    // column Y) — AZ leaves generous headroom so a wider layout still gets
+    // fetched instead of silently truncating.
+    var range = tab + '!A1:AZ600';
     var sheetsUrl =
       'https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(sheetId) +
       '/values/' + encodeURIComponent(range) + '?valueRenderOption=FORMATTED_VALUE';
