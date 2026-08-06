@@ -131,13 +131,11 @@ table.dt td{padding:7px 10px;border-bottom:1px solid var(--border);font-family:v
 .ph-daycount{font-size:9px;color:var(--dim);font-weight:600;margin-left:8px;text-transform:none;letter-spacing:0}
 .dt-scroll{max-height:440px;overflow-y:auto;overflow-x:auto}
 .dt-grp{text-align:center!important;font-size:9px}
-/* Third attempt at a frozen header, different technique: stick the whole
-   <thead> as ONE unit instead of positioning each header row/cell separately
-   with a hand-calculated "top" offset — that per-row math is what broke the
-   previous two attempts (any tiny mismatch in row height let data show through
-   the header while scrolling). Sticking the thead as a single block means its
-   two rows just flow normally inside it; there's no offset to get wrong. */
-.dt-scroll table.dt thead{position:sticky;top:0;z-index:2}
+/* Not sticky. Tried it three different ways, all three broke (overlapping/
+   duplicated header while scrolling) in the real browser and I have no way to
+   preview or verify actual scroll rendering in this environment — I can't
+   responsibly keep guessing at this. A normal header that scrolls away with
+   the table is reliable everywhere; that's the tradeoff. */
 .dt-grp.acq{background:var(--teal-d);color:var(--teal)}
 .dt-grp.fin{background:var(--gold-d);color:var(--gold)}
 .dt-date-hd{background:var(--card);vertical-align:bottom}
@@ -327,7 +325,8 @@ table.dt td.pv-brand{font-weight:800}
       </div>
       <span class="tfb-lbl">MONTH</span>
       <select class="tfb-sel" id="month-select" onchange="switchMonth(this.value)">
-        <option value="Jan">January</option>
+        <option value="ALL">All Months</option>
+        <option value="Jan" selected>January</option>
         <option value="Feb">February</option>
         <option value="Mar">March</option>
         <option value="Apr">April</option>
@@ -393,7 +392,7 @@ table.dt td.pv-brand{font-weight:800}
       </div>
 
       <div class="panel">
-        <div class="ph"><span>📋</span><span class="ph-t">Breakdown<span class="ph-daycount" id="trend-daily-daycount">· 31 days</span>
+        <div class="ph"><span class="ph-t">📋 Breakdown<span class="ph-daycount" id="trend-daily-daycount">· 31 days</span>
           <select class="fsel" id="trend-daily-gran" onchange="renderTrends()" style="margin-left:10px">
             <option value="daily">Daily</option>
             <option value="weekly">Weekly</option>
@@ -461,7 +460,7 @@ table.dt td.pv-brand{font-weight:800}
         </div>
 
         <div class="panel" style="margin-top:16px">
-          <div class="ph"><span>📋</span><span class="ph-t">Breakdown<span class="ph-daycount" id="spv-daily-daycount">· 31 days</span>
+          <div class="ph"><span class="ph-t">📋 Breakdown<span class="ph-daycount" id="spv-daily-daycount">· 31 days</span>
             <select class="fsel" id="spv-daily-gran" onchange="renderSalesPV()" style="margin-left:10px">
               <option value="daily">Daily</option>
               <option value="weekly">Weekly</option>
@@ -995,6 +994,18 @@ function setDisplayCurrency(mode){
 }
 
 var monthNames=MO_FULLNAME; // full 12-month names, already defined above — no need for a separate 3-month copy
+var ALL_MONTHS='ALL'; // currentMonth sentinel value for "All Months"
+MO_FULLNAME.ALL='All Months';
+// For anything that structurally needs ONE specific month (Overview's daily
+// table, Sales Peaks & Valleys' weekly-scoped sections, Daily/Weekly Breakdown
+// granularity) — falls back to December when "All Months" is selected, since
+// there's no single coherent month to show. Always labelled clearly, never
+// silently pretends a real month was picked.
+function effectiveMonth_(){ return currentMonth===ALL_MONTHS?'Dec':currentMonth; }
+// For the monthly-scoped views (Trends' Monthly Comparison, Sales Peaks &
+// Valleys' Monthly Peaks/Split/Trend) — "All Months" means the full Jan–Dec
+// year; otherwise it's Jan through whichever month is currently selected.
+function monthlyRangeMonths_(){ return currentMonth===ALL_MONTHS?MO_ORDER.slice():MO_ORDER.slice(0,MO_ORDER.indexOf(currentMonth)+1); }
 
 function showPage(id,el){
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
@@ -1034,7 +1045,7 @@ function pctInline_(cur,prev){
   return ' <span class="'+cls+'">('+Math.round(Math.abs(p))+'%)</span>';
 }
 function renderTrends(){
-  var months=MO_ORDER.slice(0, MO_ORDER.indexOf(currentMonth)+1); // Jan through whichever month is selected — grows as more months get data
+  var months=monthlyRangeMonths_(); // Jan through whichever month is selected, or the full year if "All Months" is picked
   var monthly=months.map(function(m){
     var rows=getBrandSelectionRows_(currentCurrency,currentBrand,m).rows;
     return rows.reduce(function(a,r){
@@ -1048,7 +1059,7 @@ function renderTrends(){
   });
 
   var last=monthly[monthly.length-1], prev=monthly.length>1?monthly[monthly.length-2]:null;
-  document.getElementById('trend-chart-tag').textContent=monthNames[currentMonth];
+  document.getElementById('trend-chart-tag').textContent=currentMonth===ALL_MONTHS?'December (All Months selected)':monthNames[currentMonth];
   document.getElementById('trend-mom-kpis').innerHTML=
     kpiCard('teal','Sign Up MoM',prev?pct(last.signup,prev.signup):'—',prev?(monthNames[last.month]+' vs '+monthNames[prev.month]):'no prior month yet')+
     kpiCard('gold','FTD MoM',prev?pct(last.ftd,prev.ftd):'—')+
@@ -1058,7 +1069,7 @@ function renderTrends(){
   if(momChart) momChart.destroy();
   momChart=new Chart(document.getElementById('mom-chart').getContext('2d'),{
     type:'bar',
-    data:{labels:[monthNames[currentMonth]],datasets:[
+    data:{labels:[monthNames[last.month]],datasets:[
       {label:'Sign Up',data:[last.signup],backgroundColor:'#00b0ff',borderRadius:4,yAxisID:'y'},
       {label:'FTD',data:[last.ftd],backgroundColor:'#facc15',borderRadius:4,yAxisID:'y'},
       {label:'Active Player',data:[last.active],backgroundColor:'#9b7ff4',borderRadius:4,yAxisID:'y'},
@@ -1083,8 +1094,13 @@ function renderTrends(){
   // Same breakdown table as Overview, but can be viewed daily / weekly / monthly
   var trendGran=document.getElementById('trend-daily-gran').value;
   var granLabel={daily:'days',weekly:'weeks',monthly:'months'}[trendGran];
-  document.getElementById('trend-daily-tag').textContent=trendGran==='monthly'?('Jan – '+monthNames[currentMonth]):monthNames[currentMonth];
-  var dailyRows=buildBreakdownBuckets_(currentCurrency,currentBrand,currentMonth,trendGran);
+  var trendIsAll=currentMonth===ALL_MONTHS;
+  if(trendGran==='monthly'){
+    document.getElementById('trend-daily-tag').textContent=trendIsAll?'Jan – Dec':('Jan – '+monthNames[currentMonth]);
+  } else {
+    document.getElementById('trend-daily-tag').textContent=trendIsAll?'December (All Months selected)':monthNames[currentMonth];
+  }
+  var dailyRows=buildBreakdownBuckets_(currentCurrency,currentBrand,effectiveMonth_(),trendGran);
   renderDailyBreakdownTable_('trend-daily-table','trend-daily-daycount',dailyRows,granLabel,'acq');
 }
 
@@ -1126,7 +1142,7 @@ function renderSalesPV(){
   // brand under this currency; picking one brand filters everything on this page
   // down to just that brand (tables collapse to one row, split charts to one line).
   var brands=currentBrand===ALL_BRANDS ? (BRANDS_BY_CURRENCY[cur]||[]) : [currentBrand];
-  var months=MO_ORDER.slice(0, MO_ORDER.indexOf(currentMonth)+1); // Jan through the selected month
+  var months=monthlyRangeMonths_(); // Jan through the selected month, or the full year if "All Months" is picked
   var selLabel=brandLabel_(currentBrand)==='All Brands' ? 'all brands' : currentBrand;
   ['spv-topw-tag','spv-topm-tag','spv-wtrend-tag','spv-mtrend-tag'].forEach(function(id){
     document.getElementById(id).textContent=selLabel;
@@ -1134,7 +1150,7 @@ function renderSalesPV(){
 
   // ── per-brand weekly peak/valley, within the currently selected month ──
   var brandWeekData=brands.map(function(b){
-    var rows=getMonthRows(cur,b,currentMonth).rows;
+    var rows=getMonthRows(cur,b,effectiveMonth_()).rows; // weekly view needs one real month — falls back to December if "All Months" is selected
     var weeks=weekChunks_(rows).map(function(chunk,i){
       var val=chunk.reduce(function(s,r){return s+mv(r);},0);
       return {label:'W'+(i+1),val:val,range:chunk[0].date+'–'+chunk[chunk.length-1].date};
@@ -1151,7 +1167,7 @@ function renderSalesPV(){
         '<td><span class="pv-pill peak">'+d.peak.label+'</span></td><td>'+fmtVal(d.peak.val)+'</td>'+
         '<td><span class="pv-pill valley">'+d.valley.label+'</span></td><td>'+fmtVal(d.valley.val)+'</td></tr>';
     }).join('');
-  document.getElementById('spv-w-tag').textContent=monthNames[currentMonth]+' · by '+METRIC_LABEL[metric];
+  document.getElementById('spv-w-tag').textContent=(currentMonth===ALL_MONTHS?'December (All Months selected)':monthNames[currentMonth])+' · by '+METRIC_LABEL[metric];
 
   // ── per-brand monthly peak/valley, Jan through the currently selected month ──
   var brandMonthData=brands.map(function(b){
@@ -1195,7 +1211,7 @@ function renderSalesPV(){
 
   // ── Brand Weekly Split — multi-line so each brand's shape is easy to follow,
   //    hovering anywhere on a week shows every brand's value for that week at once ──
-  document.getElementById('spv-wsplit-tag').textContent=monthNames[currentMonth]+' · by brand';
+  document.getElementById('spv-wsplit-tag').textContent=(currentMonth===ALL_MONTHS?'December (All Months selected)':monthNames[currentMonth])+' · by brand';
   var weekLabels=weekTotals.map(function(w){return w.range?[w.label,w.range]:w.label;});
   if(spvWeekSplitChart) spvWeekSplitChart.destroy();
   spvWeekSplitChart=new Chart(document.getElementById('spv-wsplit-chart').getContext('2d'),{
@@ -1250,9 +1266,12 @@ function renderSalesPV(){
   // Breakdown for whatever's currently selected (single brand, or All Brands combined) — daily / weekly / monthly
   var spvGran=document.getElementById('spv-daily-gran').value;
   var spvGranLabel={daily:'days',weekly:'weeks',monthly:'months'}[spvGran];
-  var spvPeriodLabel=spvGran==='monthly'?('Jan – '+monthNames[currentMonth]):monthNames[currentMonth];
+  var spvIsAll=currentMonth===ALL_MONTHS;
+  var spvPeriodLabel;
+  if(spvGran==='monthly') spvPeriodLabel=spvIsAll?'Jan – Dec':('Jan – '+monthNames[currentMonth]);
+  else spvPeriodLabel=spvIsAll?'December (All Months selected)':monthNames[currentMonth];
   document.getElementById('spv-daily-tag').textContent=spvPeriodLabel+' · '+selLabel;
-  var spvDailyRows=buildBreakdownBuckets_(currentCurrency,currentBrand,currentMonth,spvGran);
+  var spvDailyRows=buildBreakdownBuckets_(currentCurrency,currentBrand,effectiveMonth_(),spvGran);
   renderDailyBreakdownTable_('spv-daily-table','spv-daily-daycount',spvDailyRows,spvGranLabel,'fin');
 }
 
@@ -1267,9 +1286,10 @@ function renderBrandComparison(){
   // Same rule as Sales Peaks & Valleys: "All Brands" compares everyone under this
   // currency; picking one brand filters this page down to just that brand.
   var brands=currentBrand===ALL_BRANDS ? BRANDS_BY_CURRENCY[currentCurrency] : [currentBrand];
-  var thisMonthIdx=MO_ORDER.indexOf(currentMonth);
+  var bcMonth=effectiveMonth_(); // This Month vs Last Month needs one real month — falls back to December if "All Months" is selected
+  var thisMonthIdx=MO_ORDER.indexOf(bcMonth);
   var lastMonth=thisMonthIdx>0?MO_ORDER[thisMonthIdx-1]:'Dec';
-  document.getElementById('bc-months-lbl').textContent=monthNames[currentMonth]+' vs '+(monthNames[lastMonth]||lastMonth);
+  document.getElementById('bc-months-lbl').textContent=(currentMonth===ALL_MONTHS?'December (All Months selected)':monthNames[bcMonth])+' vs '+(monthNames[lastMonth]||lastMonth);
   document.getElementById('bc-chart-tag').textContent=METRIC_LABEL[metric];
 
   var isMoney=(metric==='turnover'||metric==='revenue');
@@ -1277,7 +1297,7 @@ function renderBrandComparison(){
   var mv=function(r){ return isMoney?pickMoney(r,metric,displayMode):r[metric]; };
 
   var data=brands.map(function(b){
-    var curRows=getMonthRows(currentCurrency,b,currentMonth).rows;
+    var curRows=getMonthRows(currentCurrency,b,bcMonth).rows;
     var prevRows=getMonthRows(currentCurrency,b,lastMonth).rows;
     var curSum=curRows.reduce(function(a,r){return a+mv(r);},0);
     var prevSum=prevRows.reduce(function(a,r){return a+mv(r);},0);
@@ -1289,14 +1309,14 @@ function renderBrandComparison(){
     type:'bar',
     data:{labels:data.map(function(d){return d.brand;}),datasets:[
       {label:monthNames[lastMonth]||lastMonth,data:data.map(function(d){return d.prev;}),backgroundColor:'#243050',borderRadius:4},
-      {label:monthNames[currentMonth],data:data.map(function(d){return d.cur;}),backgroundColor:'#9b7ff4',borderRadius:4}
+      {label:monthNames[bcMonth],data:data.map(function(d){return d.cur;}),backgroundColor:'#9b7ff4',borderRadius:4}
     ]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:10,font:{size:10}}}},
       scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:10}}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
   });
 
   document.getElementById('bc-table').innerHTML=
-    '<tr><th>Brand</th><th>'+(monthNames[lastMonth]||lastMonth)+'</th><th>'+monthNames[currentMonth]+'</th><th>MoM %</th></tr>'+
+    '<tr><th>Brand</th><th>'+(monthNames[lastMonth]||lastMonth)+'</th><th>'+monthNames[bcMonth]+'</th><th>MoM %</th></tr>'+
     data.map(function(d){
       return '<tr><td>'+d.brand+'</td><td>'+fmtVal(d.prev)+'</td><td>'+fmtVal(d.cur)+'</td>'+
         '<td><span class="'+pctCls(d.cur,d.prev)+'">'+pct(d.cur,d.prev)+'</span></td></tr>';
@@ -1441,10 +1461,11 @@ function renderDailyBreakdownTable_(tableElId,daycountElId,rows,unitLabel,column
 }
 
 function renderAll(){
-  var res=getBrandSelectionRows_(currentCurrency,currentBrand,currentMonth);
+  var isAllMonths=currentMonth===ALL_MONTHS;
+  var res=getBrandSelectionRows_(currentCurrency,currentBrand,effectiveMonth_());
   var rows=res.rows;
   updateLiveBadges_(res);
-  var monthLabel=monthNames[currentMonth];
+  var monthLabel=isAllMonths?'December (All Months selected — showing December)':monthNames[currentMonth];
   var onOverview=document.getElementById('page-overview').classList.contains('active');
   var activePageId='overview';
   ['trends','salespv','brandcomp'].forEach(function(p){
