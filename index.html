@@ -128,6 +128,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 table.dt{width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0;font-size:11px}
 #bc-table{table-layout:auto;width:auto;min-width:100%}
 #bc-table td:first-child,#bc-table th:first-child{width:110px}
+#bc-table2{table-layout:auto;width:auto;min-width:100%}
+#bc-table2 td:first-child,#bc-table2 th:first-child{width:110px}
+/* These two tables are label + numeric-columns (Brand/Metric | value | value | MoM%).
+   Left-aligning short numbers in a wide auto-stretched column leaves a big empty
+   gap after each value — right-aligning keeps them flush and readable regardless
+   of how wide the table ends up. */
+#bc-table th:not(:first-child),#bc-table td:not(:first-child),
+#bc-table2 th:not(:first-child),#bc-table2 td:not(:first-child){text-align:right}
 .dt-date-hd,table.dt td:first-child{width:90px}
 table.dt th{text-align:left;padding:8px 10px;color:var(--muted);font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 table.dt td{padding:7px 10px;border-bottom:1px solid var(--border);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -508,7 +516,7 @@ table.dt td.pv-brand{font-weight:800}
             <div class="pb" style="overflow-x:auto"><table class="dt" id="bc-table"></table></div>
           </div>
           <div class="panel" id="bc-table2-panel" style="display:none">
-            <div class="ph"><span>📋</span><span class="ph-t">Brand Monthly Breakdown — Financials</span><span class="ph-tag">MoM %</span></div>
+            <div class="ph"><span>📋</span><span class="ph-t" id="bc-table2-title">Brand Monthly Breakdown — Financials</span><span class="ph-tag">MoM %</span></div>
             <div class="pb" style="overflow-x:auto"><table class="dt" id="bc-table2"></table></div>
           </div>
         </div>
@@ -519,12 +527,12 @@ table.dt td.pv-brand{font-weight:800}
         </div>
 
         <div class="panel" id="bc-multichart-panel" style="display:none;margin-top:16px">
-          <div class="ph"><span>📊</span><span class="ph-t">Monthly Trend — Performance</span></div>
+          <div class="ph"><span>📊</span><span class="ph-t" id="bc-multichart-title">Monthly Trend — Performance</span></div>
           <div id="bc-multichart-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px"></div>
         </div>
 
         <div class="panel" id="bc-multichart-panel-fin" style="display:none;margin-top:16px">
-          <div class="ph"><span>📊</span><span class="ph-t">Monthly Trend — Financials</span></div>
+          <div class="ph"><span>📊</span><span class="ph-t" id="bc-multichart-title-fin">Monthly Trend — Financials</span></div>
           <div id="bc-multichart-grid-fin" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px"></div>
         </div>
       </div>
@@ -1561,6 +1569,8 @@ function renderBrandComparisonAllMetrics_(brand){
   showBcTable2_(true);
   showBcChartMode_('multi');
   if(bcChart){ bcChart.destroy(); bcChart=null; }
+  document.getElementById('bc-multichart-title').textContent='Monthly Trend — Performance';
+  document.getElementById('bc-multichart-title-fin').textContent='Monthly Trend — Financials';
 
   var monthly=MO_ORDER.map(function(m){
     var agg=emptyAgg_();
@@ -1609,6 +1619,7 @@ function renderBrandComparisonAllMetrics_(brand){
   });
 
   document.getElementById('bc-table-title').textContent='Brand Monthly Breakdown — Performance';
+  document.getElementById('bc-table2-title').textContent='Brand Monthly Breakdown — Financials';
   document.getElementById('bc-table').innerHTML=
     '<tr><th>Month</th><th>Sign Up</th><th>FTD</th><th>Active</th><th>FTD Amount</th></tr>'+
     MO_ORDER.map(function(m,i){
@@ -1634,41 +1645,55 @@ function renderBrandComparisonAllMetrics_(brand){
 
 // Same idea as renderBrandComparisonAllMetrics_ but for a specific month
 // instead of the full year: This Month vs Last Month, broken out by metric
-// instead of by brand, for the one selected brand. Chart becomes a grouped
-// bar per Performance metric; two tables (Performance / Financials) list
-// each metric with its own MoM%, instead of one table listing brands.
+// instead of by brand, for the one selected brand. Reuses the same per-metric
+// small-multiple chart grid as the trend view (each metric gets its own bar
+// chart with its own auto-scaled axis) instead of one grouped bar chart —
+// Sign Up/FTD (hundreds) and Active Player (tens of thousands) sharing a
+// single axis made Sign Up/FTD nearly invisible slivers next to Active Player.
+// Two tables (Performance / Financials) list each metric with its own MoM%.
 function renderBrandComparisonSingleMonthAllMetrics_(brand,bcMonth,lastMonth){
   showBcTable2_(true);
-  showBcChartMode_('single');
-  document.getElementById('bc-chart-title').textContent=brand+' — This Month vs Last Month, All Metrics';
-  document.getElementById('bc-chart-tag').textContent='All';
+  showBcChartMode_('multi');
+  if(bcChart){ bcChart.destroy(); bcChart=null; }
+  document.getElementById('bc-multichart-title').textContent=brand+' — This Month vs Last Month, Performance';
+  document.getElementById('bc-multichart-title-fin').textContent=brand+' — This Month vs Last Month, Financials';
 
   var cur=emptyAgg_(), prev=emptyAgg_();
   getMonthRows(currentCurrency,brand,bcMonth).rows.forEach(function(r){ addRowToAgg_(cur,r); });
   getMonthRows(currentCurrency,brand,lastMonth).rows.forEach(function(r){ addRowToAgg_(prev,r); });
 
-  var perfKeys=['signup','ftd','active','ftdAmt'];
-  var perfLabels={signup:'Sign Up',ftd:'FTD',active:'Active Player',ftdAmt:'FTD Amount'};
+  var perfKeys=BC_PERF_KEYS_, perfLabels=BC_PERF_LABELS_;
   var perfVal=function(agg,k){ return k==='ftdAmt'?pickMoney(agg,'ftdAmt',displayMode):agg[k]; };
+  var lastLbl=monthNames[lastMonth]||lastMonth, curLbl=monthNames[bcMonth];
 
-  if(bcChart) bcChart.destroy();
-  bcChart=new Chart(document.getElementById('bc-chart').getContext('2d'),{
-    type:'bar',
-    data:{labels:perfKeys.map(function(k){return perfLabels[k];}),datasets:[
-      {label:monthNames[lastMonth]||lastMonth,data:perfKeys.map(function(k){return k==='ftdAmt'?null:perfVal(prev,k);}),backgroundColor:'#243050',borderRadius:4,yAxisID:'y'},
-      {label:monthNames[bcMonth],data:perfKeys.map(function(k){return k==='ftdAmt'?null:perfVal(cur,k);}),backgroundColor:'#9b7ff4',borderRadius:4,yAxisID:'y'},
-      {label:(monthNames[lastMonth]||lastMonth)+' FTD Amount',data:perfKeys.map(function(k){return k==='ftdAmt'?perfVal(prev,k):null;}),backgroundColor:'#0f6e56',borderRadius:4,yAxisID:'y1'},
-      {label:monthNames[bcMonth]+' FTD Amount',data:perfKeys.map(function(k){return k==='ftdAmt'?perfVal(cur,k):null;}),backgroundColor:'#00e676',borderRadius:4,yAxisID:'y1'}
-    ]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:10,font:{size:9}}}},
-      scales:{
-        x:{grid:{display:false},ticks:{color:'#64748b',font:{size:10}}},
-        y:{position:'left',beginAtZero:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'Sign Up / FTD / Active',color:'#64748b',font:{size:9}}},
-        y1:{position:'right',beginAtZero:true,grid:{display:false},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'FTD Amount',color:'#64748b',font:{size:9}}}
-      }}
-  });
+  bcMiniCharts.forEach(function(c){ c.destroy(); });
+  bcMiniCharts=[];
+
+  function renderMiniBarPair_(gridEl,keys,labels,colors,valFn,fmtFn){
+    gridEl.innerHTML=keys.map(function(k){
+      return '<div><div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px">'+brand+' — '+labels[k]+'</div>'+
+        '<div style="height:180px"><canvas id="bc-mini-'+k+'"></canvas></div></div>';
+    }).join('');
+    keys.forEach(function(k){
+      var pv=valFn(prev,k), cv=valFn(cur,k);
+      var kf=function(v){ return fmtFn(k,v); };
+      var c=new Chart(document.getElementById('bc-mini-'+k).getContext('2d'),{
+        type:'bar',
+        data:{labels:[lastLbl,curLbl],datasets:[{data:[pv,cv],backgroundColor:['#243050',colors[k]],borderRadius:4}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+            tooltip:{callbacks:{label:function(ctx){return kf(ctx.raw);}}}},
+          scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9}}},
+                  y:{beginAtZero:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:8},callback:kf}}}}
+      });
+      bcMiniCharts.push(c);
+    });
+  }
+  renderMiniBarPair_(document.getElementById('bc-multichart-grid'),perfKeys,perfLabels,BC_PERF_COLORS_,perfVal,
+    function(k,v){ return (k==='ftdAmt')?money(v,displayMode):fmtInt(v); }
+  );
 
   document.getElementById('bc-table-title').textContent=brand+' — Performance';
+  document.getElementById('bc-table2-title').textContent=brand+' — Financials';
   document.getElementById('bc-table').innerHTML=
     '<tr><th>Metric</th><th>'+(monthNames[lastMonth]||lastMonth)+'</th><th>'+monthNames[bcMonth]+'</th><th>MoM %</th></tr>'+
     perfKeys.map(function(k){
@@ -1687,6 +1712,11 @@ function renderBrandComparisonSingleMonthAllMetrics_(brand,bcMonth,lastMonth){
       return '<tr><td>'+finLabels[k]+'</td><td>'+money(p,displayMode)+'</td><td>'+money(c,displayMode)+'</td>'+
         '<td><span class="'+pctCls(c,p)+'">'+pct(c,p)+'</span></td></tr>';
     }).join('');
+
+  renderMiniBarPair_(document.getElementById('bc-multichart-grid-fin'),BC_FIN_KEYS_,BC_FIN_LABELS_,BC_FIN_COLORS_,
+    function(agg,k){return pickMoney(agg,k,displayMode);},
+    function(k,v){return money(v,displayMode);}
+  );
 }
 
 function updateLiveBadges_(res){
