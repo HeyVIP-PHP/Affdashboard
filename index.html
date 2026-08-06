@@ -125,9 +125,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 .collapsed-panel .cp-tag{font-size:9px;font-family:var(--mono)}
 
 /* TABLE */
-table.dt{width:100%;border-collapse:separate;border-spacing:0;font-size:11px}
-table.dt th{text-align:left;padding:8px 10px;color:var(--muted);font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border);white-space:nowrap}
-table.dt td{padding:7px 10px;border-bottom:1px solid var(--border);font-family:var(--mono);white-space:nowrap}
+table.dt{width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0;font-size:11px}
+.dt-date-hd,table.dt td:first-child{width:90px}
+table.dt th{text-align:left;padding:8px 10px;color:var(--muted);font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+table.dt td{padding:7px 10px;border-bottom:1px solid var(--border);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ph-daycount{font-size:9px;color:var(--dim);font-weight:600;margin-left:8px;text-transform:none;letter-spacing:0}
 .dt-scroll{max-height:440px;overflow-y:auto;overflow-x:auto}
 .dt-grp{text-align:center!important;font-size:9px}
@@ -267,7 +268,7 @@ table.dt td.pv-brand{font-weight:800}
     <div class="nav-item active" onclick="showPage('overview',this)"><div class="nav-dot" style="background:#facc15"></div>Overview</div>
 
     <div class="nav-sec">Report</div>
-    <div class="nav-item" onclick="showPage('trends',this)"><div class="nav-dot" style="background:#00b0ff"></div>Trends</div>
+    <div class="nav-item" onclick="showPage('trends',this)"><div class="nav-dot" style="background:#00b0ff"></div>Performance</div>
     <div class="nav-item" onclick="showPage('salespv',this)"><div class="nav-dot" style="background:#facc15"></div>Sales Peaks &amp; Valleys</div>
     <div class="nav-item" onclick="showPage('brandcomp',this)"><div class="nav-dot" style="background:#9b7ff4"></div>Brand Comparison</div>
 
@@ -382,7 +383,13 @@ table.dt td.pv-brand{font-weight:800}
       <div class="kpi-grid g4" id="trend-mom-kpis"></div>
 
       <div class="panel ag">
-        <div class="ph"><span>📊</span><span class="ph-t">Sign Up, FTD, Active &amp; FTD Amount</span><span class="ph-tag" id="trend-chart-tag">Jan – Mar comparison</span></div>
+        <div class="ph"><span class="ph-t">📊 <select class="fsel" id="trend-chart-metric" onchange="renderTrends()">
+            <option value="all">All</option>
+            <option value="signup">Sign Up</option>
+            <option value="ftd">FTD</option>
+            <option value="active">Active Player</option>
+            <option value="ftdAmt">FTD Amount</option>
+          </select></span><span class="ph-tag" id="trend-chart-tag">Jan – Mar comparison</span></div>
         <div class="cw" style="height:260px"><canvas id="mom-chart"></canvas></div>
       </div>
 
@@ -408,10 +415,11 @@ table.dt td.pv-brand{font-weight:800}
         <div class="filter-bar">
           <span class="filter-lbl">Metric</span>
           <select class="fsel" id="spv-metric" onchange="renderSalesPV()">
-            <option value="turnover">Turnover</option>
+            <option value="turnover">Total Turnover</option>
+            <option value="deposit">Total Deposit</option>
+            <option value="withdraw">Total Withdraw</option>
+            <option value="promo">Total Promotion</option>
             <option value="revenue">Revenue</option>
-            <option value="signup">Sign Up</option>
-            <option value="ftd">FTD</option>
           </select>
         </div>
 
@@ -979,9 +987,10 @@ function switchCurrency(c){
   document.getElementById('conn-sub').textContent='Awaiting Sales Sheet ID for '+c;
   renderAll();
   if(document.getElementById('settings-overlay').classList.contains('open')) renderSettings();
+  saveUiState_();
 }
-function switchBrand(b){ currentBrand=b; renderBrandDD(); renderAll(); }
-function switchMonth(m){ currentMonth=m; updateFilterSummary_(); renderAll(); }
+function switchBrand(b){ currentBrand=b; renderBrandDD(); renderAll(); saveUiState_(); }
+function switchMonth(m){ currentMonth=m; updateFilterSummary_(); renderAll(); saveUiState_(); }
 function updateFilterSummary_(){
   var el=document.getElementById('tfb-summary');
   if(el) el.textContent=brandLabel_(currentBrand)+' · '+monthNames[currentMonth]+' · '+currentCurrency;
@@ -991,6 +1000,36 @@ function setDisplayCurrency(mode){
   document.getElementById('btn-pkr').classList.toggle('active',mode==='local');
   document.getElementById('btn-usd').classList.toggle('active',mode==='usd');
   renderAll();
+  saveUiState_();
+}
+
+// ═══════════ REMEMBER LAST-USED CURRENCY / BRAND / MONTH / PAGE ═══════════
+// A personal preference, not shared config — everyone who opens this
+// dashboard gets back to wherever THEY last left it, not whoever last
+// touched it. Uses window.storage (shared:false) when available (inside a
+// Claude artifact), falling back to localStorage otherwise — same pattern
+// as loadSheetLinks/persistSheetLinks, just personal instead of shared.
+var UI_STATE_LS_KEY='affiliate-dashboard-ui-state';
+var activePageId_='overview';
+async function saveUiState_(){
+  var state={currency:currentCurrency,brand:currentBrand,month:currentMonth,page:activePageId_,displayMode:displayMode};
+  try{
+    if(window.storage){ await window.storage.set('ui-state',JSON.stringify(state),false); return; }
+  }catch(e){ /* fall through to localStorage */ }
+  try{ localStorage.setItem(UI_STATE_LS_KEY,JSON.stringify(state)); }catch(e){ /* ignore, not critical */ }
+}
+async function loadUiState_(){
+  try{
+    if(window.storage){
+      var res=await window.storage.get('ui-state',false);
+      if(res&&res.value) return JSON.parse(res.value);
+    }
+  }catch(e){ /* fall through to localStorage */ }
+  try{
+    var raw=localStorage.getItem(UI_STATE_LS_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  return null;
 }
 
 var monthNames=MO_FULLNAME; // full 12-month names, already defined above — no need for a separate 3-month copy
@@ -1008,13 +1047,18 @@ function effectiveMonth_(){ return currentMonth===ALL_MONTHS?'Dec':currentMonth;
 function monthlyRangeMonths_(){ return currentMonth===ALL_MONTHS?MO_ORDER.slice():MO_ORDER.slice(0,MO_ORDER.indexOf(currentMonth)+1); }
 
 function showPage(id,el){
+  activePageId_=id;
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
   document.getElementById('page-'+id).classList.add('active');
   document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active');});
-  if(el) el.classList.add('active');
+  // Look the nav-item up by id when called programmatically (e.g. restoring
+  // saved state on load) rather than requiring the caller to pass the
+  // clicked element — el is optional now.
+  var navEl=el||document.querySelector('.nav-item[onclick*="showPage(\''+id+'\'"]');
+  if(navEl) navEl.classList.add('active');
   var titles={
     overview:'💰 Sales Overview — '+brandLabel_(currentBrand),
-    trends:'📈 Trends — '+brandLabel_(currentBrand),
+    trends:'📈 Performance — '+brandLabel_(currentBrand),
     salespv:'🏔️ Sales Peaks & Valleys — '+brandLabel_(currentBrand),
     brandcomp:'🆚 Brand Comparison — '+brandLabel_(currentBrand)
   };
@@ -1022,6 +1066,7 @@ function showPage(id,el){
   if(id==='trends') renderTrends();
   if(id==='salespv') renderSalesPV();
   if(id==='brandcomp') renderBrandComparison();
+  saveUiState_();
 }
 
 var momChart=null;
@@ -1059,28 +1104,53 @@ function renderTrends(){
   });
 
   var last=monthly[monthly.length-1], prev=monthly.length>1?monthly[monthly.length-2]:null;
-  document.getElementById('trend-chart-tag').textContent=currentMonth===ALL_MONTHS?'December (All Months selected)':monthNames[currentMonth];
+  document.getElementById('trend-chart-tag').textContent=(months.length>1?(monthNames[months[0]]+' – '+monthNames[months[months.length-1]]):monthNames[months[0]])+' trend';
   document.getElementById('trend-mom-kpis').innerHTML=
     kpiCard('teal','Sign Up MoM',prev?pct(last.signup,prev.signup):'—',prev?(monthNames[last.month]+' vs '+monthNames[prev.month]):'no prior month yet')+
     kpiCard('gold','FTD MoM',prev?pct(last.ftd,prev.ftd):'—')+
     kpiCard('green','Active Player MoM',prev?pct(last.active,prev.active):'—')+
     kpiCard('purple','FTD Amount MoM',prev?pct(pickMoney(last,'ftdAmt',displayMode),pickMoney(prev,'ftdAmt',displayMode)):'—');
 
+  // Trend across months (Jan through the selected month, or the full year for
+  // "All Months") for whichever metric(s) the dropdown has picked — same
+  // All/single-metric pattern as the Overview page's trend chart, just plotted
+  // month-by-month instead of day-by-day.
   if(momChart) momChart.destroy();
+  var trendChartMetric=document.getElementById('trend-chart-metric').value;
+  var momLabels=monthly.map(function(m){return monthNames[m.month];});
+  var momLblMap={signup:'Sign Up',ftd:'FTD',active:'Active Player',ftdAmt:'FTD Amount'};
+  var momColorMap={signup:'#00b0ff',ftd:'#facc15',active:'#9b7ff4',ftdAmt:'#00e676'};
+  var momDatasets,momScales;
+  if(trendChartMetric==='all'){
+    momDatasets=['signup','ftd','active','ftdAmt'].map(function(k){
+      var isMoney=(k==='ftdAmt');
+      return {label:momLblMap[k],data:monthly.map(function(m){return isMoney?pickMoney(m,'ftdAmt',displayMode):m[k];}),
+        borderColor:momColorMap[k],backgroundColor:momColorMap[k]+'1a',fill:false,tension:.3,pointRadius:3,pointHoverRadius:5,borderWidth:2,
+        yAxisID:(k==='ftdAmt'?'y1':'y')};
+    });
+    momScales={
+      x:{grid:{display:false},ticks:{color:'#64748b',font:{size:10}}},
+      y:{position:'left',beginAtZero:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'Sign Up / FTD / Active',color:'#64748b',font:{size:9}}},
+      y1:{position:'right',beginAtZero:true,grid:{display:false},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'FTD Amount',color:'#64748b',font:{size:9}}}
+    };
+  } else {
+    var isMoney=(trendChartMetric==='ftdAmt');
+    var c=momColorMap[trendChartMetric];
+    momDatasets=[{label:momLblMap[trendChartMetric],
+      data:monthly.map(function(m){return isMoney?pickMoney(m,'ftdAmt',displayMode):m[trendChartMetric];}),
+      borderColor:c,backgroundColor:c+'26',fill:true,tension:.3,pointRadius:3,pointHoverRadius:5,borderWidth:2}];
+    momScales={
+      x:{grid:{display:false},ticks:{color:'#64748b',font:{size:10}}},
+      y:{beginAtZero:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}
+    };
+  }
   momChart=new Chart(document.getElementById('mom-chart').getContext('2d'),{
-    type:'bar',
-    data:{labels:[monthNames[last.month]],datasets:[
-      {label:'Sign Up',data:[last.signup],backgroundColor:'#00b0ff',borderRadius:4,yAxisID:'y'},
-      {label:'FTD',data:[last.ftd],backgroundColor:'#facc15',borderRadius:4,yAxisID:'y'},
-      {label:'Active Player',data:[last.active],backgroundColor:'#9b7ff4',borderRadius:4,yAxisID:'y'},
-      {label:'FTD Amount',data:[pickMoney(last,'ftdAmt',displayMode)],backgroundColor:'#00e676',borderRadius:4,yAxisID:'y1'}
-    ]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:10,font:{size:10}}}},
-      scales:{
-        x:{grid:{display:false},ticks:{color:'#64748b',font:{size:10}}},
-        y:{position:'left',grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'Sign Up / FTD / Active',color:'#64748b',font:{size:9}}},
-        y1:{position:'right',grid:{display:false},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'FTD Amount',color:'#64748b',font:{size:9}}}
-      }}
+    type:'line',
+    data:{labels:momLabels,datasets:momDatasets},
+    options:{responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:10,font:{size:10}}}},
+      scales:momScales}
   });
 
   document.getElementById('trend-table').innerHTML=
@@ -1106,7 +1176,7 @@ function renderTrends(){
 
 /* ═══════════ SALES PEAKS & VALLEYS ═══════════ */
 var spvWeekSplitChart=null, spvMonthSplitChart=null, spvWeekTrendChart=null, spvMonthTrendChart=null;
-var METRIC_LABEL={turnover:'Turnover',revenue:'Revenue',signup:'Sign Up',ftd:'FTD'};
+var METRIC_LABEL={turnover:'Total Turnover',deposit:'Total Deposit',withdraw:'Total Withdraw',promo:'Total Promotion',revenue:'Revenue',signup:'Sign Up',ftd:'FTD'};
 
 // Deterministic, evenly-spread color per brand (golden-angle hue rotation) —
 // works whether a currency has 2 brands or 17, without needing a hand-picked palette.
@@ -1134,7 +1204,7 @@ function renderPeakBarList_(elId,items,fmtVal){
 // covers the currently selected month, monthly view always spans Jan through the selected month.
 function renderSalesPV(){
   var metric=document.getElementById('spv-metric').value;
-  var isMoney=(metric==='turnover'||metric==='revenue');
+  var isMoney=true; // all 5 options here (Turnover/Deposit/Withdraw/Promotion/Revenue) are money fields
   var mv=function(r){ return isMoney?pickMoney(r,metric,displayMode):r[metric]; };
   var fmtVal=function(v){ return isMoney?money(v,displayMode):fmtInt(v); };
   var cur=currentCurrency;
@@ -1429,7 +1499,7 @@ function renderDailyBreakdownTable_(tableElId,daycountElId,rows,unitLabel,column
   var finCols=FIN_COLS_BASE_.concat(showRevenue?[{key:'revenue',label:'Revenue'}]:[]);
 
   var groupHeaderHtml='';
-  if(showAcq) groupHeaderHtml+='<th class="dt-grp acq" colspan="4">● Acquisition</th>';
+  if(showAcq) groupHeaderHtml+='<th class="dt-grp acq" colspan="4">● Performance</th>';
   if(showFin) groupHeaderHtml+='<th class="dt-grp fin" colspan="'+finCols.length+'">● Financials</th>';
 
   var subHeaderHtml='';
@@ -1473,7 +1543,7 @@ function renderAll(){
   });
   var pgTitles={
     overview:'💰 Sales Overview — '+brandLabel_(currentBrand),
-    trends:'📈 Trends — '+brandLabel_(currentBrand),
+    trends:'📈 Performance — '+brandLabel_(currentBrand),
     salespv:'🏔️ Sales Peaks & Valleys — '+brandLabel_(currentBrand),
     brandcomp:'🆚 Brand Comparison — '+brandLabel_(currentBrand)
   };
@@ -2029,9 +2099,29 @@ async function init(){
   } else {
     foot.innerHTML+=' <br>In this environment, the configuration is only saved on this device/browser (localStorage) and won\'t automatically sync to others.';
   }
+
+  // Restore whatever this person last had selected — currency/brand/month/page
+  // are personal navigation state, not shared config, so this only affects
+  // what YOU see, not what your teammates see when they open the dashboard.
+  var saved=await loadUiState_();
+  if(saved){
+    if(saved.currency && BRANDS_BY_CURRENCY[saved.currency]) currentCurrency=saved.currency;
+    if(saved.brand) currentBrand=saved.brand;
+    if(saved.month) currentMonth=saved.month;
+    if(saved.displayMode) displayMode=saved.displayMode;
+  }
+  document.getElementById('month-select').value=currentMonth;
+  document.getElementById('btn-pkr').textContent=currentCurrency;
+  document.getElementById('btn-pkr').classList.toggle('active',displayMode==='local');
+  document.getElementById('btn-usd').classList.toggle('active',displayMode==='usd');
+
   renderCurDD();
   renderBrandDD();
-  renderAll();
+  updateFilterSummary_();
+  renderAll(); // populates shared chrome (live-badge, pg-sub, conn-box) + Overview's own content either way
+  if(saved && saved.page && saved.page!=='overview'){
+    showPage(saved.page); // then switch to whichever page was last open, rendering its own content on top
+  }
 }
 init();
 </script>
