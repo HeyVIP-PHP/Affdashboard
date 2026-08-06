@@ -167,6 +167,18 @@ table.dt tbody tr:hover td{background:rgba(255,255,255,.03)}
 .c66{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 #bc-tables-row.single-col{grid-template-columns:1fr}
 .filter-bar{display:flex;gap:10px;align-items:center;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 16px;flex-wrap:wrap}
+.section-divider{display:flex;align-items:center;gap:10px;margin:4px 0;color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.section-divider::after{content:"";flex:1;height:1px;background:var(--border)}
+.ov-alert{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:8px;border-left:3px solid var(--amber);background:var(--amber-d)}
+.ov-alert.crit{border-left-color:var(--red);background:var(--red-d)}
+.ov-alert-icon{font-size:16px;flex-shrink:0}
+.ov-alert-body{flex:1;min-width:0}
+.ov-alert-metric{font-size:11px;font-weight:700;color:var(--text)}
+.ov-alert-detail{font-size:9px;color:var(--muted);margin-top:2px}
+.ov-alert-change{font-size:12px;font-weight:800;font-family:var(--mono);flex-shrink:0}
+.ov-alert.crit .ov-alert-change{color:var(--red)}
+.ov-alert:not(.crit) .ov-alert-change{color:var(--amber)}
+.surge-badge{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:700;font-family:var(--mono);color:var(--purple);background:var(--purple-d);padding:2px 7px;border-radius:5px;margin-left:6px}
 .filter-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-right:6px}
 .fsel{background:var(--panel);border:1px solid var(--border2);color:var(--text);font-size:11px;font-family:var(--mono);padding:6px 10px;border-radius:6px;cursor:pointer}
 .peak-list{padding:6px 16px 14px;display:flex;flex-direction:column;gap:8px}
@@ -286,8 +298,8 @@ table.dt td.pv-brand{font-weight:800}
     <div class="nav-item active" onclick="showPage('overview',this)"><div class="nav-dot" style="background:#facc15"></div>Overview</div>
 
     <div class="nav-sec">Report</div>
-    <div class="nav-item" onclick="showPage('trends',this)"><div class="nav-dot" style="background:#00b0ff"></div>Performance</div>
-    <div class="nav-item" onclick="showPage('salespv',this)"><div class="nav-dot" style="background:#facc15"></div>Sales Peaks &amp; Valleys</div>
+    <div class="nav-item" onclick="showPage('dailyreport',this)"><div class="nav-dot" style="background:#00e676"></div>Daily Report</div>
+    <div class="nav-item" onclick="showPage('trends',this)"><div class="nav-dot" style="background:#00b0ff"></div>Performance &amp; Peaks</div>
 
     <div class="nav-sec">Analysis</div>
     <div class="nav-item" onclick="showPage('brandcomp',this)"><div class="nav-dot" style="background:#9b7ff4"></div>Brand Comparison</div>
@@ -390,12 +402,25 @@ table.dt td.pv-brand{font-weight:800}
         <div class="cw" style="height:260px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="trend-chart"></canvas></div>
       </div>
 
-      <!-- Daily table -->
-      <div class="panel">
-        <div class="ph"><span>📋</span><span class="ph-t">Daily Breakdown<span class="ph-daycount" id="daily-daycount">· 31 days</span></span><span class="ph-tag" id="table-tag">January</span></div>
-        <div class="pb dt-scroll" style="overflow-x:auto"><table class="dt" id="daily-table"></table></div>
+      <!-- Needs Attention — auto-generated MoM anomaly alerts, no manual thresholds to configure -->
+      <div class="panel" id="ov-alerts-panel" style="display:none">
+        <div class="ph"><span>🚨</span><span class="ph-t">Needs Attention</span><span class="ph-tag" id="ov-alerts-tag">vs last month</span></div>
+        <div class="pb" id="ov-alerts-body" style="display:flex;flex-direction:column;gap:8px"></div>
       </div>
 
+      </div>
+
+      <!-- DAILY REPORT — the one-stop full breakdown (Performance + Financials together), with its own Daily/Weekly/Monthly granularity switch. Overview/Performance/Peaks pages no longer carry their own copies of this table. -->
+      <div class="page" id="page-dailyreport">
+        <div class="panel">
+          <div class="ph"><span class="ph-t">📋 Daily Report<span class="ph-daycount" id="dr-daycount">· 31 days</span>
+            <select class="fsel" id="dr-gran" onchange="renderDailyReportPage()" style="margin-left:10px">
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+            </select></span><span class="ph-tag" id="dr-tag">January</span></div>
+          <div class="pb dt-scroll" style="overflow-x:auto"><table class="dt" id="dr-table"></table></div>
+        </div>
       </div>
 
       <!-- TRENDS -->
@@ -419,84 +444,64 @@ table.dt td.pv-brand{font-weight:800}
         <div class="pb" style="overflow-x:auto"><table class="dt" id="trend-table"></table></div>
       </div>
 
-      <div class="panel">
-        <div class="ph"><span class="ph-t">📋 Breakdown<span class="ph-daycount" id="trend-daily-daycount">· 31 days</span>
-          <select class="fsel" id="trend-daily-gran" onchange="renderTrends()" style="margin-left:10px">
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-          </select></span><span class="ph-tag" id="trend-daily-tag">January</span></div>
-        <div class="pb dt-scroll" style="overflow-x:auto"><table class="dt" id="trend-daily-table"></table></div>
+      <!-- ── Section divider: Trend analysis above, Peaks & Valleys below (merged into one page so both live under one nav entry) ── -->
+      <div class="section-divider"><span>🏔️ Peaks &amp; Valleys</span></div>
+
+      <div class="filter-bar">
+        <span class="filter-lbl">Metric</span>
+        <select class="fsel" id="spv-metric" onchange="renderSalesPV()">
+          <option value="turnover">Turnover</option>
+          <option value="deposit">Deposit</option>
+          <option value="withdraw">Withdraw</option>
+          <option value="promo">Promotion</option>
+          <option value="revenue">Revenue</option>
+        </select>
       </div>
 
+      <div class="row2 c66">
+        <div class="panel">
+          <div class="ph"><span>📊</span><span class="ph-t">Weekly Peaks &amp; Valleys by Brand</span><span class="ph-tag" id="spv-w-tag">Peak Week</span></div>
+          <div class="pb" style="overflow-x:auto"><table class="dt" id="spv-week-table"></table></div>
+        </div>
+        <div class="panel">
+          <div class="ph"><span>📅</span><span class="ph-t">Monthly Peaks &amp; Valleys by Brand</span><span class="ph-tag">Peak Month</span></div>
+          <div class="pb" style="overflow-x:auto"><table class="dt" id="spv-month-table"></table></div>
+        </div>
       </div>
 
-      <!-- SALES PEAKS & VALLEYS -->
-      <div class="page" id="page-salespv">
-        <div class="filter-bar">
-          <span class="filter-lbl">Metric</span>
-          <select class="fsel" id="spv-metric" onchange="renderSalesPV()">
-            <option value="turnover">Turnover</option>
-            <option value="deposit">Deposit</option>
-            <option value="withdraw">Withdraw</option>
-            <option value="promo">Promotion</option>
-            <option value="revenue">Revenue</option>
-          </select>
+      <div class="row2 c66" style="margin-top:16px">
+        <div class="panel">
+          <div class="ph"><span>🏔️</span><span class="ph-t">Top 3 Peak Weeks</span><span class="ph-tag" id="spv-topw-tag">all brands</span></div>
+          <div class="peak-list" id="spv-top-weeks"></div>
         </div>
+        <div class="panel">
+          <div class="ph"><span>🏔️</span><span class="ph-t">Top 3 Peak Months</span><span class="ph-tag" id="spv-topm-tag">all brands</span></div>
+          <div class="peak-list" id="spv-top-months"></div>
+        </div>
+      </div>
 
-        <div class="row2 c66">
-          <div class="panel">
-            <div class="ph"><span>📊</span><span class="ph-t">Weekly Peaks &amp; Valleys by Brand</span><span class="ph-tag" id="spv-w-tag">Peak Week</span></div>
-            <div class="pb" style="overflow-x:auto"><table class="dt" id="spv-week-table"></table></div>
-          </div>
-          <div class="panel">
-            <div class="ph"><span>📅</span><span class="ph-t">Monthly Peaks &amp; Valleys by Brand</span><span class="ph-tag">Peak Month</span></div>
-            <div class="pb" style="overflow-x:auto"><table class="dt" id="spv-month-table"></table></div>
-          </div>
+      <div class="row2 c66" style="margin-top:16px">
+        <div class="panel ag">
+          <div class="ph"><span>📊</span><span class="ph-t">Brand Weekly Split</span><span class="ph-tag" id="spv-wsplit-tag">by brand</span></div>
+          <div class="cw" style="height:300px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="spv-wsplit-chart"></canvas></div>
         </div>
+        <div class="panel ag">
+          <div class="ph"><span>📊</span><span class="ph-t">Brand Monthly Split</span><span class="ph-tag">by brand</span></div>
+          <div class="cw" style="height:240px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="spv-msplit-chart"></canvas></div>
+        </div>
+      </div>
 
-        <div class="row2 c66" style="margin-top:16px">
-          <div class="panel">
-            <div class="ph"><span>🏔️</span><span class="ph-t">Top 3 Peak Weeks</span><span class="ph-tag" id="spv-topw-tag">all brands</span></div>
-            <div class="peak-list" id="spv-top-weeks"></div>
-          </div>
-          <div class="panel">
-            <div class="ph"><span>🏔️</span><span class="ph-t">Top 3 Peak Months</span><span class="ph-tag" id="spv-topm-tag">all brands</span></div>
-            <div class="peak-list" id="spv-top-months"></div>
-          </div>
+      <div class="row2 c66" style="margin-top:16px">
+        <div class="panel">
+          <div class="ph"><span>📈</span><span class="ph-t">Weekly Volume Trend</span><span class="ph-tag" id="spv-wtrend-tag">all brands</span></div>
+          <div class="cw" style="height:260px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="spv-wtrend-chart"></canvas></div>
         </div>
+        <div class="panel">
+          <div class="ph"><span>📈</span><span class="ph-t">Monthly Volume Trend</span><span class="ph-tag" id="spv-mtrend-tag">all brands</span></div>
+          <div class="cw" style="height:200px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="spv-mtrend-chart"></canvas></div>
+        </div>
+      </div>
 
-        <div class="row2 c66" style="margin-top:16px">
-          <div class="panel ag">
-            <div class="ph"><span>📊</span><span class="ph-t">Brand Weekly Split</span><span class="ph-tag" id="spv-wsplit-tag">by brand</span></div>
-            <div class="cw" style="height:300px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="spv-wsplit-chart"></canvas></div>
-          </div>
-          <div class="panel ag">
-            <div class="ph"><span>📊</span><span class="ph-t">Brand Monthly Split</span><span class="ph-tag">by brand</span></div>
-            <div class="cw" style="height:240px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="spv-msplit-chart"></canvas></div>
-          </div>
-        </div>
-
-        <div class="row2 c66" style="margin-top:16px">
-          <div class="panel">
-            <div class="ph"><span>📈</span><span class="ph-t">Weekly Volume Trend</span><span class="ph-tag" id="spv-wtrend-tag">all brands</span></div>
-            <div class="cw" style="height:260px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="spv-wtrend-chart"></canvas></div>
-          </div>
-          <div class="panel">
-            <div class="ph"><span>📈</span><span class="ph-t">Monthly Volume Trend</span><span class="ph-tag" id="spv-mtrend-tag">all brands</span></div>
-            <div class="cw" style="height:200px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="spv-mtrend-chart"></canvas></div>
-          </div>
-        </div>
-
-        <div class="panel" style="margin-top:16px">
-          <div class="ph"><span class="ph-t">📋 Breakdown<span class="ph-daycount" id="spv-daily-daycount">· 31 days</span>
-            <select class="fsel" id="spv-daily-gran" onchange="renderSalesPV()" style="margin-left:10px">
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-            </select></span><span class="ph-tag" id="spv-daily-tag">January</span></div>
-          <div class="pb dt-scroll" style="overflow-x:auto"><table class="dt" id="spv-daily-table"></table></div>
-        </div>
       </div>
 
       <!-- BRAND COMPARISON -->
@@ -1182,9 +1187,12 @@ function effectiveMonth_(){ return currentMonth===ALL_MONTHS?'Dec':currentMonth;
 function monthlyRangeMonths_(){ return currentMonth===ALL_MONTHS?MO_ORDER.slice():MO_ORDER.slice(0,MO_ORDER.indexOf(currentMonth)+1); }
 
 function showPage(id,el){
+  if(id==='salespv') id='trends'; // pre-merge saved state pointed at a page that no longer exists on its own
+  var pageEl=document.getElementById('page-'+id);
+  if(!pageEl){ id='overview'; pageEl=document.getElementById('page-overview'); }
   activePageId_=id;
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
-  document.getElementById('page-'+id).classList.add('active');
+  pageEl.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active');});
   // Look the nav-item up by id when called programmatically (e.g. restoring
   // saved state on load) rather than requiring the caller to pass the
@@ -1193,13 +1201,13 @@ function showPage(id,el){
   if(navEl) navEl.classList.add('active');
   var titles={
     overview:'💰 Sales Overview — '+brandLabel_(currentBrand),
-    trends:'📈 Performance — '+brandLabel_(currentBrand),
-    salespv:'🏔️ Sales Peaks & Valleys — '+brandLabel_(currentBrand),
+    dailyreport:'📋 Daily Report — '+brandLabel_(currentBrand),
+    trends:'📈 Performance & Peaks — '+brandLabel_(currentBrand),
     brandcomp:'🆚 Brand Comparison — '+brandLabel_(currentBrand)
   };
   document.getElementById('pg-title').textContent=titles[id];
-  if(id==='trends') renderTrends();
-  if(id==='salespv') renderSalesPV();
+  if(id==='dailyreport') renderDailyReportPage();
+  if(id==='trends'){ renderTrends(); renderSalesPV(); }
   if(id==='brandcomp') renderBrandComparison();
   saveUiState_();
 }
@@ -1292,20 +1300,6 @@ function renderTrends(){
       return '<tr><td>'+monthNames[m.month]+'</td><td>'+fmtInt(m.signup)+pctInline_(m.signup,p&&p.signup)+'</td><td>'+fmtInt(m.ftd)+'</td><td>'+fmtInt(m.active)+'</td>'+
         '<td>'+money(pickMoney(m,'ftdAmt',displayMode),displayMode)+pctInline_(pickMoney(m,'ftdAmt',displayMode),p?pickMoney(p,'ftdAmt',displayMode):null)+'</td></tr>';
     }).join('');
-
-  // Same breakdown table as Overview, but can be viewed daily / weekly / monthly
-  var trendGran=document.getElementById('trend-daily-gran').value;
-  var granLabel={daily:'days',weekly:'weeks',monthly:'months'}[trendGran];
-  var trendIsAll=currentMonth===ALL_MONTHS;
-  if(trendGran==='monthly'){
-    document.getElementById('trend-daily-tag').textContent=trendIsAll?'Jan – Dec':('Jan – '+monthNames[currentMonth]);
-  } else if(trendGran==='weekly'){
-    document.getElementById('trend-daily-tag').textContent=trendIsAll?'Jan – Dec (All Months) · each month\u2019s own weeks':monthNames[currentMonth];
-  } else {
-    document.getElementById('trend-daily-tag').textContent=trendIsAll?'Jan – Dec (All Months) · daily':monthNames[currentMonth];
-  }
-  var dailyRows=buildBreakdownBuckets_(currentCurrency,currentBrand,effectiveMonth_(),trendGran);
-  renderDailyBreakdownTable_('trend-daily-table','trend-daily-daycount',dailyRows,granLabel,'acq');
 }
 
 /* ═══════════ SALES PEAKS & VALLEYS ═══════════ */
@@ -1337,6 +1331,25 @@ function renderPeakBarList_(elId,items,fmtVal){
 // Peaks & Valleys, but across every brand under the current currency at once
 // (one row per brand), rather than the single selected brand — weekly view
 // covers the currently selected month, monthly view always spans Jan through the selected month.
+/* ═══════════ DAILY REPORT (standalone page) ═══════════
+   The one-stop full breakdown — Performance + Financials columns together,
+   switchable Daily/Weekly/Monthly, for whatever brand/month/currency is
+   currently selected. Overview/Performance/Peaks pages used to each carry
+   their own (partial) copy of this table; now there's exactly one, here.
+*/
+function renderDailyReportPage(){
+  var gran=document.getElementById('dr-gran').value;
+  var granLabel={daily:'days',weekly:'weeks',monthly:'months'}[gran];
+  var isAll=currentMonth===ALL_MONTHS;
+  var periodLabel;
+  if(gran==='monthly') periodLabel=isAll?'Jan – Dec':('Jan – '+monthNames[currentMonth]);
+  else if(gran==='weekly') periodLabel=isAll?'Jan – Dec (All Months) · each month\u2019s own weeks':monthNames[currentMonth];
+  else periodLabel=isAll?'Jan – Dec (All Months) · daily':monthNames[currentMonth];
+  document.getElementById('dr-tag').textContent=periodLabel+' · '+brandLabel_(currentBrand);
+  var rows=buildBreakdownBuckets_(currentCurrency,currentBrand,effectiveMonth_(),gran);
+  renderDailyBreakdownTable_('dr-table','dr-daycount',rows,granLabel,'both');
+}
+
 function renderSalesPV(){
   var metric=document.getElementById('spv-metric').value;
   var isMoney=true; // all 5 options here (Turnover/Deposit/Withdraw/Promotion/Revenue) are money fields
@@ -1385,11 +1398,13 @@ function renderSalesPV(){
   });
 
   document.getElementById('spv-week-table').innerHTML=
-    '<tr><th>Brand</th><th>▲ Peak Week</th><th>Volume</th><th>▼ Valley Week</th><th>Volume</th></tr>'+
+    '<tr><th>Brand</th><th>▲ Peak Week</th><th>Volume</th><th>▼ Valley Week</th><th>Volume</th><th>Surge</th></tr>'+
     brandWeekData.map(function(d){
+      var surge=d.valley.val>0?(d.peak.val/d.valley.val).toFixed(1)+'×':'—';
       return '<tr><td class="pv-brand" style="color:'+brandColor_(brands,d.brand)+'">'+d.brand+'</td>'+
         '<td><span class="pv-pill peak">'+d.peak.label+'</span></td><td>'+fmtVal(d.peak.val)+'</td>'+
-        '<td><span class="pv-pill valley">'+d.valley.label+'</span></td><td>'+fmtVal(d.valley.val)+'</td></tr>';
+        '<td><span class="pv-pill valley">'+d.valley.label+'</span></td><td>'+fmtVal(d.valley.val)+'</td>'+
+        '<td><span class="surge-badge">'+surge+'</span></td></tr>';
     }).join('');
   document.getElementById('spv-w-tag').textContent=(currentMonth===ALL_MONTHS?'Jan–Dec (All Months) — week positions summed across the year':monthNames[currentMonth])+' · by '+METRIC_LABEL[metric];
 
@@ -1405,11 +1420,13 @@ function renderSalesPV(){
   });
 
   document.getElementById('spv-month-table').innerHTML=
-    '<tr><th>Brand</th><th>▲ Peak Month</th><th>Volume</th><th>▼ Valley Month</th><th>Volume</th></tr>'+
+    '<tr><th>Brand</th><th>▲ Peak Month</th><th>Volume</th><th>▼ Valley Month</th><th>Volume</th><th>Surge</th></tr>'+
     brandMonthData.map(function(d){
+      var surge=d.valley.val>0?(d.peak.val/d.valley.val).toFixed(1)+'×':'—';
       return '<tr><td class="pv-brand" style="color:'+brandColor_(brands,d.brand)+'">'+d.brand+'</td>'+
         '<td><span class="pv-pill peak">'+d.peak.label+'</span></td><td>'+fmtVal(d.peak.val)+'</td>'+
-        '<td><span class="pv-pill valley">'+d.valley.label+'</span></td><td>'+fmtVal(d.valley.val)+'</td></tr>';
+        '<td><span class="pv-pill valley">'+d.valley.label+'</span></td><td>'+fmtVal(d.valley.val)+'</td>'+
+        '<td><span class="surge-badge">'+surge+'</span></td></tr>';
     }).join('');
 
   // ── Top 3 peak weeks / months, summed across every brand ──
@@ -1494,18 +1511,6 @@ function renderSalesPV(){
       scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9}}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
   });
   attachChartZoom_('spv-mtrend-chart','Sales Peaks & Valleys — Monthly Volume Trend',function(){return spvMonthTrendChart;});
-
-  // Breakdown for whatever's currently selected (single brand, or All Brands combined) — daily / weekly / monthly
-  var spvGran=document.getElementById('spv-daily-gran').value;
-  var spvGranLabel={daily:'days',weekly:'weeks',monthly:'months'}[spvGran];
-  var spvIsAll=currentMonth===ALL_MONTHS;
-  var spvPeriodLabel;
-  if(spvGran==='monthly') spvPeriodLabel=spvIsAll?'Jan – Dec':('Jan – '+monthNames[currentMonth]);
-  else if(spvGran==='weekly') spvPeriodLabel=spvIsAll?'Jan – Dec (All Months) · each month\u2019s own weeks':monthNames[currentMonth];
-  else spvPeriodLabel=spvIsAll?'Jan – Dec (All Months) · daily':monthNames[currentMonth];
-  document.getElementById('spv-daily-tag').textContent=spvPeriodLabel+' · '+selLabel;
-  var spvDailyRows=buildBreakdownBuckets_(currentCurrency,currentBrand,effectiveMonth_(),spvGran);
-  renderDailyBreakdownTable_('spv-daily-table','spv-daily-daycount',spvDailyRows,spvGranLabel,'fin');
 }
 
 /* ═══════════ BRAND COMPARISON ═══════════
@@ -2029,6 +2034,75 @@ function aggregateStatusAcross_(resList){
   return {live:liveCount===resList.length,status:status,error:error,liveCount:liveCount,brandCount:resList.length};
 }
 
+/* ═══════════ NEEDS ATTENTION — auto MoM anomaly alerts (Overview page) ═══════════
+   Every rule follows the same template: compare the latest month with data
+   against the month before it, flag amber at the lower threshold and red
+   (crit) at the higher one. No manually-configured "targets" to maintain —
+   each metric is just compared against its own recent history.
+*/
+function renderOverviewAlerts_(cur,brand,month){
+  var panel=document.getElementById('ov-alerts-panel');
+  var body=document.getElementById('ov-alerts-body');
+  var m=effectiveMonth_();
+  var idx=MO_ORDER.indexOf(m);
+  var prevM=idx>0?MO_ORDER[idx-1]:null;
+  if(!prevM){ panel.style.display='none'; return; }
+
+  var curRes=getBrandSelectionRows_(cur,brand,m);
+  var prevRes=getBrandSelectionRows_(cur,brand,prevM);
+  if(!curRes.live||!prevRes.live){ panel.style.display='none'; return; } // only alert on confirmed live data, never on placeholder zeros
+
+  var curAgg=emptyAgg_(); curRes.rows.forEach(function(r){ addRowToAgg_(curAgg,r); });
+  var prevAgg=emptyAgg_(); prevRes.rows.forEach(function(r){ addRowToAgg_(prevAgg,r); });
+
+  var alerts=[];
+  function addAlert_(icon,metric,curVal,prevVal,fmtFn,amberT,redT){
+    if(!(prevVal>0)) return;
+    var chg=(curVal-prevVal)/prevVal*100;
+    if(Math.abs(chg)<amberT) return;
+    alerts.push({icon:icon,metric:metric,before:fmtFn(prevVal),after:fmtFn(curVal),
+      change:(chg>=0?'▲':'▼')+Math.abs(chg).toFixed(1)+'%',
+      detail:monthNames[prevM]+' → '+monthNames[m],crit:Math.abs(chg)>=redT});
+  }
+  var moneyFmt=function(v){ return money(v,displayMode); };
+  addAlert_('💰','Total Turnover',pickMoney(curAgg,'turnover',displayMode),pickMoney(prevAgg,'turnover',displayMode),moneyFmt,15,40);
+  addAlert_('🎯','FTD Amount',pickMoney(curAgg,'ftdAmt',displayMode),pickMoney(prevAgg,'ftdAmt',displayMode),moneyFmt,15,40);
+  addAlert_('👥','Sign Up',curAgg.signup,prevAgg.signup,fmtInt,15,40);
+  addAlert_('💸','Total Withdraw',pickMoney(curAgg,'withdraw',displayMode),pickMoney(prevAgg,'withdraw',displayMode),moneyFmt,15,40);
+
+  // Brand workload imbalance — coefficient of variation across brands' Turnover
+  // this month. Only meaningful with "All Brands" selected and 3+ live brands.
+  if(brand===ALL_BRANDS){
+    var brands=BRANDS_BY_CURRENCY[cur]||[];
+    var vals=brands.map(function(b){
+      var r=getMonthRows(cur,b,m);
+      if(!r.live) return null;
+      var a=emptyAgg_(); r.rows.forEach(function(rr){ addRowToAgg_(a,rr); });
+      return pickMoney(a,'turnover',displayMode);
+    }).filter(function(v){ return v!==null && v>0; });
+    if(vals.length>=3){
+      var mean=vals.reduce(function(s,v){return s+v;},0)/vals.length;
+      var variance=vals.reduce(function(s,v){return s+Math.pow(v-mean,2);},0)/vals.length;
+      var cv=mean>0?(Math.sqrt(variance)/mean*100):0;
+      if(cv>=40){
+        alerts.push({icon:'⚖️',metric:'Brand Turnover Balance',
+          before:money(Math.min.apply(null,vals),displayMode)+' min',after:money(Math.max.apply(null,vals),displayMode)+' max',
+          change:Math.round(cv)+'% CV',detail:monthNames[m]+' · '+vals.length+' brands live',crit:cv>=70});
+      }
+    }
+  }
+
+  if(!alerts.length){ panel.style.display='none'; return; }
+  panel.style.display='';
+  document.getElementById('ov-alerts-tag').textContent=monthNames[prevM]+' → '+monthNames[m];
+  body.innerHTML=alerts.map(function(a){
+    return '<div class="ov-alert'+(a.crit?' crit':'')+'"><div class="ov-alert-icon">'+a.icon+'</div>'+
+      '<div class="ov-alert-body"><div class="ov-alert-metric">'+a.metric+'</div>'+
+      '<div class="ov-alert-detail">'+a.detail+' · '+a.before+' → '+a.after+'</div></div>'+
+      '<div class="ov-alert-change">'+a.change+'</div></div>';
+  }).join('');
+}
+
 function renderAll(){
   var isAllMonths=currentMonth===ALL_MONTHS;
   var res, rows, yearRowsByMonth=null;
@@ -2044,20 +2118,19 @@ function renderAll(){
   var monthLabel=isAllMonths?'Full Year (Jan–Dec)':monthNames[currentMonth];
   var onOverview=document.getElementById('page-overview').classList.contains('active');
   var activePageId='overview';
-  ['trends','salespv','brandcomp'].forEach(function(p){
+  ['dailyreport','trends','brandcomp'].forEach(function(p){
     if(document.getElementById('page-'+p).classList.contains('active')) activePageId=p;
   });
   var pgTitles={
     overview:'💰 Sales Overview — '+brandLabel_(currentBrand),
-    trends:'📈 Performance — '+brandLabel_(currentBrand),
-    salespv:'🏔️ Sales Peaks & Valleys — '+brandLabel_(currentBrand),
+    dailyreport:'📋 Daily Report — '+brandLabel_(currentBrand),
+    trends:'📈 Performance & Peaks — '+brandLabel_(currentBrand),
     brandcomp:'🆚 Brand Comparison — '+brandLabel_(currentBrand)
   };
   document.getElementById('pg-title').textContent=pgTitles[activePageId];
   var dataLabel=res.status==='ready'?'Live data':res.status==='mixed'?('Mixed data — '+res.liveCount+'/'+res.brandCount+' live'):res.status==='loading'?'Syncing…':res.status==='error'?'Sync error':'No data';
   document.getElementById('pg-sub').textContent=dataLabel+' · '+monthLabel+' · '+currentCurrency+' sheet';
   document.getElementById('chart-tag').textContent=isAllMonths?'Jan – Dec · monthly':monthLabel+' · daily';
-  document.getElementById('table-tag').textContent=monthLabel;
 
   var sum=emptyAgg_();
   rows.forEach(function(r){ addRowToAgg_(sum,r); });
@@ -2135,17 +2208,12 @@ function renderAll(){
   });
   attachChartZoom_('trend-chart','Overview — Trend',function(){return trendChart;});
 
-  // Breakdown table — grouped by month with subtotals for "All Months", plain daily otherwise
-  if(isAllMonths){
-    renderYearBreakdownTable_('daily-table','daily-daycount',yearRowsByMonth);
-  } else {
-    renderDailyBreakdownTable_('daily-table','daily-daycount',rows);
-  }
+  if(onOverview) renderOverviewAlerts_(currentCurrency,currentBrand,currentMonth);
 
   if(!onOverview){
-    if(document.getElementById('page-trends').classList.contains('active')) renderTrends();
-    else if(document.getElementById('page-salespv').classList.contains('active')) renderSalesPV();
-    else if(document.getElementById('page-brandcomp').classList.contains('active')) renderBrandComparison();
+    if(activePageId==='dailyreport') renderDailyReportPage();
+    else if(activePageId==='trends'){ renderTrends(); renderSalesPV(); }
+    else if(activePageId==='brandcomp') renderBrandComparison();
   }
 }
 
