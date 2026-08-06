@@ -256,6 +256,9 @@ table.dt td.pv-brand{font-weight:800}
 .md-status.loading{background:var(--teal-d);color:var(--teal)}
 .md-status.off{background:rgba(255,255,255,.03);color:var(--muted)}
 .modal-foot{padding:10px 18px;border-top:1px solid var(--border);font-size:9px;color:var(--dim);line-height:1.6}
+.chart-zoom-box{max-width:min(1100px,92vw);width:100%}
+.chart-zoom-body{height:min(640px,72vh);padding:20px}
+.chart-zoom-body canvas{width:100%!important;height:100%!important}
 </style>
 </head>
 <body>
@@ -538,6 +541,19 @@ table.dt td.pv-brand{font-weight:800}
         </div>
       </div>
 
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ CHART ZOOM MODAL — opens on double-click of any line/trend chart ═══════════ -->
+<div class="modal-overlay" id="chart-zoom-overlay" onclick="if(event.target===this) closeChartModal_()">
+  <div class="modal-box chart-zoom-box">
+    <div class="modal-head">
+      <div class="modal-title" id="chart-zoom-title">Chart</div>
+      <button class="modal-close" onclick="closeChartModal_()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body single chart-zoom-body">
+      <canvas id="chart-zoom-canvas"></canvas>
     </div>
   </div>
 </div>
@@ -1195,6 +1211,7 @@ function renderTrends(){
       plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:10,font:{size:10}}}},
       scales:momScales}
   });
+  attachChartZoom_('mom-chart','Performance — Month-over-Month',function(){return momChart;});
 
   document.getElementById('trend-table').innerHTML=
     '<tr><th>Month</th><th>Sign Up</th><th>FTD</th><th>Active</th><th>FTD Amount</th></tr>'+
@@ -1211,9 +1228,9 @@ function renderTrends(){
   if(trendGran==='monthly'){
     document.getElementById('trend-daily-tag').textContent=trendIsAll?'Jan – Dec':('Jan – '+monthNames[currentMonth]);
   } else if(trendGran==='weekly'){
-    document.getElementById('trend-daily-tag').textContent=trendIsAll?'Jan–Dec (All Months) — week positions summed':monthNames[currentMonth];
+    document.getElementById('trend-daily-tag').textContent=trendIsAll?'Jan – Dec (All Months) · each month\u2019s own weeks':monthNames[currentMonth];
   } else {
-    document.getElementById('trend-daily-tag').textContent=trendIsAll?'December (All Months selected — daily view needs one month)':monthNames[currentMonth];
+    document.getElementById('trend-daily-tag').textContent=trendIsAll?'Jan – Dec (All Months) · daily':monthNames[currentMonth];
   }
   var dailyRows=buildBreakdownBuckets_(currentCurrency,currentBrand,effectiveMonth_(),trendGran);
   renderDailyBreakdownTable_('trend-daily-table','trend-daily-daycount',dailyRows,granLabel,'acq');
@@ -1363,6 +1380,7 @@ function renderSalesPV(){
       scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9}}},
               y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
   });
+  attachChartZoom_('spv-wsplit-chart','Sales Peaks & Valleys — Brand Weekly Split',function(){return spvWeekSplitChart;});
 
   // ── Brand Monthly Split ──
   if(spvMonthSplitChart) spvMonthSplitChart.destroy();
@@ -1380,6 +1398,7 @@ function renderSalesPV(){
       scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9}}},
               y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
   });
+  attachChartZoom_('spv-msplit-chart','Sales Peaks & Valleys — Brand Monthly Split',function(){return spvMonthSplitChart;});
 
   // ── Weekly / Monthly Volume Trend — every brand summed into one line ──
   if(spvWeekTrendChart) spvWeekTrendChart.destroy();
@@ -1389,6 +1408,7 @@ function renderSalesPV(){
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
       scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9}}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
   });
+  attachChartZoom_('spv-wtrend-chart','Sales Peaks & Valleys — Weekly Volume Trend',function(){return spvWeekTrendChart;});
 
   if(spvMonthTrendChart) spvMonthTrendChart.destroy();
   spvMonthTrendChart=new Chart(document.getElementById('spv-mtrend-chart').getContext('2d'),{
@@ -1397,6 +1417,7 @@ function renderSalesPV(){
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
       scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9}}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
   });
+  attachChartZoom_('spv-mtrend-chart','Sales Peaks & Valleys — Monthly Volume Trend',function(){return spvMonthTrendChart;});
 
   // Breakdown for whatever's currently selected (single brand, or All Brands combined) — daily / weekly / monthly
   var spvGran=document.getElementById('spv-daily-gran').value;
@@ -1404,8 +1425,8 @@ function renderSalesPV(){
   var spvIsAll=currentMonth===ALL_MONTHS;
   var spvPeriodLabel;
   if(spvGran==='monthly') spvPeriodLabel=spvIsAll?'Jan – Dec':('Jan – '+monthNames[currentMonth]);
-  else if(spvGran==='weekly') spvPeriodLabel=spvIsAll?'Jan–Dec (All Months) — week positions summed':monthNames[currentMonth];
-  else spvPeriodLabel=spvIsAll?'December (All Months selected — daily view needs one month)':monthNames[currentMonth];
+  else if(spvGran==='weekly') spvPeriodLabel=spvIsAll?'Jan – Dec (All Months) · each month\u2019s own weeks':monthNames[currentMonth];
+  else spvPeriodLabel=spvIsAll?'Jan – Dec (All Months) · daily':monthNames[currentMonth];
   document.getElementById('spv-daily-tag').textContent=spvPeriodLabel+' · '+selLabel;
   var spvDailyRows=buildBreakdownBuckets_(currentCurrency,currentBrand,effectiveMonth_(),spvGran);
   renderDailyBreakdownTable_('spv-daily-table','spv-daily-daycount',spvDailyRows,spvGranLabel,'fin');
@@ -1491,6 +1512,7 @@ function renderBrandComparison(){
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:10,font:{size:10}}}},
       scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:10}}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
   });
+  bindChartZoom_('bc-chart','This Month vs Last Month — by Brand',bcChart);
 
   document.getElementById('bc-table').innerHTML=
     '<tr><th>Brand</th><th>'+(monthNames[lastMonth]||lastMonth)+'</th><th>'+monthNames[bcMonth]+'</th><th>MoM %</th></tr>'+
@@ -1538,6 +1560,7 @@ function renderBrandComparisonAllMonths_(metric,brands,fmtVal,mv,singleBrandAllM
       plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:9,font:{size:9}}}},
       scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9}}},y:{beginAtZero:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
   });
+  bindChartZoom_('bc-chart','Monthly Trend — '+METRIC_LABEL[metric],bcChart);
 
   document.getElementById('bc-table').innerHTML=
     '<tr><th>Month</th>'+brands.map(function(b){return '<th style="color:'+brandColor_(brands,b)+'">'+b+' — '+METRIC_LABEL[metric]+'</th>';}).join('')+'</tr>'+
@@ -1598,6 +1621,7 @@ function renderBrandComparisonAllMetrics_(brand){
                 y:{beginAtZero:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:8}}}}}
     });
     bcMiniCharts.push(c);
+    bindChartZoom_('bc-mini-'+k,brand+' — '+BC_PERF_LABELS_[k],c);
   });
 
   // Financials trend charts (Turnover/Deposit/Withdraw/Promotion) — same shape
@@ -1617,6 +1641,7 @@ function renderBrandComparisonAllMetrics_(brand){
                 y:{beginAtZero:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:8}}}}}
     });
     bcMiniCharts.push(c);
+    bindChartZoom_('bc-mini-fin-'+k,brand+' — '+BC_FIN_LABELS_[k],c);
   });
 
   document.getElementById('bc-table-title').textContent=brand+' — Monthly Breakdown';
@@ -1758,8 +1783,9 @@ function weekChunks_(rows){
 }
 
 function buildBreakdownBuckets_(cur,brandSel,month,granularity){
+  var isAllMonths=currentMonth===ALL_MONTHS;
   if(granularity==='monthly'){
-    var months=MO_ORDER.slice(0,MO_ORDER.indexOf(month)+1); // Jan through the selected month
+    var months=isAllMonths?MO_ORDER.slice():MO_ORDER.slice(0,MO_ORDER.indexOf(month)+1); // full year, or Jan through the selected month
     return months.map(function(m){
       var agg=emptyAgg_();
       getBrandSelectionRows_(cur,brandSel,m).rows.forEach(function(r){ addRowToAgg_(agg,r); });
@@ -1768,18 +1794,22 @@ function buildBreakdownBuckets_(cur,brandSel,month,granularity){
     });
   }
   if(granularity==='weekly'){
-    if(currentMonth===ALL_MONTHS){
-      // Same idea as the Sales Peaks & Valleys weekly panels: sum each
-      // week-position (W1/W2/W3/W4) across all 12 months instead of falling
-      // back to one arbitrary (possibly empty) month.
-      var weekAggs=[emptyAgg_(),emptyAgg_(),emptyAgg_(),emptyAgg_()];
+    if(isAllMonths){
+      // Each month's own weeks, back to back (Jan W1..W4, Feb W1..W4, ... Dec
+      // W1..W4) — NOT one week-position summed across all 12 months. A "W1"
+      // that mixes January's first week with December's first week isn't a
+      // real period anyone reports against.
+      var out=[];
       MO_ORDER.forEach(function(m){
         var mrows=getBrandSelectionRows_(cur,brandSel,m).rows;
         weekChunks_(mrows).forEach(function(chunk,i){
-          chunk.forEach(function(r){ addRowToAgg_(weekAggs[i],r); });
+          var agg=emptyAgg_();
+          chunk.forEach(function(r){ addRowToAgg_(agg,r); });
+          agg.date=monthNames[m]+' W'+(i+1);
+          out.push(agg);
         });
       });
-      return weekAggs.map(function(agg,i){ agg.date='W'+(i+1)+' (Jan–Dec)'; return agg; });
+      return out;
     }
     var dayRows=getBrandSelectionRows_(cur,brandSel,month).rows;
     return weekChunks_(dayRows).map(function(chunk,i){
@@ -1789,7 +1819,18 @@ function buildBreakdownBuckets_(cur,brandSel,month,granularity){
       return agg;
     });
   }
-  return getBrandSelectionRows_(cur,brandSel,month).rows; // 'daily' (default)
+  // 'daily' (default)
+  if(isAllMonths){
+    // Full year, day by day (Jan-1 ... Dec-31). Each row's .date is already
+    // month-qualified (e.g. "Jan-15", "Feb-15") from parseMonthBlock_/
+    // emptyMonthRows_, so months concatenate in order with no relabeling needed.
+    var allRows=[];
+    MO_ORDER.forEach(function(m){
+      allRows=allRows.concat(getBrandSelectionRows_(cur,brandSel,m).rows);
+    });
+    return allRows;
+  }
+  return getBrandSelectionRows_(cur,brandSel,month).rows;
 }
 
 var FIN_COLS_BASE_=[{key:'turnover',label:'Turnover'},{key:'deposit',label:'Deposit'},{key:'withdraw',label:'Withdraw'},{key:'promo',label:'Promotion'}];
@@ -2023,6 +2064,7 @@ function renderAll(){
       plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:10,font:{size:10}}}},
       scales:trendScales}
   });
+  attachChartZoom_('trend-chart','Overview — Trend',function(){return trendChart;});
 
   // Breakdown table — grouped by month with subtotals for "All Months", plain daily otherwise
   if(isAllMonths){
@@ -2076,6 +2118,55 @@ function statusForBrand_(cur,brand){
   var entry=sheetTabCache[sheetTabKey_(cfg.sheetId,tabNameFor_(cur,brand))];
   if(!entry) return 'none-fetched'; // configured but not fetched yet (will fetch on demand when needed)
   return entry.status; // loading | ready | error
+}
+
+/* ═══════════ CHART ZOOM MODAL — double-click any line/trend chart to view it enlarged ═══════════
+   attachChartZoom_ wires up a canvas once; it always reads the CURRENT chart
+   instance via chartGetter() at click time (not the one that existed when
+   attachChartZoom_ was called), since charts get destroyed+recreated on every
+   re-render but the canvas element itself stays in the DOM.
+*/
+var chartZoomInstance_=null;
+function attachChartZoom_(canvasId,title,chartGetter){
+  var canvas=document.getElementById(canvasId);
+  if(!canvas || canvas.dataset.zoomBound) return; // don't double-bind fixed canvases across renders
+  canvas.dataset.zoomBound='1';
+  canvas.style.cursor='zoom-in';
+  canvas.ondblclick=function(){
+    var chart=chartGetter();
+    if(chart) openChartModal_(title,chart);
+  };
+}
+// For canvases rebuilt fresh on every render (e.g. the bc-mini-* grids, whose
+// innerHTML — and therefore whose <canvas> elements — is replaced each time),
+// dataset.zoomBound doesn't carry over, so this always (re)binds on the new element.
+function bindChartZoom_(canvasId,title,chart){
+  var canvas=document.getElementById(canvasId);
+  if(!canvas) return;
+  canvas.style.cursor='zoom-in';
+  canvas.ondblclick=function(){ openChartModal_(title,chart); };
+}
+function openChartModal_(title,chart){
+  document.getElementById('chart-zoom-title').textContent=title;
+  document.getElementById('chart-zoom-overlay').classList.add('open');
+  if(chartZoomInstance_){ chartZoomInstance_.destroy(); chartZoomInstance_=null; }
+  // JSON round-trip drops any function-valued options (custom tick/tooltip
+  // callbacks) harmlessly — Chart.js just uses its defaults for those in the
+  // enlarged view — while safely cloning everything else so the big chart
+  // doesn't share (and can't corrupt) the small chart's live data/options objects.
+  var data=JSON.parse(JSON.stringify(chart.data));
+  var options=JSON.parse(JSON.stringify(chart.options||{}));
+  options.responsive=true;
+  options.maintainAspectRatio=false;
+  chartZoomInstance_=new Chart(document.getElementById('chart-zoom-canvas').getContext('2d'),{
+    type:chart.config.type,
+    data:data,
+    options:options
+  });
+}
+function closeChartModal_(){
+  document.getElementById('chart-zoom-overlay').classList.remove('open');
+  if(chartZoomInstance_){ chartZoomInstance_.destroy(); chartZoomInstance_=null; }
 }
 
 function openSettings(){
