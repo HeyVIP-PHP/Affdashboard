@@ -55,7 +55,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 .dd-search:focus{outline:none;border-color:var(--gold)}
 .dd-empty{padding:10px 9px;font-size:10px;color:var(--dim);text-align:center}
 
-.top-filter-bar{display:flex;align-items:center;gap:10px;padding:10px 24px;background:var(--panel);border-bottom:1px solid var(--border);flex-wrap:wrap}
+.top-filter-bar{display:flex;align-items:center;gap:10px;padding:10px 24px;background:var(--panel);border-bottom:1px solid var(--border);flex-wrap:wrap;position:sticky;z-index:45}
 .tfb-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700}
 .tfb-dd{position:relative;margin:0;min-width:170px}
 .tfb-dd .cur-dd-head{padding:7px 10px}
@@ -164,9 +164,20 @@ table.dt td{padding:7px 10px;border-bottom:1px solid var(--border);font-family:v
    what broke sticky before), so the browser's own viewport scroll is the
    sticky context here, which is the reliable case. Sticky on each <th>
    individually (not on <thead> as a whole) is the cross-browser-safe form. */
+/* Daily Report: KPI cards stay pinned below the app's top bar while
+   scrolling through the table, and the table's own sticky header (above)
+   sits right below the KPI area. Pixel offsets here are estimated from the
+   surrounding CSS (topbar padding/font sizes) rather than measured in a
+   live browser — if there's a visible gap or overlap, send a screenshot and
+   these numbers can be tuned precisely. */
+/* Daily Report: KPI cards stay pinned below the app's top bar while
+   scrolling through the table, and the table's own sticky header sits right
+   below the KPI area. The actual `top` pixel values are computed and applied
+   via JS (syncDailyReportStickyOffsets_, called after every render) by
+   measuring the real rendered heights of the topbar/KPI area — hardcoded
+   CSS guesses here don't survive font/content changes, measuring does. */
+#dr-kpi-sticky{position:sticky;z-index:40;background:var(--bg);display:flex;flex-direction:column;gap:12px;padding:10px 0}
 #dr-table thead th{position:sticky;z-index:15}
-#dr-table thead tr:first-child th{top:0}
-#dr-table thead tr:last-child th{top:33px}
 tr.dt-total td{font-weight:800;background:var(--card);border-top:2px solid var(--border2);border-bottom:none}
 tr.dt-total td:first-child{color:var(--gold)}
 tr.dt-subtotal td{font-weight:700;background:rgba(255,255,255,.03);border-top:1px solid var(--border2)}
@@ -428,8 +439,10 @@ table.dt td.pv-brand{font-weight:800}
 
       <!-- DAILY REPORT — the one-stop full breakdown (Performance + Financials together), with its own Daily/Weekly/Monthly granularity switch. Overview/Performance/Peaks pages no longer carry their own copies of this table. -->
       <div class="page" id="page-dailyreport">
-        <div class="kpi-grid g5" id="dr-kpi-acq"></div>
-        <div class="kpi-grid g5" id="dr-kpi-fin"></div>
+        <div id="dr-kpi-sticky">
+          <div class="kpi-grid g5" id="dr-kpi-acq"></div>
+          <div class="kpi-grid g5" id="dr-kpi-fin"></div>
+        </div>
         <div class="panel">
           <div class="ph"><span class="ph-t">📋 Daily Report<span class="ph-daycount" id="dr-daycount">· 31 days</span></span><span class="ph-tag" id="dr-tag">January</span></div>
           <div class="pb" style="overflow-x:auto"><table class="dt" id="dr-table"></table></div>
@@ -1274,6 +1287,7 @@ function showPage(id,el){
   var showGran=(id==='dailyreport');
   document.getElementById('dr-gran-lbl').style.display=showGran?'':'none';
   document.getElementById('dr-gran').style.display=showGran?'':'none';
+  requestAnimationFrame(syncGlobalStickyOffsets_);
   if(id==='dailyreport') renderDailyReportPage();
   if(id==='trends') renderPerformancePeaks();
   if(id==='brandcomp') renderBrandComparison();
@@ -1368,7 +1382,48 @@ function renderDailyReportPage(){
   document.getElementById('dr-tag').textContent=periodLabel+' · '+brandLabel_(currentBrand);
   var rows=buildBreakdownBuckets_(currentCurrency,currentBrand,effectiveMonth_(),gran);
   renderDailyBreakdownTable_('dr-table','dr-daycount',rows,granLabel,'both');
+  requestAnimationFrame(syncDailyReportStickyOffsets_);
 }
+
+// Measures the real rendered heights of the sticky top bar and the sticky
+// KPI card area, then applies the resulting pixel offsets to the KPI area
+// and to the table's own sticky header rows — computed from the actual DOM,
+// not guessed, so it stays correct regardless of font size, card count, or
+// how long "Total Turnover"-style labels wrap.
+// Global: keeps the Brand/Month filter bar's sticky offset pinned right
+// below the (also sticky) top app bar, on every page — not just Daily Report.
+function syncGlobalStickyOffsets_(){
+  var topbar=document.querySelector('.topbar');
+  var filterBar=document.querySelector('.top-filter-bar');
+  if(!topbar||!filterBar) return;
+  filterBar.style.top=topbar.offsetHeight+'px';
+}
+function stickyBaseOffset_(){
+  var topbar=document.querySelector('.topbar');
+  var filterBar=document.querySelector('.top-filter-bar');
+  return (topbar?topbar.offsetHeight:0)+(filterBar?filterBar.offsetHeight:0);
+}
+function syncDailyReportStickyOffsets_(){
+  syncGlobalStickyOffsets_();
+  var kpiWrap=document.getElementById('dr-kpi-sticky');
+  var table=document.getElementById('dr-table');
+  if(!kpiWrap||!table) return;
+  var baseH=stickyBaseOffset_();
+  kpiWrap.style.top=baseH+'px';
+  var kpiH=kpiWrap.offsetHeight;
+  var theadRows=table.querySelectorAll('thead tr');
+  if(!theadRows.length) return;
+  var row1Top=baseH+kpiH;
+  Array.prototype.forEach.call(theadRows[0].children,function(th){ th.style.top=row1Top+'px'; });
+  if(theadRows.length>1){
+    var row2Top=row1Top+theadRows[0].offsetHeight;
+    Array.prototype.forEach.call(theadRows[1].children,function(th){ th.style.top=row2Top+'px'; });
+  }
+}
+window.addEventListener('resize',function(){
+  syncGlobalStickyOffsets_();
+  if(document.getElementById('page-dailyreport').classList.contains('active')) syncDailyReportStickyOffsets_();
+});
 
 function renderPerformancePeaks(){
   renderPerfMetricDD();
@@ -1738,7 +1793,9 @@ function renderBrandComparisonAllMetrics_(brand){
     var c=new Chart(document.getElementById('bc-mini-'+k).getContext('2d'),{
       type:'line',
       data:{labels:labels,datasets:[{label:BC_PERF_LABELS_[k],data:data,borderColor:BC_PERF_COLORS_[k],backgroundColor:BC_PERF_COLORS_[k]+'26',fill:true,tension:.3,pointRadius:2,pointHoverRadius:5,borderWidth:2}]},
-      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      options:{responsive:true,maintainAspectRatio:false,
+        interaction:{mode:'index',intersect:false},
+        plugins:{legend:{display:false}},
         scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:8},maxRotation:0}},
                 y:{beginAtZero:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:8}}}}}
     });
@@ -1758,7 +1815,9 @@ function renderBrandComparisonAllMetrics_(brand){
     var c=new Chart(document.getElementById('bc-mini-fin-'+k).getContext('2d'),{
       type:'line',
       data:{labels:labels,datasets:[{label:BC_FIN_LABELS_[k],data:data,borderColor:BC_FIN_COLORS_[k],backgroundColor:BC_FIN_COLORS_[k]+'26',fill:true,tension:.3,pointRadius:2,pointHoverRadius:5,borderWidth:2}]},
-      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      options:{responsive:true,maintainAspectRatio:false,
+        interaction:{mode:'index',intersect:false},
+        plugins:{legend:{display:false}},
         scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:8},maxRotation:0}},
                 y:{beginAtZero:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:8}}}}}
     });
@@ -2873,6 +2932,8 @@ async function init(){
   renderBrandDD();
   updateFilterSummary_();
   renderAll(); // populates shared chrome (live-badge, pg-sub, conn-box) + Overview's own content either way
+  syncGlobalStickyOffsets_();
+  requestAnimationFrame(syncGlobalStickyOffsets_);
   if(saved && saved.page && saved.page!=='overview'){
     showPage(saved.page); // then switch to whichever page was last open, rendering its own content on top
   }
