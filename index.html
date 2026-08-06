@@ -97,6 +97,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 .kpi-grid{display:grid;gap:12px}
 .g5{grid-template-columns:repeat(5,minmax(0,1fr))}
 .g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.g6{grid-template-columns:repeat(6,minmax(0,1fr))}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
 .kpi{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;position:relative;overflow:hidden}
 .kpi.kpi-jump{cursor:zoom-in}
 .kpi-jump-hint{position:absolute;top:8px;right:10px;font-size:11px;color:var(--muted);opacity:0;transition:opacity .15s}
@@ -112,6 +114,20 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 .kpi.c-green .kpi-val{color:var(--green)}.kpi.c-amber .kpi-val{color:var(--amber)}
 .kpi.c-red .kpi-val{color:var(--red)}.kpi.c-purple .kpi-val{color:var(--purple)}
 .kpi-d{font-size:10px;color:var(--muted);margin-top:4px}
+
+/* SUMMARY page cards ("Option B" — yearly badge + monthly/daily progress bars) */
+.sum-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 18px}
+.sum-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.sum-card-title{font-size:13px;font-weight:700;color:var(--text)}
+.sum-card-badge{font-size:10px;color:var(--muted);background:var(--bg);padding:4px 9px;border-radius:6px;font-family:var(--mono)}
+.sum-bar-row{margin-bottom:9px}
+.sum-bar-row:last-child{margin-bottom:0}
+.sum-bar-lbl{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:4px}
+.sum-bar-lbl b{font-weight:700;color:var(--text);font-family:var(--mono)}
+.sum-bar-track{height:5px;background:var(--bg);border-radius:3px;overflow:hidden}
+.sum-bar-fill{height:100%;border-radius:3px}
+.sum-rate-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;position:relative;overflow:hidden}
+.sum-rate-card::before{content:"";position:absolute;top:0;left:0;right:0;height:2px}
 
 /* PANELS */
 .panel{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden}
@@ -192,6 +208,7 @@ table.dt tbody tr:hover td{background:rgba(255,255,255,.03)}
 .ov-alert:not(.crit) .ov-alert-change{color:var(--amber)}
 .surge-badge{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:700;font-family:var(--mono);color:var(--purple);background:var(--purple-d);padding:2px 7px;border-radius:5px;margin-left:6px}
 .filter-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-right:6px}
+.sec-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700}
 .fsel{background:var(--panel);border:1px solid var(--border2);color:var(--text);font-size:11px;font-family:var(--mono);padding:6px 10px;border-radius:6px;cursor:pointer}
 .peak-list{padding:6px 16px 14px;display:flex;flex-direction:column;gap:8px}
 .peak-row{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:var(--panel);border-radius:8px;border:1px solid var(--border)}
@@ -214,7 +231,7 @@ table.dt td.pv-brand{font-weight:800}
 @media (max-width:900px){
   .sidebar{transform:translateX(-100%)}
   .main{margin-left:0}
-  .g5,.g4,.c66{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .g5,.g4,.g6,.c66{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media (max-width:700px){
   .c66{grid-template-columns:minmax(0,1fr)}
@@ -517,12 +534,12 @@ table.dt td.pv-brand{font-weight:800}
            rate rows (FTD Success Rate, Per FTD Amount), for whichever
            Brand/Currency is currently selected. Always spans the full Jan–Dec
            year regardless of the top Month selector, since "yearly total"
-           wouldn't mean anything scoped to one month. -->
+           wouldn't mean anything scoped to one month. Card style: "Option B"
+           — yearly total as the headline badge, avg monthly/daily each get
+           their own progress bar scaled to their share of the yearly total. -->
       <div class="page" id="page-summary">
-        <div class="panel">
-          <div class="ph"><span>📊</span><span class="ph-t">Summary</span><span class="ph-tag" id="summary-tag">Crickex · Jan–Dec</span></div>
-          <div class="pb" style="overflow-x:auto"><table class="dt" id="summary-table" style="table-layout:auto"></table></div>
-        </div>
+        <div class="kpi-grid g2" id="summary-kpi-main"></div>
+        <div class="kpi-grid g4" id="summary-kpi-rates" style="margin-top:16px"></div>
       </div>
 
       <!-- BRAND COMPARISON -->
@@ -1711,6 +1728,11 @@ function showBcChartMode_(mode){
    Full-year Total, plus avg per Month and avg per Day, for the currently
    selected Brand/Currency — always Jan–Dec regardless of the top Month
    selector, matching the "Total (Yearly)" framing from the reference Sheet.
+   Card style ("Option B", picked over a plain table/flat-card alternative):
+   each metric gets one card with the yearly total as a badge, and a progress
+   bar each for avg monthly / avg daily, filled to their share of the yearly
+   total (e.g. avg monthly is ~1/12th of the yearly bar when 12 months are
+   live — the bar length is a real, not decorative, percentage).
 
    Precision notes:
    - avg (Monthly)/(Daily) divide by the number of months/days that actually
@@ -1721,14 +1743,13 @@ function showBcChartMode_(mode){
    - FTD Success Rate and Per FTD Amount are ratios, so there's no separate
      "monthly" or "daily" version of them: (yearlyFTD/N) ÷ (yearlySignup/N)
      is exactly the same number as yearlyFTD ÷ yearlySignup for any N — the
-     time-scaling cancels out. They're shown once, under Total (Yearly), with
-     the avg columns dashed out rather than repeating the identical number.
+     time-scaling cancels out, so they're plain single-value cards, no bars.
 */
-var SUMMARY_METRIC_ROWS_=[
-  {label:'Total Sign Up', field:'signup', isMoney:false},
-  {label:'Total FTD', field:'ftd', isMoney:false},
-  {label:'Active Player', field:'active', isMoney:false},
-  {label:'FTD Amount', field:'ftdAmt', isMoney:true}
+var SUMMARY_MAIN_ROWS_=[
+  {label:'Total Sign Up', field:'signup', isMoney:false, color:'#00b0ff', icon:'fa-user-plus'},
+  {label:'Total FTD', field:'ftd', isMoney:false, color:'#facc15', icon:'fa-user-check'},
+  {label:'Active Player', field:'active', isMoney:false, color:'#9b7ff4', icon:'fa-users'},
+  {label:'FTD Amount', field:'ftdAmt', isMoney:true, color:'#00e676', icon:'fa-sack-dollar'}
 ];
 function renderSummaryPage(){
   var cur=currentCurrency, brand=currentBrand;
@@ -1740,32 +1761,36 @@ function renderSummaryPage(){
     if(res.live){ liveMonths++; liveDays+=daysInMonth_(m); }
   });
 
-  var tagEl=document.getElementById('summary-tag');
-  if(tagEl) tagEl.textContent=brandLabel_(brand)+' · Jan–Dec · '+cur+(liveMonths<12?' · '+liveMonths+'/12 months live so far':'');
-
   function valOf(field,isMoney){ return isMoney?pickMoney(yearlySum,field,displayMode):(yearlySum[field]||0); }
   function fmtOf(v,isMoney){ return isMoney?money(v,displayMode):fmtInt(v); }
 
-  var bodyHtml=SUMMARY_METRIC_ROWS_.map(function(rw){
+  var mainHtml=SUMMARY_MAIN_ROWS_.map(function(rw){
     var yearly=valOf(rw.field,rw.isMoney);
     var avgM=liveMonths>0?yearly/liveMonths:0;
     var avgD=liveDays>0?yearly/liveDays:0;
-    return '<tr><td>'+rw.label+'</td><td>'+fmtOf(yearly,rw.isMoney)+'</td><td>'+fmtOf(avgM,rw.isMoney)+'</td><td>'+fmtOf(avgD,rw.isMoney)+'</td></tr>';
+    var pctM=yearly>0?Math.min(100,avgM/yearly*100):0;
+    var pctD=yearly>0?Math.min(100,avgD/yearly*100):0;
+    return '<div class="sum-card">'+
+      '<div class="sum-card-head"><span class="sum-card-title"><i class="fa-solid '+rw.icon+'" style="color:'+rw.color+';margin-right:7px;font-size:12px"></i>'+rw.label+'</span><span class="sum-card-badge">Yearly '+fmtOf(yearly,rw.isMoney)+'</span></div>'+
+      '<div class="sum-bar-row"><div class="sum-bar-lbl"><span>avg. monthly</span><b>'+fmtOf(avgM,rw.isMoney)+'</b></div><div class="sum-bar-track"><div class="sum-bar-fill" style="width:'+pctM.toFixed(2)+'%;background:'+rw.color+'"></div></div></div>'+
+      '<div class="sum-bar-row"><div class="sum-bar-lbl"><span>avg. daily</span><b>'+fmtOf(avgD,rw.isMoney)+'</b></div><div class="sum-bar-track"><div class="sum-bar-fill" style="width:'+pctD.toFixed(2)+'%;background:'+rw.color+'"></div></div></div>'+
+      '</div>';
   }).join('');
+  var mainEl=document.getElementById('summary-kpi-main');
+  if(mainEl) mainEl.innerHTML=mainHtml;
 
   var signupY=yearlySum.signup||0, ftdY=yearlySum.ftd||0;
   var ftdAmtY=pickMoney(yearlySum,'ftdAmt',displayMode);
   var successRate=signupY>0?(ftdY/signupY*100):null;
   var perFtdAmt=ftdY>0?(ftdAmtY/ftdY):null;
-  var dashTd='<td style="color:var(--dim)">—</td>';
-  bodyHtml+='<tr><td>FTD Success Rate</td><td>'+(successRate==null?'—':successRate.toFixed(2)+'%')+'</td>'+dashTd+dashTd+'</tr>';
-  bodyHtml+='<tr><td>Per FTD Amount</td><td>'+(perFtdAmt==null?'—':money(perFtdAmt,displayMode))+'</td>'+dashTd+dashTd+'</tr>';
-
-  var el=document.getElementById('summary-table');
-  if(!el) return;
-  el.innerHTML=
-    '<thead><tr><th style="width:180px">'+brandLabel_(brand)+'</th><th>Total (Yearly)</th><th>avg. (Monthly)</th><th>avg. (Daily)</th></tr></thead>'+
-    '<tbody>'+bodyHtml+'</tbody>';
+  var liveNote=liveMonths<12?liveDays+' of 365 days live':'Full year live';
+  var ratesHtml=
+    kpiCard('teal','FTD Success Rate',successRate==null?'—':successRate.toFixed(2)+'%','FTD ÷ Sign Up (yearly)')+
+    kpiCard('green','Per FTD Amount',perFtdAmt==null?'—':money(perFtdAmt,displayMode),'FTD Amount ÷ FTD (yearly)')+
+    kpiCard('purple','Live Coverage',liveMonths+'/12 months',liveNote)+
+    kpiCard('gold',brandLabel_(brand),cur,'Jan – Dec');
+  var ratesEl=document.getElementById('summary-kpi-rates');
+  if(ratesEl) ratesEl.innerHTML=ratesHtml;
 }
 
 function renderBrandComparison(){
