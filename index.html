@@ -49,6 +49,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 .cur-dd-opt{display:flex;align-items:center;gap:9px;padding:8px 9px;cursor:pointer;font-size:11px;font-weight:600;font-family:var(--mono);color:var(--muted);border-radius:6px;transition:.1s;border-left:2px solid transparent}
 .cur-dd-opt:hover{background:rgba(255,255,255,.05);color:var(--text)}
 .cur-dd-opt.selected{background:var(--teal-d);color:var(--teal);border-left-color:var(--teal);font-weight:700}
+.dd-group-lbl{padding:7px 9px 4px;font-size:9px;font-weight:800;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
+.dd-group-lbl:not(:first-child){margin-top:4px;border-top:1px solid var(--border);padding-top:8px}
 .dd-search{width:100%;background:var(--bg);border:1px solid var(--border2);color:var(--text);font-size:11px;padding:7px 9px;border-radius:6px;margin-bottom:4px;font-family:var(--mono)}
 .dd-search:focus{outline:none;border-color:var(--gold)}
 .dd-empty{padding:10px 9px;font-size:10px;color:var(--dim);text-align:center}
@@ -148,16 +150,23 @@ table.dt td{padding:7px 10px;border-bottom:1px solid var(--border);font-family:v
 .ph-daycount{font-size:9px;color:var(--dim);font-weight:600;margin-left:8px;text-transform:none;letter-spacing:0}
 .dt-scroll{max-height:440px;overflow-y:auto;overflow-x:auto}
 .dt-grp{text-align:center!important;font-size:9px}
-/* Not sticky. Tried it three different ways, all three broke (overlapping/
-   duplicated header while scrolling) in the real browser and I have no way to
-   preview or verify actual scroll rendering in this environment — I can't
-   responsibly keep guessing at this. A normal header that scrolls away with
-   the table is reliable everywhere; that's the tradeoff. */
+/* Not sticky by default. Tried it three different ways for the general case,
+   all three broke (overlapping/duplicated header while scrolling) when this
+   table sat inside a fixed-height overflow:auto wrapper — see the #dr-table
+   exception below, which sits in a different (safer) scroll context. */
 .dt-grp.acq{background:var(--teal-d);color:var(--teal)}
 .dt-grp.fin{background:var(--gold-d);color:var(--gold)}
 .dt-date-hd{background:var(--card);vertical-align:bottom}
 .dt-sub.acq{background:var(--card);border-bottom:2px solid var(--teal)}
 .dt-sub.fin{background:var(--card);border-bottom:2px solid var(--gold)}
+/* Sticky header, scoped to #dr-table only. This table now sits directly on
+   the page (no inner overflow:auto wrapper — that fixed-height scroll box is
+   what broke sticky before), so the browser's own viewport scroll is the
+   sticky context here, which is the reliable case. Sticky on each <th>
+   individually (not on <thead> as a whole) is the cross-browser-safe form. */
+#dr-table thead th{position:sticky;z-index:15}
+#dr-table thead tr:first-child th{top:0}
+#dr-table thead tr:last-child th{top:33px}
 tr.dt-total td{font-weight:800;background:var(--card);border-top:2px solid var(--border2);border-bottom:none}
 tr.dt-total td:first-child{color:var(--gold)}
 tr.dt-subtotal td{font-weight:700;background:rgba(255,255,255,.03);border-top:1px solid var(--border2)}
@@ -432,29 +441,27 @@ table.dt td.pv-brand{font-weight:800}
 
       <div class="filter-bar">
         <span class="filter-lbl">Metric</span>
-        <select class="fsel" id="perf-metric" onchange="renderPerformancePeaks()">
-          <optgroup label="Performance">
-            <option value="signup">Sign Up</option>
-            <option value="ftd">FTD</option>
-            <option value="active">Active Player</option>
-            <option value="ftdAmt">FTD Amount</option>
-          </optgroup>
-          <optgroup label="Financials">
-            <option value="turnover">Turnover</option>
-            <option value="deposit">Deposit</option>
-            <option value="withdraw">Withdraw</option>
-            <option value="promo">Promotion</option>
-            <option value="revenue">Revenue</option>
-          </optgroup>
+        <div class="cur-dd" id="perf-metric-dd" style="margin:0;width:200px">
+          <div class="cur-dd-head" id="perf-metric-head" onclick="togglePerfMetricDD()">
+            <span class="cur-dd-label" id="perf-metric-label">Sign Up</span>
+            <i class="fa-solid fa-chevron-down"></i>
+          </div>
+          <div class="cur-dd-list" id="perf-metric-list"></div>
+        </div>
+        <select id="perf-metric" style="display:none">
+          <option value="signup">Sign Up</option>
+          <option value="ftd">FTD</option>
+          <option value="active">Active Player</option>
+          <option value="ftdAmt">FTD Amount</option>
+          <option value="turnover">Turnover</option>
+          <option value="deposit">Deposit</option>
+          <option value="withdraw">Withdraw</option>
+          <option value="promo">Promotion</option>
+          <option value="revenue">Revenue</option>
         </select>
       </div>
 
       <div class="kpi-grid g4" id="perf-kpis"></div>
-
-      <div class="panel ag">
-        <div class="ph"><span class="ph-t" id="perf-chart-title">📊 Monthly Trend</span><span class="ph-tag" id="perf-chart-tag">Jan – Mar</span></div>
-        <div class="cw" style="height:260px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="perf-chart"></canvas></div>
-      </div>
 
       <div class="row2 c66">
         <div class="panel">
@@ -489,9 +496,15 @@ table.dt td.pv-brand{font-weight:800}
         </div>
       </div>
 
-      <div class="panel" style="margin-top:16px">
-        <div class="ph"><span>📈</span><span class="ph-t">Weekly Volume Trend</span><span class="ph-tag" id="spv-wtrend-tag">all brands</span></div>
-        <div class="cw" style="height:260px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="spv-wtrend-chart"></canvas></div>
+      <div class="row2 c66" style="margin-top:16px">
+        <div class="panel">
+          <div class="ph"><span>📈</span><span class="ph-t">Weekly Volume Trend</span><span class="ph-tag" id="spv-wtrend-tag">all brands</span></div>
+          <div class="cw" style="height:260px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="spv-wtrend-chart"></canvas></div>
+        </div>
+        <div class="panel ag">
+          <div class="ph"><span class="ph-t" id="perf-chart-title">📊 Monthly Trend</span><span class="ph-tag" id="perf-chart-tag">Jan – Mar</span></div>
+          <div class="cw" style="height:260px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="perf-chart"></canvas></div>
+        </div>
       </div>
 
       </div>
@@ -561,7 +574,7 @@ table.dt td.pv-brand{font-weight:800}
 
 <!-- ═══════════ RAW DATA INSPECTOR — see exactly what the parser read from the Sheet, day by day, to compare against the Sheet yourself (or copy as text to send over) ═══════════ -->
 <div class="modal-overlay" id="raw-overlay" onclick="if(event.target===this) closeRawInspector()">
-  <div class="modal-box" style="max-width:min(1100px,94vw)">
+  <div class="modal-box" style="max-width:min(1800px,97vw)">
     <div class="modal-head">
       <div class="modal-title">🔍 Raw Data Inspector — exactly what got read from your Sheet</div>
       <button class="modal-close" onclick="closeRawInspector()"><i class="fa-solid fa-xmark"></i></button>
@@ -574,7 +587,7 @@ table.dt td.pv-brand{font-weight:800}
           <span style="font-size:9px;color:var(--muted);font-family:var(--mono)" id="raw-src-tag"></span>
           <button class="conn-gear" style="width:auto;margin:0;padding:6px 12px" onclick="copyRawInspector()"><i class="fa-solid fa-copy"></i> Copy as text</button>
         </div>
-        <div style="overflow-x:auto"><table class="dt" id="raw-table" style="table-layout:auto;width:auto;min-width:100%"></table></div>
+        <div style="overflow-x:auto"><table class="dt" id="raw-table" style="table-layout:auto;width:auto;min-width:100%;font-size:10px"></table></div>
       </div>
     </div>
     <div class="modal-foot">
@@ -1064,6 +1077,53 @@ function selectBrandDD(b){
   document.getElementById('brand-dd-head').classList.remove('open');
   document.getElementById('brand-dd-list').classList.remove('open');
 }
+
+/* ═══════════ PERFORMANCE PEAKS Metric dropdown (custom, grouped) ═══════════
+   A native <select><optgroup> can't be reliably aligned/styled cross-browser,
+   so this mirrors the same custom-dropdown pattern already used for
+   Brand/Currency above. The hidden <select id="perf-metric"> stays in sync
+   as the actual source of truth so the rest of the code (renderPerformancePeaks,
+   ovJumpTo_, etc.) can keep reading .value unchanged.
+*/
+var PERF_METRIC_GROUPS_=[
+  {label:'Performance',options:[{v:'signup',l:'Sign Up'},{v:'ftd',l:'FTD'},{v:'active',l:'Active Player'},{v:'ftdAmt',l:'FTD Amount'}]},
+  {label:'Financials',options:[{v:'turnover',l:'Turnover'},{v:'deposit',l:'Deposit'},{v:'withdraw',l:'Withdraw'},{v:'promo',l:'Promotion'},{v:'revenue',l:'Revenue'}]}
+];
+var perfMetricDDOpen=false;
+function renderPerfMetricDD(){
+  var cur=document.getElementById('perf-metric').value;
+  document.getElementById('perf-metric-list').innerHTML=PERF_METRIC_GROUPS_.map(function(g){
+    return '<div class="dd-group-lbl">'+g.label+'</div>'+
+      g.options.map(function(o){
+        return '<div class="cur-dd-opt'+(o.v===cur?' selected':'')+'" onclick="selectPerfMetric(\''+o.v+'\')">'+o.l+'</div>';
+      }).join('');
+  }).join('');
+  var found=null;
+  PERF_METRIC_GROUPS_.forEach(function(g){ g.options.forEach(function(o){ if(o.v===cur) found=o; }); });
+  document.getElementById('perf-metric-label').textContent=found?found.l:'Sign Up';
+}
+function togglePerfMetricDD(){
+  perfMetricDDOpen=!perfMetricDDOpen;
+  document.getElementById('perf-metric-head').classList.toggle('open',perfMetricDDOpen);
+  document.getElementById('perf-metric-list').classList.toggle('open',perfMetricDDOpen);
+}
+function selectPerfMetric(v){
+  document.getElementById('perf-metric').value=v;
+  perfMetricDDOpen=false;
+  document.getElementById('perf-metric-head').classList.remove('open');
+  document.getElementById('perf-metric-list').classList.remove('open');
+  renderPerfMetricDD();
+  renderPerformancePeaks();
+}
+document.addEventListener('click',function(e){
+  var dd=document.getElementById('perf-metric-dd');
+  if(dd && !dd.contains(e.target) && perfMetricDDOpen){
+    perfMetricDDOpen=false;
+    document.getElementById('perf-metric-head').classList.remove('open');
+    document.getElementById('perf-metric-list').classList.remove('open');
+  }
+});
+
 document.addEventListener('click',function(e){
   var dd=document.getElementById('brand-dd');
   if(dd && !dd.contains(e.target) && brandDDOpen){
@@ -1311,6 +1371,7 @@ function renderDailyReportPage(){
 }
 
 function renderPerformancePeaks(){
+  renderPerfMetricDD();
   var metric=document.getElementById('perf-metric').value;
   var isMoney=!!MONEY_METRICS_[metric];
   var mv=function(r){ return isMoney?pickMoney(r,metric,displayMode):r[metric]; };
