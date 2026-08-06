@@ -115,7 +115,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 .ph{display:flex;align-items:center;justify-content:space-between;padding:11px 16px;border-bottom:1px solid var(--border)}
 .ph-t{font-size:11px;font-weight:700;display:flex;align-items:center;gap:7px}
 .ph-tag{font-size:9px;font-family:var(--mono);color:var(--muted)}
-.cw{padding:12px 16px 14px}
+.cw{padding:12px 16px 14px;position:relative}
+.chart-zoom-hint{position:absolute;top:10px;right:16px;font-size:9px;font-weight:600;color:var(--teal);display:flex;align-items:center;gap:4px;pointer-events:none;opacity:.8;z-index:1}
 .pb{padding:14px 16px}
 
 /* COLLAPSED / FUTURE SECTION */
@@ -383,7 +384,7 @@ table.dt td.pv-brand{font-weight:800}
           </select></span>
           <span class="ph-tag" id="chart-tag">January · daily</span>
         </div>
-        <div class="cw" style="height:260px"><canvas id="trend-chart"></canvas></div>
+        <div class="cw" style="height:260px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="trend-chart"></canvas></div>
       </div>
 
       <!-- Daily table -->
@@ -407,7 +408,7 @@ table.dt td.pv-brand{font-weight:800}
             <option value="active">Active Player</option>
             <option value="ftdAmt">FTD Amount</option>
           </select></span><span class="ph-tag" id="trend-chart-tag">Jan – Mar comparison</span></div>
-        <div class="cw" style="height:260px"><canvas id="mom-chart"></canvas></div>
+        <div class="cw" style="height:260px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="mom-chart"></canvas></div>
       </div>
 
       <div class="panel">
@@ -465,22 +466,22 @@ table.dt td.pv-brand{font-weight:800}
         <div class="row2 c66" style="margin-top:16px">
           <div class="panel ag">
             <div class="ph"><span>📊</span><span class="ph-t">Brand Weekly Split</span><span class="ph-tag" id="spv-wsplit-tag">by brand</span></div>
-            <div class="cw" style="height:240px"><canvas id="spv-wsplit-chart"></canvas></div>
+            <div class="cw" style="height:240px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="spv-wsplit-chart"></canvas></div>
           </div>
           <div class="panel ag">
             <div class="ph"><span>📊</span><span class="ph-t">Brand Monthly Split</span><span class="ph-tag">by brand</span></div>
-            <div class="cw" style="height:240px"><canvas id="spv-msplit-chart"></canvas></div>
+            <div class="cw" style="height:240px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="spv-msplit-chart"></canvas></div>
           </div>
         </div>
 
         <div class="row2 c66" style="margin-top:16px">
           <div class="panel">
             <div class="ph"><span>📈</span><span class="ph-t">Weekly Volume Trend</span><span class="ph-tag" id="spv-wtrend-tag">all brands</span></div>
-            <div class="cw" style="height:200px"><canvas id="spv-wtrend-chart"></canvas></div>
+            <div class="cw" style="height:200px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="spv-wtrend-chart"></canvas></div>
           </div>
           <div class="panel">
             <div class="ph"><span>📈</span><span class="ph-t">Monthly Volume Trend</span><span class="ph-tag" id="spv-mtrend-tag">all brands</span></div>
-            <div class="cw" style="height:200px"><canvas id="spv-mtrend-chart"></canvas></div>
+            <div class="cw" style="height:200px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="spv-mtrend-chart"></canvas></div>
           </div>
         </div>
 
@@ -527,16 +528,16 @@ table.dt td.pv-brand{font-weight:800}
 
         <div class="panel ap" id="bc-chart-panel" style="margin-top:16px">
           <div class="ph"><span>📊</span><span class="ph-t" id="bc-chart-title">This Month vs Last Month — by Brand</span><span class="ph-tag" id="bc-chart-tag">Turnover</span></div>
-          <div class="cw" style="height:260px"><canvas id="bc-chart"></canvas></div>
+          <div class="cw" style="height:260px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="bc-chart"></canvas></div>
         </div>
 
         <div class="panel" id="bc-multichart-panel" style="display:none;margin-top:16px">
-          <div class="ph"><span>📊</span><span class="ph-t" id="bc-multichart-title">Monthly Trend — Performance</span></div>
+          <div class="ph"><span>📊</span><span class="ph-t" id="bc-multichart-title">Monthly Trend — Performance</span><span class="chart-zoom-hint" style="position:static;opacity:.9">⤢ Double-click any chart to enlarge</span></div>
           <div id="bc-multichart-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px"></div>
         </div>
 
         <div class="panel" id="bc-multichart-panel-fin" style="display:none;margin-top:16px">
-          <div class="ph"><span>📊</span><span class="ph-t" id="bc-multichart-title-fin">Monthly Trend — Financials</span></div>
+          <div class="ph"><span>📊</span><span class="ph-t" id="bc-multichart-title-fin">Monthly Trend — Financials</span><span class="chart-zoom-hint" style="position:static;opacity:.9">⤢ Double-click any chart to enlarge</span></div>
           <div id="bc-multichart-grid-fin" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px"></div>
         </div>
       </div>
@@ -1377,7 +1378,7 @@ function renderSalesPV(){
       interaction:{mode:'index',intersect:false},
       plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:9,font:{size:9}}},
         tooltip:{mode:'index',intersect:false,callbacks:{label:function(ctx){return ctx.dataset.label+': '+fmt(ctx.parsed.y);}}}},
-      scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9}}},
+      scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9},autoSkip:false,maxRotation:60,minRotation:60}},
               y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
   });
   attachChartZoom_('spv-wsplit-chart','Sales Peaks & Valleys — Brand Weekly Split',function(){return spvWeekSplitChart;});
@@ -1406,7 +1407,7 @@ function renderSalesPV(){
     type:'bar',
     data:{labels:weekLabels,datasets:[{label:METRIC_LABEL[metric],data:weekTotals.map(function(w){return w.val;}),backgroundColor:'#00b0ff',borderRadius:4}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
-      scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9}}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
+      scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9},autoSkip:false,maxRotation:60,minRotation:60}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
   });
   attachChartZoom_('spv-wtrend-chart','Sales Peaks & Valleys — Weekly Volume Trend',function(){return spvWeekTrendChart;});
 
@@ -1590,7 +1591,6 @@ var BC_FIN_LABELS_={turnover:'Turnover',deposit:'Deposit',withdraw:'Withdraw',pr
 var BC_FIN_COLORS_={turnover:'#facc15',deposit:'#00b0ff',withdraw:'#ff9100',promo:'#ff4081'};
 
 function renderBrandComparisonAllMetrics_(brand){
-  showBcTable2_(false);
   showBcChartMode_('multi');
   if(bcChart){ bcChart.destroy(); bcChart=null; }
   document.getElementById('bc-multichart-title').textContent='Monthly Trend — Performance';
@@ -1644,38 +1644,43 @@ function renderBrandComparisonAllMetrics_(brand){
     bindChartZoom_('bc-mini-fin-'+k,brand+' — '+BC_FIN_LABELS_[k],c);
   });
 
-  document.getElementById('bc-table-title').textContent=brand+' — Monthly Breakdown';
+  showBcTable2_(true);
+  document.getElementById('bc-table-title').textContent=brand+' — Performance';
+  document.getElementById('bc-table2-title').textContent=brand+' — Financials';
   var anyRevenue=monthly.some(function(a){return a.revenueFilled;});
   var finCols=FIN_COLS_BASE_.concat(anyRevenue?[{key:'revenue',label:'Revenue'}]:[]);
-  var groupHeaderHtml='<th class="dt-grp acq" colspan="4">● Performance</th>'+
-    '<th class="dt-grp fin" colspan="'+finCols.length+'">● Financials</th>';
-  var subHeaderHtml='<th class="dt-sub acq">Sign Up</th><th class="dt-sub acq">FTD</th><th class="dt-sub acq">Active</th><th class="dt-sub acq">FTD Amount</th>'+
-    finCols.map(function(c){return '<th class="dt-sub fin">'+c.label+'</th>';}).join('');
 
-  function bcRowCells_(a,p){
-    var html='<td>'+fmtInt(a.signup)+pctInline_(a.signup,p&&p.signup)+'</td>'+
+  function perfCells_(a,p){
+    return '<td>'+fmtInt(a.signup)+pctInline_(a.signup,p&&p.signup)+'</td>'+
       '<td>'+fmtInt(a.ftd)+pctInline_(a.ftd,p&&p.ftd)+'</td>'+
       '<td>'+fmtInt(a.active)+pctInline_(a.active,p&&p.active)+'</td>'+
       '<td>'+money(pickMoney(a,'ftdAmt',displayMode),displayMode)+pctInline_(pickMoney(a,'ftdAmt',displayMode),p?pickMoney(p,'ftdAmt',displayMode):null)+'</td>';
-    html+=finCols.map(function(c){
-      var filled=(c.key!=='revenue')||a.revenueFilled;
-      if(!filled) return '<td>—</td>';
+  }
+  function finCells_(a,p){
+    return finCols.map(function(c){
       var v=pickMoney(a,c.key,displayMode), pv=p?pickMoney(p,c.key,displayMode):null;
       return '<td>'+money(v,displayMode)+pctInline_(v,pv)+'</td>';
     }).join('');
-    return html;
   }
 
   var grandTotal=emptyAgg_();
   monthly.forEach(function(a){ addRowToAgg_(grandTotal,a); });
 
   document.getElementById('bc-table').innerHTML=
-    '<thead><tr><th class="dt-date-hd" rowspan="2">Month</th>'+groupHeaderHtml+'</tr><tr>'+subHeaderHtml+'</tr></thead><tbody>'+
+    '<tr><th>Month</th><th>Sign Up</th><th>FTD</th><th>Active</th><th>FTD Amount</th></tr>'+
     MO_ORDER.map(function(m,i){
       var a=monthly[i], p=i>0?monthly[i-1]:null;
-      return '<tr><td>'+monthNames[m]+'</td>'+bcRowCells_(a,p)+'</tr>';
+      return '<tr><td>'+monthNames[m]+'</td>'+perfCells_(a,p)+'</tr>';
     }).join('')+
-    '<tr class="dt-total"><td>YEAR TOTAL</td>'+bcRowCells_(grandTotal,null)+'</tr></tbody>';
+    '<tr class="dt-total"><td>YEAR TOTAL</td>'+perfCells_(grandTotal,null)+'</tr>';
+
+  document.getElementById('bc-table2').innerHTML=
+    '<tr><th>Month</th>'+finCols.map(function(c){return '<th>'+c.label+'</th>';}).join('')+'</tr>'+
+    MO_ORDER.map(function(m,i){
+      var a=monthly[i], p=i>0?monthly[i-1]:null;
+      return '<tr><td>'+monthNames[m]+'</td>'+finCells_(a,p)+'</tr>';
+    }).join('')+
+    '<tr class="dt-total"><td>YEAR TOTAL</td>'+finCells_(grandTotal,null)+'</tr>';
 }
 
 // Same idea as renderBrandComparisonAllMetrics_ but for a specific month
@@ -1864,7 +1869,6 @@ function renderYearBreakdownTable_(tableElId,daycountElId,yearRowsByMonth,column
     var html='';
     if(showAcq) html+='<td>'+fmtInt(r.signup)+'</td><td>'+fmtInt(r.ftd)+'</td><td>'+fmtInt(r.active)+'</td><td>'+money(pickMoney(r,'ftdAmt',displayMode),displayMode)+'</td>';
     if(showFin) html+=finCols.map(function(c){
-      if(c.key==='revenue') return '<td>'+(r.revenueFilled?money(pickMoney(r,'revenue',displayMode),displayMode):'—')+'</td>';
       return '<td>'+money(pickMoney(r,c.key,displayMode),displayMode)+'</td>';
     }).join('');
     return html;
@@ -1915,7 +1919,6 @@ function renderDailyBreakdownTable_(tableElId,daycountElId,rows,unitLabel,column
     var html='';
     if(showAcq) html+='<td>'+fmtInt(r.signup)+'</td><td>'+fmtInt(r.ftd)+'</td><td>'+fmtInt(r.active)+'</td><td>'+money(pickMoney(r,'ftdAmt',displayMode),displayMode)+'</td>';
     if(showFin) html+=finCols.map(function(c){
-      if(c.key==='revenue') return '<td>'+(r.revenueFilled?money(pickMoney(r,'revenue',displayMode),displayMode):'—')+'</td>';
       return '<td>'+money(pickMoney(r,c.key,displayMode),displayMode)+'</td>';
     }).join('');
     return html;
