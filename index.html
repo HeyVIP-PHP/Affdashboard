@@ -170,14 +170,18 @@ table.dt td{padding:7px 10px;border-bottom:1px solid var(--border);font-family:v
    surrounding CSS (topbar padding/font sizes) rather than measured in a
    live browser — if there's a visible gap or overlap, send a screenshot and
    these numbers can be tuned precisely. */
-/* Daily Report: KPI cards stay pinned below the app's top bar while
-   scrolling through the table, and the table's own sticky header sits right
-   below the KPI area. The actual `top` pixel values are computed and applied
-   via JS (syncDailyReportStickyOffsets_, called after every render) by
-   measuring the real rendered heights of the topbar/KPI area — hardcoded
-   CSS guesses here don't survive font/content changes, measuring does. */
-#dr-kpi-sticky{position:sticky;z-index:40;background:var(--bg);display:flex;flex-direction:column;gap:12px;padding:10px 0}
-#dr-table thead th{position:sticky;z-index:15}
+#dr-kpi-sticky{display:flex;flex-direction:column;gap:12px;flex-shrink:0}
+/* Daily Report: instead of stacking several independent sticky layers with
+   JS-computed pixel offsets (fragile — got the math wrong twice), this page
+   becomes a fixed-height flex column that exactly fills the remaining
+   viewport below the topbar+filter bar (--chrome-h, set once by JS). The KPI
+   cards sit in normal flow up top; only the table panel below them scrolls,
+   using the standard, well-supported "sticky thead inside an overflow:auto
+   container" pattern — a single sticky context instead of several stacked ones. */
+#page-dailyreport.active{height:calc(100vh - var(--chrome-h, 130px) - 40px);overflow:hidden}
+.dr-table-panel{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.dr-table-panel .pb{flex:1;overflow-y:auto}
+#dr-table thead th{position:sticky;top:0;z-index:15}
 tr.dt-total td{font-weight:800;background:var(--card);border-top:2px solid var(--border2);border-bottom:none}
 tr.dt-total td:first-child{color:var(--gold)}
 tr.dt-subtotal td{font-weight:700;background:rgba(255,255,255,.03);border-top:1px solid var(--border2)}
@@ -443,7 +447,7 @@ table.dt td.pv-brand{font-weight:800}
           <div class="kpi-grid g5" id="dr-kpi-acq"></div>
           <div class="kpi-grid g5" id="dr-kpi-fin"></div>
         </div>
-        <div class="panel">
+        <div class="panel dr-table-panel">
           <div class="ph"><span class="ph-t">📋 Daily Report<span class="ph-daycount" id="dr-daycount">· 31 days</span></span><span class="ph-tag" id="dr-tag">January</span></div>
           <div class="pb" style="overflow-x:auto"><table class="dt" id="dr-table"></table></div>
         </div>
@@ -1382,7 +1386,7 @@ function renderDailyReportPage(){
   document.getElementById('dr-tag').textContent=periodLabel+' · '+brandLabel_(currentBrand);
   var rows=buildBreakdownBuckets_(currentCurrency,currentBrand,effectiveMonth_(),gran);
   renderDailyBreakdownTable_('dr-table','dr-daycount',rows,granLabel,'both');
-  requestAnimationFrame(syncDailyReportStickyOffsets_);
+  requestAnimationFrame(syncDailyReportTableHeader_);
 }
 
 // Measures the real rendered heights of the sticky top bar and the sticky
@@ -1395,34 +1399,28 @@ function renderDailyReportPage(){
 function syncGlobalStickyOffsets_(){
   var topbar=document.querySelector('.topbar');
   var filterBar=document.querySelector('.top-filter-bar');
-  if(!topbar||!filterBar) return;
-  filterBar.style.top=topbar.offsetHeight+'px';
+  if(topbar&&filterBar) filterBar.style.top=topbar.offsetHeight+'px';
+  var chromeH=(topbar?topbar.offsetHeight:0)+(filterBar?filterBar.offsetHeight:0);
+  document.documentElement.style.setProperty('--chrome-h',chromeH+'px');
 }
-function stickyBaseOffset_(){
-  var topbar=document.querySelector('.topbar');
-  var filterBar=document.querySelector('.top-filter-bar');
-  return (topbar?topbar.offsetHeight:0)+(filterBar?filterBar.offsetHeight:0);
-}
-function syncDailyReportStickyOffsets_(){
-  syncGlobalStickyOffsets_();
-  var kpiWrap=document.getElementById('dr-kpi-sticky');
+// Daily Report's table has two header rows (● Performance/● Financials group
+// row, then the actual column names). Both are position:sticky within the
+// table's own small scrolling container (see .dr-table-panel .pb), so the
+// only thing that needs figuring out is: how tall is the first row, so the
+// second can stick right below it instead of on top of it. That's it — no
+// dependency on the topbar, filter bar, or KPI cards.
+function syncDailyReportTableHeader_(){
   var table=document.getElementById('dr-table');
-  if(!kpiWrap||!table) return;
-  var baseH=stickyBaseOffset_();
-  kpiWrap.style.top=baseH+'px';
-  var kpiH=kpiWrap.offsetHeight;
-  var theadRows=table.querySelectorAll('thead tr');
-  if(!theadRows.length) return;
-  var row1Top=baseH+kpiH;
-  Array.prototype.forEach.call(theadRows[0].children,function(th){ th.style.top=row1Top+'px'; });
-  if(theadRows.length>1){
-    var row2Top=row1Top+theadRows[0].offsetHeight;
-    Array.prototype.forEach.call(theadRows[1].children,function(th){ th.style.top=row2Top+'px'; });
+  if(!table) return;
+  var rows=table.querySelectorAll('thead tr');
+  if(rows.length>1){
+    var row1H=rows[0].offsetHeight;
+    Array.prototype.forEach.call(rows[1].children,function(th){ th.style.top=row1H+'px'; });
   }
 }
 window.addEventListener('resize',function(){
   syncGlobalStickyOffsets_();
-  if(document.getElementById('page-dailyreport').classList.contains('active')) syncDailyReportStickyOffsets_();
+  if(document.getElementById('page-dailyreport').classList.contains('active')) syncDailyReportTableHeader_();
 });
 
 function renderPerformancePeaks(){
