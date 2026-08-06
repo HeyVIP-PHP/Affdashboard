@@ -126,6 +126,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 
 /* TABLE */
 table.dt{width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0;font-size:11px}
+#bc-table{table-layout:auto;width:auto;min-width:100%}
+#bc-table td:first-child,#bc-table th:first-child{width:110px}
 .dt-date-hd,table.dt td:first-child{width:90px}
 table.dt th{text-align:left;padding:8px 10px;color:var(--muted);font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 table.dt td{padding:7px 10px;border-bottom:1px solid var(--border);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -417,10 +419,10 @@ table.dt td.pv-brand{font-weight:800}
         <div class="filter-bar">
           <span class="filter-lbl">Metric</span>
           <select class="fsel" id="spv-metric" onchange="renderSalesPV()">
-            <option value="turnover">Total Turnover</option>
-            <option value="deposit">Total Deposit</option>
-            <option value="withdraw">Total Withdraw</option>
-            <option value="promo">Total Promotion</option>
+            <option value="turnover">Turnover</option>
+            <option value="deposit">Deposit</option>
+            <option value="withdraw">Withdraw</option>
+            <option value="promo">Promotion</option>
             <option value="revenue">Revenue</option>
           </select>
         </div>
@@ -485,6 +487,7 @@ table.dt td.pv-brand{font-weight:800}
         <div class="filter-bar">
           <span class="filter-lbl">Metric</span>
           <select class="fsel" id="bc-metric" onchange="renderBrandComparison()">
+            <option value="all">All</option>
             <option value="signup">Sign Up</option>
             <option value="ftd">FTD</option>
             <option value="active">Active Player</option>
@@ -502,8 +505,12 @@ table.dt td.pv-brand{font-weight:800}
           <div class="cw" style="height:260px"><canvas id="bc-chart"></canvas></div>
         </div>
         <div class="panel">
-          <div class="ph"><span>📋</span><span class="ph-t">Brand Monthly Breakdown</span><span class="ph-tag">MoM %</span></div>
+          <div class="ph"><span>📋</span><span class="ph-t" id="bc-table-title">Brand Monthly Breakdown</span><span class="ph-tag">MoM %</span></div>
           <div class="pb" style="overflow-x:auto"><table class="dt" id="bc-table"></table></div>
+        </div>
+        <div class="panel" id="bc-table2-panel" style="display:none;margin-top:16px">
+          <div class="ph"><span>📋</span><span class="ph-t">Brand Monthly Breakdown — Financials</span><span class="ph-tag">MoM %</span></div>
+          <div class="pb" style="overflow-x:auto"><table class="dt" id="bc-table2"></table></div>
         </div>
       </div>
 
@@ -578,7 +585,12 @@ var MO_FULLNAME={Jan:'January',Feb:'February',Mar:'March',Apr:'April',May:'May',
 // row count, just find the first cell in column A matching "Jan-1"/"Jan-01" style
 // date formatting, scanning at most 8 rows down)
 function findFirstDayRow_(rawRows, titleRowIdx, monthKey){
-  var re=new RegExp('^'+monthKey+'-0?1$','i');
+  // Real-world Sheets aren't always consistent about how each month's day
+  // labels are spelled — some months might use the 3-letter abbreviation
+  // ("Jul-1") while others spell out the full name ("July-1"). Accept either
+  // so one inconsistently-typed month doesn't silently parse to all zeros.
+  var full=MO_FULLNAME[monthKey];
+  var re=new RegExp('^('+monthKey+'|'+full+')-0?1$','i');
   for(var i=titleRowIdx+1; i<Math.min(titleRowIdx+9, rawRows.length); i++){
     var cellA=(rawRows[i]&&rawRows[i][0]||'').toString().trim();
     if(re.test(cellA)) return i;
@@ -1185,7 +1197,7 @@ function renderTrends(){
 
 /* ═══════════ SALES PEAKS & VALLEYS ═══════════ */
 var spvWeekSplitChart=null, spvMonthSplitChart=null, spvWeekTrendChart=null, spvMonthTrendChart=null;
-var METRIC_LABEL={turnover:'Total Turnover',deposit:'Total Deposit',withdraw:'Total Withdraw',promo:'Total Promotion',revenue:'Revenue',signup:'Sign Up',ftd:'FTD',active:'Active Player',ftdAmt:'FTD Amount'};
+var METRIC_LABEL={turnover:'Turnover',deposit:'Deposit',withdraw:'Withdraw',promo:'Promotion',revenue:'Revenue',signup:'Sign Up',ftd:'FTD',active:'Active Player',ftdAmt:'FTD Amount'};
 var MONEY_METRICS_={turnover:1,deposit:1,withdraw:1,promo:1,revenue:1,ftdAmt:1}; // signup/ftd/active are counts, everything else is money
 
 // Deterministic, evenly-spread color per brand (golden-angle hue rotation) —
@@ -1382,19 +1394,27 @@ function renderSalesPV(){
 */
 var bcChart=null;
 function renderBrandComparison(){
-  var metric=document.getElementById('bc-metric').value;
+  var metricSel=document.getElementById('bc-metric').value;
   // Same rule as Sales Peaks & Valleys: "All Brands" compares everyone under this
   // currency; picking one brand filters this page down to just that brand.
   var brands=currentBrand===ALL_BRANDS ? BRANDS_BY_CURRENCY[currentCurrency] : [currentBrand];
+  // Metric "All" only gets its special multi-line/two-table treatment when
+  // exactly one brand is selected and we're already in the Full Year view —
+  // with multiple brands it'd be brand×metric lines (too crowded), so that
+  // case just falls back to Turnover instead, same as picking it manually.
+  var singleBrandAllMetrics=(metricSel==='all' && brands.length===1 && currentMonth===ALL_MONTHS);
+  var metric=(metricSel==='all')?'turnover':metricSel;
   var isMoney=!!MONEY_METRICS_[metric];
   var fmtVal=function(v){ return isMoney?money(v,displayMode):fmtInt(v); };
   var mv=function(r){ return isMoney?pickMoney(r,metric,displayMode):r[metric]; };
 
   if(currentMonth===ALL_MONTHS){
-    renderBrandComparisonAllMonths_(metric,brands,fmtVal,mv);
+    renderBrandComparisonAllMonths_(metric,brands,fmtVal,mv,singleBrandAllMetrics);
     return;
   }
 
+  document.getElementById('bc-table2-panel').style.display='none';
+  document.getElementById('bc-table-title').textContent='Brand Monthly Breakdown';
   document.getElementById('bc-chart-title').textContent='This Month vs Last Month — by Brand';
   var bcMonth=currentMonth;
   var thisMonthIdx=MO_ORDER.indexOf(bcMonth);
@@ -1433,9 +1453,17 @@ function renderBrandComparison(){
 // whole year, show every month of the year, each one compared to the month
 // right before it — a trend line per brand, and a Brand × Month matrix table
 // with the MoM% sitting right next to each month's number.
-function renderBrandComparisonAllMonths_(metric,brands,fmtVal,mv){
-  document.getElementById('bc-chart-title').textContent='Monthly Trend — by Brand';
+function renderBrandComparisonAllMonths_(metric,brands,fmtVal,mv,singleBrandAllMetrics){
   document.getElementById('bc-months-lbl').textContent='Each month vs the month before it (Jan–Dec)';
+
+  if(singleBrandAllMetrics){
+    renderBrandComparisonAllMetrics_(brands[0]);
+    return;
+  }
+
+  document.getElementById('bc-table2-panel').style.display='none';
+  document.getElementById('bc-table-title').textContent='Brand Monthly Breakdown';
+  document.getElementById('bc-chart-title').textContent='Monthly Trend — by Brand';
   document.getElementById('bc-chart-tag').textContent=METRIC_LABEL[metric];
 
   var brandMonthly=brands.map(function(b){
@@ -1460,13 +1488,75 @@ function renderBrandComparisonAllMonths_(metric,brands,fmtVal,mv){
   });
 
   document.getElementById('bc-table').innerHTML=
-    '<tr><th>Month</th>'+brands.map(function(b){return '<th style="color:'+brandColor_(brands,b)+'">'+b+'</th>';}).join('')+'</tr>'+
+    '<tr><th>Month</th>'+brands.map(function(b){return '<th style="color:'+brandColor_(brands,b)+'">'+b+' — '+METRIC_LABEL[metric]+'</th>';}).join('')+'</tr>'+
     MO_ORDER.map(function(m,i){
       var cells=brandMonthly.map(function(bm){
         var v=bm.vals[i], prev=i>0?bm.vals[i-1]:null;
         return '<td>'+fmtVal(v)+pctInline_(v,prev)+'</td>';
       }).join('');
       return '<tr><td>'+monthNames[m]+'</td>'+cells+'</tr>';
+    }).join('');
+}
+
+// Metric = "All" + exactly one brand selected: normally these extra lines
+// stay hidden (only one metric shows at a time) — this is what makes them
+// all appear together. Chart gets the 4 Performance metrics (Sign Up/FTD/
+// Active/FTD Amount, dual axis — same pattern as Overview's "All" chart).
+// The single table splits into two: Performance and Financials.
+function renderBrandComparisonAllMetrics_(brand){
+  document.getElementById('bc-chart-title').textContent='Monthly Trend — '+brand+' (All Metrics)';
+  document.getElementById('bc-chart-tag').textContent='All';
+
+  var monthly=MO_ORDER.map(function(m){
+    var agg=emptyAgg_();
+    getMonthRows(currentCurrency,brand,m).rows.forEach(function(r){ addRowToAgg_(agg,r); });
+    return agg;
+  });
+
+  var perfColors={signup:'#00b0ff',ftd:'#facc15',active:'#9b7ff4',ftdAmt:'#00e676'};
+  var perfLabels={signup:'Sign Up',ftd:'FTD',active:'Active Player',ftdAmt:'FTD Amount'};
+  if(bcChart) bcChart.destroy();
+  bcChart=new Chart(document.getElementById('bc-chart').getContext('2d'),{
+    type:'line',
+    data:{labels:MO_ORDER.map(function(m){return monthNames[m];}),datasets:['signup','ftd','active','ftdAmt'].map(function(k){
+      var isMoney=(k==='ftdAmt');
+      return {label:perfLabels[k],data:monthly.map(function(a){return isMoney?pickMoney(a,'ftdAmt',displayMode):a[k];}),
+        borderColor:perfColors[k],backgroundColor:perfColors[k]+'1a',fill:false,tension:.3,pointRadius:3,pointHoverRadius:5,borderWidth:2,
+        yAxisID:(k==='ftdAmt'?'y1':'y')};
+    })},
+    options:{responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:9,font:{size:9}}}},
+      scales:{
+        x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9}}},
+        y:{position:'left',beginAtZero:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'Sign Up / FTD / Active',color:'#64748b',font:{size:9}}},
+        y1:{position:'right',beginAtZero:true,grid:{display:false},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'FTD Amount',color:'#64748b',font:{size:9}}}
+      }}
+  });
+
+  document.getElementById('bc-table-title').textContent='Brand Monthly Breakdown — Performance';
+  document.getElementById('bc-table').innerHTML=
+    '<tr><th>Month</th><th>Sign Up</th><th>FTD</th><th>Active</th><th>FTD Amount</th></tr>'+
+    MO_ORDER.map(function(m,i){
+      var a=monthly[i], p=i>0?monthly[i-1]:null;
+      return '<tr><td>'+monthNames[m]+'</td>'+
+        '<td>'+fmtInt(a.signup)+pctInline_(a.signup,p&&p.signup)+'</td>'+
+        '<td>'+fmtInt(a.ftd)+pctInline_(a.ftd,p&&p.ftd)+'</td>'+
+        '<td>'+fmtInt(a.active)+pctInline_(a.active,p&&p.active)+'</td>'+
+        '<td>'+money(pickMoney(a,'ftdAmt',displayMode),displayMode)+pctInline_(pickMoney(a,'ftdAmt',displayMode),p?pickMoney(p,'ftdAmt',displayMode):null)+'</td></tr>';
+    }).join('');
+
+  var finPanel=document.getElementById('bc-table2-panel');
+  finPanel.style.display='';
+  document.getElementById('bc-table2').innerHTML=
+    '<tr><th>Month</th><th>Turnover</th><th>Deposit</th><th>Withdraw</th><th>Promotion</th><th>Revenue</th></tr>'+
+    MO_ORDER.map(function(m,i){
+      var a=monthly[i], p=i>0?monthly[i-1]:null;
+      return '<tr><td>'+monthNames[m]+'</td>'+
+        ['turnover','deposit','withdraw','promo','revenue'].map(function(k){
+          var v=pickMoney(a,k,displayMode), pv=p?pickMoney(p,k,displayMode):null;
+          return '<td>'+money(v,displayMode)+pctInline_(v,pv)+'</td>';
+        }).join('')+'</tr>';
     }).join('');
 }
 
@@ -1795,7 +1885,9 @@ function renderAll(){
   trendChart=new Chart(document.getElementById('trend-chart').getContext('2d'),{
     type:'line',
     data:{labels:labels,datasets:trendDatasets},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:10,font:{size:10}}}},
+    options:{responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:10,font:{size:10}}}},
       scales:trendScales}
   });
 
