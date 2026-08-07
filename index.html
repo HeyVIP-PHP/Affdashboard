@@ -1109,7 +1109,7 @@ var trendChart=null;
 var trendMetric='all'; // 'all' | 'signup' | 'ftd' | 'active' | 'ftdAmt' | 'turnover' | 'deposit' | 'withdraw' | 'promo' — must match the <select>'s first/default <option>, or the label shown and the chart actually drawn will disagree on first load
 var TREND_METRIC_ISMONEY={signup:false,ftd:false,active:false,ftdAmt:true,turnover:true,deposit:true,withdraw:true,promo:true};
 function switchTrendMetric(v){ trendMetric=v; renderAll(); }
-var SHEET_LINKS={}; // cur -> brand -> {sheetId, tab, rawUrl} · persisted via window.storage (shared)
+var SHEET_LINKS={}; // cur -> brand -> {sheetId, tab, rawUrl} · persisted server-side via /api/config (Cloudflare KV, shared across everyone), localStorage is just the instant-paint cache
 
 // Not-connected / not-yet-fetched brands used to fall back to invented "sample
 // data" that looked plausible enough to be mistaken for real numbers (this is
@@ -2596,28 +2596,39 @@ function renderAll(){
 */
 var LS_KEY='affiliate-dashboard-sheet-links';
 
-// Storage prefers window.storage (running inside a Claude artifact, config shared
-// across everyone who opens it); if this environment has no window.storage (e.g.
-// deployed standalone on GitHub Pages, running in a plain browser), it falls back
-// to localStorage (only on this device/browser, doesn't sync across people).
+// Storage: server-side via /api/config (Cloudflare KV — shared across
+// everyone who opens this dashboard) is the source of truth. localStorage is
+// kept only as an instant-paint cache (so the page doesn't flash empty while
+// the network request is in flight) and as an offline fallback if the KV
+// call fails for some reason — it is NOT the primary store anymore.
+var configKvAvailable=false; // set true once /api/config responds OK — used to tell the person in the modal whether their setup is actually shared or just local
 async function loadSheetLinks(){
   try{
-    if(window.storage){
-      var res=await window.storage.get('sheet-links',true);
-      if(res&&res.value){ SHEET_LINKS=JSON.parse(res.value); return; }
-    }
-  }catch(e){ /* no window.storage, or the call failed — fall through to localStorage */ }
-  try{
     var raw=localStorage.getItem(LS_KEY);
-    SHEET_LINKS=raw?JSON.parse(raw):{};
-  }catch(e){ SHEET_LINKS={}; }
+    if(raw) SHEET_LINKS=JSON.parse(raw); // paint immediately from cache, may be overwritten below once the network responds
+  }catch(e){ /* ignore, not critical */ }
+  try{
+    var resp=await fetch('/api/config');
+    var data=await resp.json();
+    if(resp.ok && data && data.value){
+      SHEET_LINKS=data.value;
+      configKvAvailable=true;
+      try{ localStorage.setItem(LS_KEY,JSON.stringify(SHEET_LINKS)); }catch(e){ /* ignore */ }
+    }
+    // if resp not ok (e.g. CONFIG_KV not bound yet), silently keep whatever
+    // came from localStorage above rather than wiping it to {}
+  }catch(e){ /* network/parse failure — keep localStorage's value, already loaded above */ }
 }
 async function persistSheetLinks(){
-  try{
-    if(window.storage){ await window.storage.set('sheet-links',JSON.stringify(SHEET_LINKS),true); return; }
-  }catch(e){ /* fall through to the localStorage fallback */ }
   try{ localStorage.setItem(LS_KEY,JSON.stringify(SHEET_LINKS)); }
-  catch(e){ console.error('Failed to save Sheet Links',e); }
+  catch(e){ /* ignore, not critical */ }
+  try{
+    var resp=await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(SHEET_LINKS)});
+    if(!resp.ok){
+      var data=await resp.json().catch(function(){return {};});
+      console.error('Failed to save Sheet Links to shared config:',data.error||resp.status);
+    }
+  }catch(e){ console.error('Failed to save Sheet Links to shared config',e); }
 }
 
 // Brand row status: first check whether this currency has a Sheet configured, then whether this brand's tab has been fetched
@@ -3185,10 +3196,10 @@ var REPORT_ENGINE_JS=[
 async function init(){
   await loadSheetLinks();
   var foot=document.getElementById('modal-foot');
-  if(window.storage){
+  if(configKvAvailable){
     foot.innerHTML+=' <br>This configuration is shared with everyone who opens this dashboard.';
   } else {
-    foot.innerHTML+=' <br>In this environment, the configuration is only saved on this device/browser (localStorage) and won\'t automatically sync to others.';
+    foot.innerHTML+=' <br>⚠️ Couldn\'t reach the shared config store (CONFIG_KV) — falling back to saving on this device/browser only (localStorage), won\'t sync to others until that\'s fixed. See functions/api/config.js for setup.';
   }
 
   // Restore whatever this person last had selected — currency/brand/month/page
