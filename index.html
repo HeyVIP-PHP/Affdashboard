@@ -1924,18 +1924,18 @@ function renderBrandComparison(){
   // Same rule as Sales Peaks & Valleys: "All Brands" compares everyone under this
   // currency; picking one brand filters this page down to just that brand.
   var brands=currentBrand===ALL_BRANDS ? BRANDS_BY_CURRENCY[currentCurrency] : [currentBrand];
-  // Metric "All" gets its special multi-metric treatment whenever exactly one
-  // brand is selected — works the same whether a specific month or "All
-  // Months" is picked. With multiple brands it'd be brand×metric lines (too
-  // crowded), so that case just falls back to Turnover instead.
-  var singleBrandAllMetrics=(metricSel==='all' && brands.length===1);
+  // Metric "All" gets the grouped Performance/Financials treatment regardless
+  // of how many brands are selected — with multiple brands the numbers are
+  // just summed across all of them first (same aggregation Overview uses),
+  // so it's one clean set of totals instead of brand×metric lines.
+  var allMetricsView=(metricSel==='all');
   var metric=(metricSel==='all')?'turnover':metricSel;
   var isMoney=!!MONEY_METRICS_[metric];
   var fmtVal=function(v){ return isMoney?money(v,displayMode):fmtInt(v); };
   var mv=function(r){ return isMoney?pickMoney(r,metric,displayMode):r[metric]; };
 
   if(currentMonth===ALL_MONTHS){
-    renderBrandComparisonAllMonths_(metric,brands,fmtVal,mv,singleBrandAllMetrics);
+    renderBrandComparisonAllMonths_(metric,brands,fmtVal,mv,allMetricsView);
     return;
   }
 
@@ -1944,8 +1944,8 @@ function renderBrandComparison(){
   var lastMonth=thisMonthIdx>0?MO_ORDER[thisMonthIdx-1]:'Dec';
   document.getElementById('bc-months-lbl').textContent=monthNames[bcMonth]+' vs '+(monthNames[lastMonth]||lastMonth);
 
-  if(singleBrandAllMetrics){
-    renderBrandComparisonSingleMonthAllMetrics_(brands[0],bcMonth,lastMonth);
+  if(allMetricsView){
+    renderBrandComparisonSingleMonthAllMetrics_(brands,bcMonth,lastMonth);
     return;
   }
 
@@ -1987,11 +1987,11 @@ function renderBrandComparison(){
 // whole year, show every month of the year, each one compared to the month
 // right before it — a trend line per brand, and a Brand × Month matrix table
 // with the MoM% sitting right next to each month's number.
-function renderBrandComparisonAllMonths_(metric,brands,fmtVal,mv,singleBrandAllMetrics){
+function renderBrandComparisonAllMonths_(metric,brands,fmtVal,mv,allMetricsView){
   document.getElementById('bc-months-lbl').textContent='Each month vs the month before it (Jan–Dec)';
 
-  if(singleBrandAllMetrics){
-    renderBrandComparisonAllMetrics_(brands[0]);
+  if(allMetricsView){
+    renderBrandComparisonAllMetrics_(brands);
     return;
   }
 
@@ -2050,7 +2050,8 @@ var BC_FIN_KEYS_=['turnover','deposit','withdraw','promo'];
 var BC_FIN_LABELS_={turnover:'Turnover',deposit:'Deposit',withdraw:'Withdraw',promo:'Promotion'};
 var BC_FIN_COLORS_={turnover:'#facc15',deposit:'#00b0ff',withdraw:'#ff9100',promo:'#ff4081'};
 
-function renderBrandComparisonAllMetrics_(brand){
+function renderBrandComparisonAllMetrics_(brands){
+  var brandLabel=brands.length===1?brands[0]:'All Brands';
   showBcChartMode_('multi');
   if(bcChart){ bcChart.destroy(); bcChart=null; }
   document.getElementById('bc-multichart-title').textContent='Monthly Trend — Performance';
@@ -2058,7 +2059,9 @@ function renderBrandComparisonAllMetrics_(brand){
 
   var monthly=MO_ORDER.map(function(m){
     var agg=emptyAgg_();
-    getMonthRows(currentCurrency,brand,m).rows.forEach(function(r){ addRowToAgg_(agg,r); });
+    brands.forEach(function(b){
+      getMonthRows(currentCurrency,b,m).rows.forEach(function(r){ addRowToAgg_(agg,r); });
+    });
     return agg;
   });
   var labels=MO_ORDER.map(function(m){return monthNames[m];});
@@ -2067,7 +2070,7 @@ function renderBrandComparisonAllMetrics_(brand){
   bcMiniCharts=[];
   var grid=document.getElementById('bc-multichart-grid');
   grid.innerHTML=BC_PERF_KEYS_.map(function(k){
-    return '<div><div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px">'+brand+' — '+BC_PERF_LABELS_[k]+'</div>'+
+    return '<div><div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px">'+brandLabel+' — '+BC_PERF_LABELS_[k]+'</div>'+
       '<div style="height:180px"><canvas id="bc-mini-'+k+'"></canvas></div></div>';
   }).join('');
   BC_PERF_KEYS_.forEach(function(k){
@@ -2083,14 +2086,14 @@ function renderBrandComparisonAllMetrics_(brand){
                 y:{beginAtZero:true,grid:{color:chartGridColor_()},ticks:{color:chartTextColor_(),font:{size:8}}}}}
     });
     bcMiniCharts.push(c);
-    bindChartZoom_('bc-mini-'+k,brand+' — '+BC_PERF_LABELS_[k],c);
+    bindChartZoom_('bc-mini-'+k,brandLabel+' — '+BC_PERF_LABELS_[k],c);
   });
 
   // Financials trend charts (Turnover/Deposit/Withdraw/Promotion) — same shape
   // as the Performance grid above, just a separate panel + separate metric set.
   var gridFin=document.getElementById('bc-multichart-grid-fin');
   gridFin.innerHTML=BC_FIN_KEYS_.map(function(k){
-    return '<div><div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px">'+brand+' — '+BC_FIN_LABELS_[k]+'</div>'+
+    return '<div><div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px">'+brandLabel+' — '+BC_FIN_LABELS_[k]+'</div>'+
       '<div style="height:180px"><canvas id="bc-mini-fin-'+k+'"></canvas></div></div>';
   }).join('');
   BC_FIN_KEYS_.forEach(function(k){
@@ -2105,12 +2108,12 @@ function renderBrandComparisonAllMetrics_(brand){
                 y:{beginAtZero:true,grid:{color:chartGridColor_()},ticks:{color:chartTextColor_(),font:{size:8}}}}}
     });
     bcMiniCharts.push(c);
-    bindChartZoom_('bc-mini-fin-'+k,brand+' — '+BC_FIN_LABELS_[k],c);
+    bindChartZoom_('bc-mini-fin-'+k,brandLabel+' — '+BC_FIN_LABELS_[k],c);
   });
 
   showBcTable2_(true);
-  document.getElementById('bc-table-title').textContent=brand+' — Performance';
-  document.getElementById('bc-table2-title').textContent=brand+' — Financials';
+  document.getElementById('bc-table-title').textContent=brandLabel+' — Performance';
+  document.getElementById('bc-table2-title').textContent=brandLabel+' — Financials';
   var anyRevenue=monthly.some(function(a){return a.revenueFilled;});
   var finCols=FIN_COLS_BASE_.concat(anyRevenue?[{key:'revenue',label:'Revenue'}]:[]);
 
@@ -2153,20 +2156,23 @@ function renderBrandComparisonAllMetrics_(brand){
 // two tables (Performance / Financials), each metric with its own MoM%. The
 // per-metric line-trend charts are exclusive to the "All Months" view
 // (renderBrandComparisonAllMetrics_), where a 12-point trend actually makes sense.
-function renderBrandComparisonSingleMonthAllMetrics_(brand,bcMonth,lastMonth){
+function renderBrandComparisonSingleMonthAllMetrics_(brands,bcMonth,lastMonth){
+  var brandLabel=brands.length===1?brands[0]:'All Brands';
   showBcTable2_(true);
   showBcChartMode_('none');
   if(bcChart){ bcChart.destroy(); bcChart=null; }
 
   var cur=emptyAgg_(), prev=emptyAgg_();
-  getMonthRows(currentCurrency,brand,bcMonth).rows.forEach(function(r){ addRowToAgg_(cur,r); });
-  getMonthRows(currentCurrency,brand,lastMonth).rows.forEach(function(r){ addRowToAgg_(prev,r); });
+  brands.forEach(function(b){
+    getMonthRows(currentCurrency,b,bcMonth).rows.forEach(function(r){ addRowToAgg_(cur,r); });
+    getMonthRows(currentCurrency,b,lastMonth).rows.forEach(function(r){ addRowToAgg_(prev,r); });
+  });
 
   var perfKeys=BC_PERF_KEYS_, perfLabels=BC_PERF_LABELS_;
   var perfVal=function(agg,k){ return k==='ftdAmt'?pickMoney(agg,'ftdAmt',displayMode):agg[k]; };
 
-  document.getElementById('bc-table-title').textContent=brand+' — Performance';
-  document.getElementById('bc-table2-title').textContent=brand+' — Financials';
+  document.getElementById('bc-table-title').textContent=brandLabel+' — Performance';
+  document.getElementById('bc-table2-title').textContent=brandLabel+' — Financials';
   document.getElementById('bc-table').innerHTML=
     '<tr><th>Metric</th><th>'+(monthNames[lastMonth]||lastMonth)+'</th><th>'+monthNames[bcMonth]+'</th><th>MoM %</th></tr>'+
     perfKeys.map(function(k){
