@@ -2951,6 +2951,56 @@ function pct_(cur,prev){
 }
 function expMoney_(n,cur){ return CUR_SYMBOL[cur]+' '+fmt(n||0); }
 
+/* ═══════════ RULE-BASED TAKEAWAY ENGINE ═══════════
+   Small, reusable helpers so "Key Takeaways" is a declarative list of rules
+   (rank / threshold / custom) instead of a wall of hand-rolled if/else. Each
+   rule computes some fact, optionally decides whether it's worth mentioning
+   (test), then renders one sentence (en). Rules are independent — one
+   throwing never breaks the others (see runRules_).
+*/
+function buildRankRule_(cfg){
+  // cfg: {list, keyFn, isTarget, sortDir:'desc'|'asc', en(fn)}
+  return {
+    compute: function(){
+      var list=cfg.list().slice();
+      list.sort(function(a,b){
+        var av=cfg.keyFn(a), bv=cfg.keyFn(b);
+        return cfg.sortDir==='asc' ? av-bv : bv-av;
+      });
+      var idx=list.findIndex(cfg.isTarget);
+      return { rank: idx+1, total: list.length, found: idx>=0, item: idx>=0?list[idx]:null };
+    },
+    test: cfg.test || function(c){ return c.found; },
+    en: cfg.en
+  };
+}
+function buildThresholdRule_(cfg){
+  // cfg: {valueFn, good, warn, en(fn)} -- value>=good -> 'good', >=warn -> 'warn', else 'bad'
+  return {
+    compute: function(){
+      var value=cfg.valueFn();
+      var level = value>=cfg.good ? 'good' : value>=cfg.warn ? 'warn' : 'bad';
+      return { value:value, level:level };
+    },
+    test: cfg.test,
+    en: cfg.en
+  };
+}
+function runRules_(rules){
+  var out=[];
+  rules.forEach(function(rule){
+    var computed;
+    try{ computed = rule.compute ? rule.compute() : {}; }
+    catch(e){ console.error('[Takeaway rule] compute failed:',e); return; }
+    if(rule.test && !rule.test(computed)) return;
+    var sentence;
+    try{ sentence = rule.en(computed); }
+    catch(e){ console.error('[Takeaway rule] sentence failed:',e); return; }
+    if(sentence) out.push(sentence);
+  });
+  return out;
+}
+
 // Sum every brand's rows for a currency across a set of months into one aggregate
 // per brand, tagging how many of those months actually had live Sheet data.
 function brandPeriodAgg_(cur,brand,months){
@@ -3049,19 +3099,84 @@ function buildMonthReportHtml_(cur,periodKey){
     topDays=dayTotals.slice().sort(function(a,b){return b.revenue-a.revenue;}).slice(0,3);
   }
 
-  var takeaways=[];
+  // ---- Key Takeaways, built from declarative rank/threshold/custom rules ----
+  var takeawayRules=[];
+
   if(mom){
-    if(mom.turnoverPct!=null) takeaways.push('Turnover '+(mom.turnoverPct>=0?'increased':'decreased')+' by '+Math.abs(mom.turnoverPct).toFixed(2)+'% vs '+prevPeriodLabel+' ('+expMoney_(overview.turnover,cur)+' vs '+expMoney_(prevOverview.turnover,cur)+').');
-    if(mom.revenuePct!=null) takeaways.push('Revenue '+(mom.revenuePct>=0?'increased':'decreased')+' by '+Math.abs(mom.revenuePct).toFixed(2)+'% vs '+prevPeriodLabel+' ('+expMoney_(overview.revenue,cur)+' vs '+expMoney_(prevOverview.revenue,cur)+').');
-    if(mom.ftdPct!=null) takeaways.push('FTD count '+(mom.ftdPct>=0?'grew':'declined')+' by '+Math.abs(mom.ftdPct).toFixed(2)+'% vs '+prevPeriodLabel+'.');
-    if(brandRanking.length) takeaways.push(brandRanking[0].brand+' led all '+cur+' brands in turnover this period.');
+    takeawayRules.push({
+      compute:function(){ return {pct:mom.turnoverPct}; },
+      test:function(c){ return c.pct!=null; },
+      en:function(c){ return 'Turnover '+(c.pct>=0?'increased':'decreased')+' by '+Math.abs(c.pct).toFixed(2)+'% vs '+prevPeriodLabel+' ('+expMoney_(overview.turnover,cur)+' vs '+expMoney_(prevOverview.turnover,cur)+').'; }
+    });
+    takeawayRules.push({
+      compute:function(){ return {pct:mom.revenuePct}; },
+      test:function(c){ return c.pct!=null; },
+      en:function(c){ return 'Revenue '+(c.pct>=0?'increased':'decreased')+' by '+Math.abs(c.pct).toFixed(2)+'% vs '+prevPeriodLabel+' ('+expMoney_(overview.revenue,cur)+' vs '+expMoney_(prevOverview.revenue,cur)+').'; }
+    });
+    takeawayRules.push({
+      compute:function(){ return {pct:mom.ftdPct}; },
+      test:function(c){ return c.pct!=null; },
+      en:function(c){ return 'FTD count '+(c.pct>=0?'grew':'declined')+' by '+Math.abs(c.pct).toFixed(2)+'% vs '+prevPeriodLabel+'.'; }
+    });
+
+    // Turnover leader — rank rule (brandRanking is already sorted desc by turnover,
+    // but we still go through the rank rule so "leader" is derived, not assumed).
+    if(brandRanking.length){
+      takeawayRules.push(buildRankRule_({
+        list: function(){ return brandRanking; },
+        keyFn: function(b){ return b.turnover; },
+        isTarget: function(b){ return b.brand===brandRanking[0].brand; },
+        sortDir: 'desc',
+        en: function(c){ return c.item.brand+' led all '+cur+' brands in turnover this period.'; }
+      }));
+    }
+
+    // NEW — FTD leader, only called out when it differs from the turnover
+    // leader (otherwise it's a repeat of the line above and just noise).
+    if(brandRanking.length>1){
+      var ftdLeaderBrand=brandRanking.slice().sort(function(a,b){return b.ftd-a.ftd;})[0].brand;
+      takeawayRules.push(buildRankRule_({
+        list: function(){ return brandRanking; },
+        keyFn: function(b){ return b.ftd; },
+        isTarget: function(b){ return b.brand===ftdLeaderBrand; },
+        sortDir: 'desc',
+        test: function(c){ return c.found && c.item.brand!==brandRanking[0].brand; },
+        en: function(c){ return c.item.brand+' brought in the most new FTDs ('+fmtInt(c.item.ftd)+') this period — even though it wasn\'t the turnover leader.'; }
+      }));
+    }
+
+    // NEW — flag any brand whose turnover fell sharply vs the prior period,
+    // worst offender first (threshold-style: only surfaces when it's actually bad).
+    var laggards=brandRanking.filter(function(b){ return b.turnoverMomPct!=null && b.turnoverMomPct<=-20; })
+                              .sort(function(a,b){ return a.turnoverMomPct-b.turnoverMomPct; });
+    if(laggards.length){
+      takeawayRules.push({
+        compute:function(){ return {b:laggards[0]}; },
+        en:function(c){ return '⚠️ '+c.b.brand+'\'s turnover dropped '+Math.abs(c.b.turnoverMomPct).toFixed(2)+'% vs '+prevPeriodLabel+' — worth a closer look.'; }
+      });
+    }
   } else {
-    takeaways.push('This is the earliest period with data on file — no prior period comparison yet.');
+    takeawayRules.push({
+      compute:function(){ return {}; },
+      en:function(){ return 'This is the earliest period with data on file — no prior period comparison yet.'; }
+    });
   }
-  var unconnectedBrands=brandRanking.filter(function(b){return !b.live;});
-  if(unconnectedBrands.length){
-    takeaways.push('⚠️ '+unconnectedBrands.length+' of '+brands.length+' brand(s) have no data yet — connect their Sheet link for accurate figures: '+unconnectedBrands.map(function(b){return b.brand;}).join(', ')+'.');
-  }
+
+  // NEW — data connection health as a threshold rule (good = fully connected,
+  // stays silent; warn/bad = surfaces which brands still need a Sheet link).
+  var unconnectedBrandsForRule=brandRanking.filter(function(b){return !b.live;});
+  var liveRate_=brands.length ? (brands.length-unconnectedBrandsForRule.length)/brands.length : 1;
+  var connRule=buildThresholdRule_({
+    valueFn: function(){ return liveRate_; },
+    good: 1, warn: 0.5,
+    en: function(c){
+      return '⚠️ '+unconnectedBrandsForRule.length+' of '+brands.length+' brand(s) have no data yet — connect their Sheet link for accurate figures: '+unconnectedBrandsForRule.map(function(b){return b.brand;}).join(', ')+'.';
+    }
+  });
+  connRule.test=function(c){ return c.level!=='good'; }; // only speak up when something needs attention
+  takeawayRules.push(connRule);
+
+  var takeaways=runRules_(takeawayRules);
   if(!takeaways.length) takeaways.push('Not enough data available yet to generate takeaways.');
 
   var DATA_OBJ={
