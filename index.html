@@ -4,6 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Affiliate Dashboard — Framework Preview</title>
+<script>
+// Applied synchronously, before any CSS paints, so switching to light mode
+// doesn't flash dark-then-light on every page load.
+(function(){
+  try{
+    var t=localStorage.getItem('dashTheme');
+    if(t==='light') document.documentElement.setAttribute('data-theme','light');
+  }catch(e){}
+})();
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -17,7 +27,28 @@
   --amber:#ff9100;--amber-d:rgba(255,145,0,0.1);
   --red:#ff4081;--red-d:rgba(255,64,129,0.1);
   --gold:#facc15;--gold-d:rgba(250,204,21,0.1);
+  --chart-grid:rgba(255,255,255,.04);
+  --ov-03:rgba(255,255,255,.03);--ov-04:rgba(255,255,255,.04);--ov-05:rgba(255,255,255,.05);
+  --ov-06:rgba(255,255,255,.06);--ov-08:rgba(255,255,255,.08);
   --font:"Plus Jakarta Sans",sans-serif;--mono:"JetBrains Mono",monospace;
+}
+/* Light mode — accent colors are darkened a notch from their neon dark-mode
+   values, since e.g. pure #facc15 gold or #00e676 green are unreadable as
+   text on a white background. Structure and layout are untouched. The --ov-*
+   "white at low opacity" overlays (hover states, subtle row backgrounds)
+   become black at low opacity instead — white-on-white is invisible. */
+[data-theme="light"]{
+  --bg:#f3f5f9;--panel:#ffffff;--card:#ffffff;--border:#e2e8f0;--border2:#cbd5e1;
+  --text:#151b2b;--muted:#5b6579;--dim:#dbe2ea;
+  --purple:#7c5cd6;--purple-d:rgba(124,92,214,0.10);
+  --teal:#0089c7;--teal-d:rgba(0,137,199,0.08);
+  --green:#0a9b52;--green-d:rgba(10,155,82,0.08);
+  --amber:#c9690a;--amber-d:rgba(201,105,10,0.09);
+  --red:#d81b60;--red-d:rgba(216,27,96,0.08);
+  --gold:#a16207;--gold-d:rgba(161,98,7,0.09);
+  --chart-grid:rgba(0,0,0,.06);
+  --ov-03:rgba(0,0,0,.035);--ov-04:rgba(0,0,0,.045);--ov-05:rgba(0,0,0,.055);
+  --ov-06:rgba(0,0,0,.07);--ov-08:rgba(0,0,0,.09);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px;min-height:100vh}
@@ -47,7 +78,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 .cur-dd-list{position:absolute;top:calc(100% + 6px);left:0;right:0;background:#151b2c;border:1px solid var(--border2);border-radius:9px;overflow-y:auto;max-height:280px;z-index:60;display:none;box-shadow:0 12px 28px rgba(0,0,0,.45);padding:4px}
 .cur-dd-list.open{display:block}
 .cur-dd-opt{display:flex;align-items:center;gap:9px;padding:8px 9px;cursor:pointer;font-size:11px;font-weight:600;font-family:var(--mono);color:var(--muted);border-radius:6px;transition:.1s;border-left:2px solid transparent}
-.cur-dd-opt:hover{background:rgba(255,255,255,.05);color:var(--text)}
+.cur-dd-opt:hover{background:var(--ov-05);color:var(--text)}
 .cur-dd-opt.selected{background:var(--teal-d);color:var(--teal);border-left-color:var(--teal);font-weight:700}
 .dd-group-lbl{padding:7px 9px 4px;font-size:9px;font-weight:800;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
 .dd-group-lbl:not(:first-child){margin-top:4px;border-top:1px solid var(--border);padding-top:8px}
@@ -84,6 +115,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 .cur-toggle button{background:transparent;border:none;color:var(--muted);font-size:11px;font-weight:700;font-family:var(--mono);padding:7px 14px;cursor:pointer;transition:.15s}
 .cur-toggle button.active{background:var(--gold-d);color:var(--gold)}
 .ref-btn{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--border2);color:var(--muted);font-size:11px;font-weight:600;padding:7px 14px;border-radius:7px;cursor:not-allowed;opacity:.6}
+.theme-toggle-btn{display:flex;align-items:center;justify-content:center;width:32px;height:32px;background:var(--card);border:1px solid var(--border2);color:var(--muted);border-radius:7px;cursor:pointer;font-size:13px;flex-shrink:0}
+.theme-toggle-btn:hover{color:var(--text);border-color:var(--border2)}
 .exp-sel{background:var(--card);border:1px solid var(--border2);color:var(--text);font-size:11px;font-weight:600;padding:7px 10px;border-radius:7px;font-family:var(--mono);cursor:pointer}
 .exp-sel:focus{outline:none;border-color:var(--gold)}
 .exp-btn{display:flex;align-items:center;gap:6px;background:var(--gold-d);border:1px solid rgba(250,204,21,0.4);color:var(--gold);font-size:11px;font-weight:700;padding:7px 14px;border-radius:7px;cursor:pointer;transition:.15s}
@@ -97,6 +130,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 .kpi-grid{display:grid;gap:12px}
 .g5{grid-template-columns:repeat(5,minmax(0,1fr))}
 .g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .g6{grid-template-columns:repeat(6,minmax(0,1fr))}
 .g2{grid-template-columns:repeat(2,minmax(0,1fr))}
 .kpi{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;position:relative;overflow:hidden}
@@ -185,8 +219,8 @@ table.dt td{padding:7px 10px;border-bottom:1px solid var(--border);font-family:v
    #dr-table's wrapper below). This is the standard, well-tested combination. */
 #dr-table thead{position:sticky;top:0;z-index:10}
 tr.dt-total td{font-weight:800;background:var(--card);border-top:2px solid var(--border2);border-bottom:none;color:var(--green)}
-tr.dt-subtotal td{font-weight:700;background:rgba(255,255,255,.03);border-top:1px solid var(--border2);color:var(--gold)}
-table.dt tbody tr:hover td{background:rgba(255,255,255,.03)}
+tr.dt-subtotal td{font-weight:700;background:var(--ov-03);border-top:1px solid var(--border2);color:var(--gold)}
+table.dt tbody tr:hover td{background:var(--ov-03)}
 .up{color:var(--green);font-weight:700}
 .dn{color:var(--red);font-weight:700}
 
@@ -197,19 +231,10 @@ table.dt tbody tr:hover td{background:rgba(255,255,255,.03)}
 .filter-bar{display:flex;gap:10px;align-items:center;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 16px;flex-wrap:wrap}
 .section-divider{display:flex;align-items:center;gap:10px;margin:4px 0;color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
 .section-divider::after{content:"";flex:1;height:1px;background:var(--border)}
-.ov-alert{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:8px;border-left:3px solid var(--amber);background:var(--amber-d)}
-.ov-alert.crit{border-left-color:var(--red);background:var(--red-d)}
-.ov-alert-icon{font-size:16px;flex-shrink:0}
-.ov-alert-body{flex:1;min-width:0}
-.ov-alert-metric{font-size:11px;font-weight:700;color:var(--text)}
-.ov-alert-detail{font-size:9px;color:var(--muted);margin-top:2px}
-.ov-alert-change{font-size:12px;font-weight:800;font-family:var(--mono);flex-shrink:0}
-.ov-alert.crit .ov-alert-change{color:var(--red)}
-.ov-alert:not(.crit) .ov-alert-change{color:var(--amber)}
 .surge-badge{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:700;font-family:var(--mono);color:var(--purple);background:var(--purple-d);padding:2px 7px;border-radius:5px;margin-left:6px}
 
-/* KEY INSIGHTS — six at-a-glance cards (Overview page) */
-.ki-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+/* KEY INSIGHTS — eight at-a-glance cards (Overview page), 4 per row */
+.ki-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
 .ki-card{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
 .ki-head{display:flex;align-items:center;gap:10px;margin-bottom:11px}
 .ki-icon{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
@@ -217,11 +242,11 @@ table.dt tbody tr:hover td{background:rgba(255,255,255,.03)}
 .ki-icon.c-teal{background:var(--teal-d)}.ki-icon.c-green{background:var(--green-d)}
 .ki-icon.c-gold{background:var(--gold-d)}.ki-icon.c-purple{background:var(--purple-d)}
 .ki-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:700}
-.ki-val{font-size:18px;font-weight:800;letter-spacing:-.02em}
+.ki-val{font-size:17px;font-weight:800;letter-spacing:-.02em}
 .ki-val.c-red{color:var(--red)}.ki-val.c-amber{color:var(--amber)}.ki-val.c-teal{color:var(--teal)}
 .ki-val.c-green{color:var(--green)}.ki-val.c-gold{color:var(--gold)}.ki-val.c-purple{color:var(--purple)}
 .ki-sub{font-size:10px;color:var(--muted);margin-top:4px}
-@media (max-width:900px){ .ki-grid{grid-template-columns:repeat(2,minmax(0,1fr))} }
+@media (max-width:1200px){ .ki-grid{grid-template-columns:repeat(2,minmax(0,1fr))} }
 .filter-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-right:6px}
 .sec-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700}
 .fsel{background:var(--panel);border:1px solid var(--border2);color:var(--text);font-size:11px;font-family:var(--mono);padding:6px 10px;border-radius:6px;cursor:pointer}
@@ -229,13 +254,13 @@ table.dt tbody tr:hover td{background:rgba(255,255,255,.03)}
 .peak-row{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:var(--panel);border-radius:8px;border:1px solid var(--border)}
 .peak-rank{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;font-family:var(--mono);flex-shrink:0}
 .peak-rank.r1{background:var(--gold-d);color:var(--gold)}
-.peak-rank.r2{background:rgba(255,255,255,.08);color:var(--muted)}
+.peak-rank.r2{background:var(--ov-08);color:var(--muted)}
 .peak-rank.r3{background:rgba(255,145,0,0.12);color:var(--amber)}
 .peak-info{flex:1;display:flex;justify-content:space-between;align-items:center;margin-left:10px;font-size:11px}
 .peak-info b{font-family:var(--mono);font-weight:700}
 .peak-bar-row{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--panel);border-radius:8px;border:1px solid var(--border)}
 .peak-bar-lbl{flex:0 0 92px;font-size:10px;font-family:var(--mono);color:var(--text)}
-.peak-bar-wrap{flex:1;height:7px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden}
+.peak-bar-wrap{flex:1;height:7px;background:var(--ov-06);border-radius:4px;overflow:hidden}
 .peak-bar-fill{height:100%;border-radius:4px}
 .peak-bar-val{flex:0 0 auto;font-size:11px;font-family:var(--mono);font-weight:800;min-width:56px;text-align:right}
 .pv-pill{display:inline-block;font-size:9px;font-weight:700;padding:3px 8px;border-radius:5px;font-family:var(--mono);white-space:nowrap}
@@ -270,7 +295,7 @@ table.dt td.pv-brand{font-weight:800}
 .live-badge.on{background:var(--green-d);color:var(--green)}
 .live-badge.loading{background:var(--teal-d);color:var(--teal)}
 .live-badge.error{background:var(--red-d);color:var(--red)}
-.live-badge.off{background:rgba(255,255,255,.04);color:var(--muted)}
+.live-badge.off{background:var(--ov-04);color:var(--muted)}
 
 /* SETTINGS MODAL */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(4,6,12,.72);z-index:200;align-items:center;justify-content:center;padding:24px}
@@ -311,7 +336,7 @@ table.dt td.pv-brand{font-weight:800}
 .md-status.on{background:var(--green-d);color:var(--green)}
 .md-status.error{background:var(--red-d);color:var(--red)}
 .md-status.loading{background:var(--teal-d);color:var(--teal)}
-.md-status.off{background:rgba(255,255,255,.03);color:var(--muted)}
+.md-status.off{background:var(--ov-03);color:var(--muted)}
 .modal-foot{padding:10px 18px;border-top:1px solid var(--border);font-size:9px;color:var(--dim);line-height:1.6}
 .chart-zoom-box{max-width:min(1500px,96vw);width:100%}
 .chart-zoom-body{height:min(820px,85vh);padding:24px}
@@ -387,6 +412,7 @@ table.dt td.pv-brand{font-weight:800}
           <button class="active" id="btn-pkr" onclick="setDisplayCurrency('local')">PKR</button>
           <button id="btn-usd" onclick="setDisplayCurrency('usd')">USD</button>
         </div>
+        <button class="theme-toggle-btn" id="theme-toggle-btn" onclick="toggleTheme_()" title="Toggle light/dark mode"><i class="fa-solid fa-sun" id="theme-toggle-icon"></i></button>
         <span class="live-badge off" id="live-badge">NO DATA</span>
         <button class="ref-btn" id="ref-btn" onclick="refreshCurrent()"><i class="fa-solid fa-rotate-right"></i> <span id="ref-btn-label">Refresh (no source)</span></button>
       </div>
@@ -402,8 +428,8 @@ table.dt td.pv-brand{font-weight:800}
         </div>
         <div class="cur-dd-list" id="brand-dd-list"></div>
       </div>
-      <span class="tfb-lbl">MONTH</span>
-      <select class="tfb-sel" id="month-select" onchange="switchMonth(this.value)">
+      <span class="tfb-lbl" id="month-lbl" style="display:none">MONTH</span>
+      <select class="tfb-sel" id="month-select" style="display:none" onchange="switchMonth(this.value)">
         <option value="ALL">All Months</option>
         <option value="Jan" selected>January</option>
         <option value="Feb">February</option>
@@ -454,13 +480,7 @@ table.dt td.pv-brand{font-weight:800}
         <div class="cw" style="height:260px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="trend-chart"></canvas></div>
       </div>
 
-      <!-- Needs Attention — auto-generated MoM anomaly alerts, no manual thresholds to configure -->
-      <div class="panel" id="ov-alerts-panel" style="display:none">
-        <div class="ph"><span>🚨</span><span class="ph-t">Needs Attention</span><span class="ph-tag" id="ov-alerts-tag">vs last month</span></div>
-        <div class="pb" id="ov-alerts-body" style="display:flex;flex-direction:column;gap:8px"></div>
-      </div>
-
-      <!-- Key Insights — six at-a-glance cards, complementary to Needs Attention above -->
+      <!-- Key Insights — eight at-a-glance cards -->
       <div class="panel" id="ki-panel" style="display:none">
         <div class="ph"><span>🔍</span><span class="ph-t">Key Insights</span></div>
         <div class="pb ki-grid" id="ki-body"></div>
@@ -503,7 +523,7 @@ table.dt td.pv-brand{font-weight:800}
         </select>
       </div>
 
-      <div class="kpi-grid g4" id="perf-kpis"></div>
+      <div id="perf-kpis" style="display:flex;flex-direction:column;gap:12px"></div>
 
       <div class="row2 c66">
         <div class="panel">
@@ -668,6 +688,33 @@ table.dt td.pv-brand{font-weight:800}
 </div>
 
 <script>
+/* ═══════════ THEME (dark / light) ═══════════
+   The actual color values live in CSS ([data-theme="light"] overrides in the
+   <head> above) — this just flips the attribute, persists the choice, and
+   re-renders whatever charts are currently on screen so their axis/grid
+   colors (which Chart.js needs as real values, not CSS variables) catch up.
+   The very first paint is handled by a separate tiny synchronous script in
+   <head>, before this file even loads, so there's no dark-then-light flash.
+*/
+function isLightTheme_(){ return document.documentElement.getAttribute('data-theme')==='light'; }
+function updateThemeIcon_(){
+  var icon=document.getElementById('theme-toggle-icon');
+  if(icon) icon.className=isLightTheme_()?'fa-solid fa-moon':'fa-solid fa-sun';
+}
+function toggleTheme_(){
+  var light=!isLightTheme_();
+  if(light) document.documentElement.setAttribute('data-theme','light');
+  else document.documentElement.removeAttribute('data-theme');
+  try{ localStorage.setItem('dashTheme', light?'light':'dark'); }catch(e){}
+  updateThemeIcon_();
+  renderAll(); // rebuilds every chart currently on screen with the new theme's colors
+}
+// Chart.js needs real color strings, not CSS custom properties — these read
+// the live values straight out of the CSS so the two can never drift apart.
+function cssVar_(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+function chartTextColor_(){ return cssVar_('--muted')||'#64748b'; }
+function chartGridColor_(){ return cssVar_('--chart-grid')||'rgba(255,255,255,.04)'; }
+
 /* ═══════════ CONFIG (real structure, filled in via the Sheet Links panel below — no code changes needed) ═══════════
    One currency = one Google Sheet; a brand = a Tab inside that Sheet (defaults to
    looking for a Tab with the same name as the brand; if a name doesn't match, you
@@ -1424,6 +1471,12 @@ function showPage(id,el){
   var showGran=(id==='dailyreport');
   document.getElementById('dr-gran-lbl').style.display=showGran?'':'none';
   document.getElementById('dr-gran').style.display=showGran?'':'none';
+  // Overview always shows the latest month with live data — no manual month
+  // picker there (see renderAll's use of latestLiveMonth_). Every other page
+  // still uses the shared Month dropdown as before.
+  var showMonthPicker=(id!=='overview');
+  document.getElementById('month-lbl').style.display=showMonthPicker?'':'none';
+  document.getElementById('month-select').style.display=showMonthPicker?'':'none';
   requestAnimationFrame(syncGlobalStickyOffsets_);
   if(id==='dailyreport') renderDailyReportPage();
   if(id==='trends') renderPerformancePeaks();
@@ -1652,17 +1705,26 @@ function renderPerformancePeaks(){
   // ── Unified KPI strip + Monthly Trend chart —
   //    all driven by the same `metric` the rest of this page uses, so
   //    switching the dropdown changes everything on the page consistently ──
-  var lastMo=monthTotals[monthTotals.length-1], prevMo=monthTotals.length>1?monthTotals[monthTotals.length-2]:null;
+  // Two rows of three, mirroring the peak/valley/total pattern used
+  // elsewhere: Peak = amber (hottest point), Valley = green (lowest point,
+  // not "bad" — just the trough), Total = teal (a plain count, neutral).
+  var pkWk=weekTotals.reduce(function(a,w){return w.val>a.val?w:a;});
+  var vlWk=weekTotals.reduce(function(a,w){return w.val<a.val?w:a;});
   var pkMo=monthTotals.reduce(function(a,b){return b.val>a.val?b:a;});
   var vlMo=monthTotals.reduce(function(a,b){return b.val<a.val?b:a;});
-  var surgeMo=vlMo.val>0?(pkMo.val/vlMo.val).toFixed(1)+'×':'—';
   document.getElementById('perf-chart-title').textContent='📊 '+METRIC_LABEL[metric]+' — Monthly Trend';
   document.getElementById('perf-chart-tag').textContent=months.length>1?(monthNames[months[0]]+' – '+monthNames[months[months.length-1]]):monthNames[months[0]];
   document.getElementById('perf-kpis').innerHTML=
-    kpiCard('teal',METRIC_LABEL[metric]+' — '+monthNames[lastMo.month],fmtVal(lastMo.val))+
-    kpiCard(prevMo&&lastMo.val>=prevMo.val?'green':'red','MoM Change',prevMo?pct(lastMo.val,prevMo.val):'—',prevMo?(monthNames[prevMo.month]+' → '+monthNames[lastMo.month]):'no prior month yet')+
-    kpiCard('gold','Peak Month',pkMo.label,fmtVal(pkMo.val))+
-    kpiCard('purple','Surge Factor',surgeMo,vlMo.label+' → '+pkMo.label);
+    '<div class="kpi-grid g3">'+
+      kpiCard('amber','Peak Week',pkWk.label,fmtVal(pkWk.val))+
+      kpiCard('green','Valley Week',vlWk.label,fmtVal(vlWk.val))+
+      kpiCard('teal','Total Weeks',weekTotals.length,months.length>1?(monthNames[months[0]]+' – '+monthNames[months[months.length-1]]):monthNames[months[0]])+
+    '</div>'+
+    '<div class="kpi-grid g3">'+
+      kpiCard('amber','Peak Month',pkMo.label,fmtVal(pkMo.val))+
+      kpiCard('green','Valley Month',vlMo.label,fmtVal(vlMo.val))+
+      kpiCard('teal','Total Months',monthTotals.length,months.length>1?(monthNames[months[0]]+' – '+monthNames[months[months.length-1]]):monthNames[months[0]])+
+    '</div>';
 
   if(perfChart) perfChart.destroy();
   var moBarColors=monthTotals.map(function(m){
@@ -1673,8 +1735,8 @@ function renderPerformancePeaks(){
     data:{labels:monthTotals.map(function(m){return m.label;}),datasets:[{data:monthTotals.map(function(m){return m.val;}),backgroundColor:moBarColors,borderRadius:4}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
         tooltip:{callbacks:{label:function(ctx){return fmtVal(ctx.parsed.y);}}}},
-      scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:10}}},
-              y:{beginAtZero:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
+      scales:{x:{grid:{display:false},ticks:{color:chartTextColor_(),font:{size:10}}},
+              y:{beginAtZero:true,grid:{color:chartGridColor_()},ticks:{color:chartTextColor_(),font:{size:9}}}}}
   });
   bindChartZoom_('perf-chart',METRIC_LABEL[metric]+' — Monthly Trend',perfChart);
 
@@ -1695,13 +1757,13 @@ function renderPerformancePeaks(){
     })},
     options:{responsive:true,maintainAspectRatio:false,
       interaction:{mode:'index',intersect:false},
-      plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:9,font:{size:9}}},
+      plugins:{legend:{display:true,labels:{color:chartTextColor_(),boxWidth:9,font:{size:9}}},
         tooltip:{mode:'index',intersect:false,callbacks:{
           title:function(items){ var w=weekTotals[items[0].dataIndex]; return w.range?w.label+' ('+w.range+')':w.label; },
           label:function(ctx){return ctx.dataset.label+': '+fmt(ctx.parsed.y);}
         }}},
-      scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9},autoSkip:false,maxRotation:90,minRotation:90}},
-              y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
+      scales:{x:{grid:{display:false},ticks:{color:chartTextColor_(),font:{size:9},autoSkip:false,maxRotation:90,minRotation:90}},
+              y:{grid:{color:chartGridColor_()},ticks:{color:chartTextColor_(),font:{size:9}}}}}
   });
   attachChartZoom_('spv-wsplit-chart','Sales Peaks & Valleys — Brand Weekly Split',function(){return spvWeekSplitChart;});
 
@@ -1716,10 +1778,10 @@ function renderPerformancePeaks(){
     })},
     options:{responsive:true,maintainAspectRatio:false,
       interaction:{mode:'index',intersect:false},
-      plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:9,font:{size:9}}},
+      plugins:{legend:{display:true,labels:{color:chartTextColor_(),boxWidth:9,font:{size:9}}},
         tooltip:{mode:'index',intersect:false,callbacks:{label:function(ctx){return ctx.dataset.label+': '+fmt(ctx.parsed.y);}}}},
-      scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9}}},
-              y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
+      scales:{x:{grid:{display:false},ticks:{color:chartTextColor_(),font:{size:9}}},
+              y:{grid:{color:chartGridColor_()},ticks:{color:chartTextColor_(),font:{size:9}}}}}
   });
   attachChartZoom_('spv-msplit-chart','Sales Peaks & Valleys — Brand Monthly Split',function(){return spvMonthSplitChart;});
 
@@ -1730,7 +1792,7 @@ function renderPerformancePeaks(){
     data:{labels:weekLabels,datasets:[{label:METRIC_LABEL[metric],data:weekTotals.map(function(w){return w.val;}),backgroundColor:'#00b0ff',borderRadius:4}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
         tooltip:{callbacks:{title:function(items){ var w=weekTotals[items[0].dataIndex]; return w.range?w.label+' ('+w.range+')':w.label; }}}},
-      scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9},autoSkip:false,maxRotation:90,minRotation:90}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
+      scales:{x:{grid:{display:false},ticks:{color:chartTextColor_(),font:{size:9},autoSkip:false,maxRotation:90,minRotation:90}},y:{grid:{color:chartGridColor_()},ticks:{color:chartTextColor_(),font:{size:9}}}}}
   });
   attachChartZoom_('spv-wtrend-chart','Sales Peaks & Valleys — Weekly Volume Trend',function(){return spvWeekTrendChart;});
 }
@@ -1908,8 +1970,8 @@ function renderBrandComparison(){
       {label:monthNames[lastMonth]||lastMonth,data:data.map(function(d){return d.prev;}),backgroundColor:'#243050',borderRadius:4},
       {label:monthNames[bcMonth],data:data.map(function(d){return d.cur;}),backgroundColor:'#9b7ff4',borderRadius:4}
     ]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:10,font:{size:10}}}},
-      scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:10}}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{color:chartTextColor_(),boxWidth:10,font:{size:10}}}},
+      scales:{x:{grid:{display:false},ticks:{color:chartTextColor_(),font:{size:10}}},y:{grid:{color:chartGridColor_()},ticks:{color:chartTextColor_(),font:{size:9}}}}}
   });
   bindChartZoom_('bc-chart','This Month vs Last Month — by Brand',bcChart);
 
@@ -1956,8 +2018,8 @@ function renderBrandComparisonAllMonths_(metric,brands,fmtVal,mv,singleBrandAllM
     })},
     options:{responsive:true,maintainAspectRatio:false,
       interaction:{mode:'index',intersect:false},
-      plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:9,font:{size:9}}}},
-      scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:9}}},y:{beginAtZero:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}}}
+      plugins:{legend:{display:true,labels:{color:chartTextColor_(),boxWidth:9,font:{size:9}}}},
+      scales:{x:{grid:{display:false},ticks:{color:chartTextColor_(),font:{size:9}}},y:{beginAtZero:true,grid:{color:chartGridColor_()},ticks:{color:chartTextColor_(),font:{size:9}}}}}
   });
   bindChartZoom_('bc-chart','Monthly Trend — '+METRIC_LABEL[metric],bcChart);
 
@@ -2017,8 +2079,8 @@ function renderBrandComparisonAllMetrics_(brand){
       options:{responsive:true,maintainAspectRatio:false,
         interaction:{mode:'index',intersect:false},
         plugins:{legend:{display:false}},
-        scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:8},maxRotation:0}},
-                y:{beginAtZero:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:8}}}}}
+        scales:{x:{grid:{display:false},ticks:{color:chartTextColor_(),font:{size:8},maxRotation:0}},
+                y:{beginAtZero:true,grid:{color:chartGridColor_()},ticks:{color:chartTextColor_(),font:{size:8}}}}}
     });
     bcMiniCharts.push(c);
     bindChartZoom_('bc-mini-'+k,brand+' — '+BC_PERF_LABELS_[k],c);
@@ -2039,8 +2101,8 @@ function renderBrandComparisonAllMetrics_(brand){
       options:{responsive:true,maintainAspectRatio:false,
         interaction:{mode:'index',intersect:false},
         plugins:{legend:{display:false}},
-        scales:{x:{grid:{display:false},ticks:{color:'#64748b',font:{size:8},maxRotation:0}},
-                y:{beginAtZero:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:8}}}}}
+        scales:{x:{grid:{display:false},ticks:{color:chartTextColor_(),font:{size:8},maxRotation:0}},
+                y:{beginAtZero:true,grid:{color:chartGridColor_()},ticks:{color:chartTextColor_(),font:{size:8}}}}}
     });
     bcMiniCharts.push(c);
     bindChartZoom_('bc-mini-fin-'+k,brand+' — '+BC_FIN_LABELS_[k],c);
@@ -2417,7 +2479,7 @@ function aggregateStatusAcross_(resList){
   return {live:liveCount===resList.length,status:status,error:error,liveCount:liveCount,brandCount:resList.length};
 }
 
-/* ═══════════ NEEDS ATTENTION — auto MoM anomaly alerts (Overview page) ═══════════
+/* ═══════════ MOM ANOMALY DETECTION (feeds the Key Insights "Critical" card) ═══════════
    Every rule follows the same template: compare the latest month with data
    against the month before it, flag amber at the lower threshold and red
    (crit) at the higher one. No manually-configured "targets" to maintain —
@@ -2434,22 +2496,23 @@ function aggregateStatusAcross_(resList){
    (more money paid out is the concerning direction there). A 50% jump in
    Sign Up no longer shows up here as if it were a problem.
 
-   computeMomAlerts_ is the pure data half (no DOM) — both the Needs Attention
-   panel and the Key Insights "Critical" card read from it, so the two never
-   disagree about what counts as a critical issue this month.
+   computeMomAlerts_ is the pure data half (no DOM) — the Key Insights
+   "Critical" card is its only reader now.
 */
 // effectiveMonth_() always resolves "All Months" to December, regardless of
 // whether December actually has data yet — fine for full-year chart ranges,
 // but wrong for a MoM comparison, which needs a month that's actually live.
-// This walks backward from December to the most recent month with live data
-// for the given brand selection, so Needs Attention / Key Insights keep
-// working under "All Months" instead of silently going blank.
-function insightsMonth_(cur,brand){
-  if(currentMonth!==ALL_MONTHS) return effectiveMonth_();
+// latestLiveMonth_ walks backward from December to the most recent month with
+// live data for this brand selection — used here under "All Months", and also
+// directly by Overview (which always shows the latest month, no picker there).
+function latestLiveMonth_(cur,brand){
   for(var i=MO_ORDER.length-1;i>=0;i--){
     if(getBrandSelectionRows_(cur,brand,MO_ORDER[i]).live) return MO_ORDER[i];
   }
   return null; // no month has live data yet for this brand selection
+}
+function insightsMonth_(cur,brand){
+  return latestLiveMonth_(cur,brand);
 }
 function computeMomAlerts_(cur,brand){
   var m=insightsMonth_(cur,brand);
@@ -2517,26 +2580,10 @@ function computeMomAlerts_(cur,brand){
   return {alerts:alerts,m:m,prevM:prevM};
 }
 
-function renderOverviewAlerts_(cur,brand,month){
-  var panel=document.getElementById('ov-alerts-panel');
-  var body=document.getElementById('ov-alerts-body');
-  var res=computeMomAlerts_(cur,brand);
-  if(!res.prevM || !res.alerts.length){ panel.style.display='none'; return; }
-  panel.style.display='';
-  document.getElementById('ov-alerts-tag').textContent=monthNames[res.prevM]+' → '+monthNames[res.m];
-  body.innerHTML=res.alerts.map(function(a){
-    return '<div class="ov-alert'+(a.crit?' crit':'')+'"><div class="ov-alert-icon">'+a.icon+'</div>'+
-      '<div class="ov-alert-body"><div class="ov-alert-metric">'+a.metric+'</div>'+
-      '<div class="ov-alert-detail">'+a.detail+' · '+a.before+' → '+a.after+'</div></div>'+
-      '<div class="ov-alert-change">'+a.change+'</div></div>';
-  }).join('');
-}
-
-/* ═══════════ KEY INSIGHTS — six at-a-glance cards (Overview page) ═══════════
-   A different lens on the same six priority metrics than Needs Attention:
-   not just "what's wrong this month" but streaks, extremes, and standouts.
-   Runs alongside Needs Attention (not a replacement) — the two answer
-   different questions and a reader may want either one first.
+/* ═══════════ KEY INSIGHTS — eight at-a-glance cards (Overview page) ═══════════
+   Streaks, extremes, and standouts across the six priority metrics — always
+   computed against the latest month with live data (see latestLiveMonth_ /
+   insightsMonth_), since Overview no longer has its own month picker.
 
    "All Brands"-only cards (Smallest Brand / Most Improved Brand / Busiest
    Brand) simply don't render when a single brand is selected, since ranking
@@ -2717,28 +2764,38 @@ function renderKeyInsights_(cur,brand,month){
 // Shared by Overview and Daily Report — both show totals for whatever
 // brand/month/currency is currently selected, just with a different set of
 // KPI cards. Computing this once here means they can never drift out of sync.
-function computeSelectionSummary_(){
-  var isAllMonths=currentMonth===ALL_MONTHS;
+// monthOverride lets Overview lock to its own "latest live month" without
+// touching the shared currentMonth state that Daily Report and the other
+// pages still read from the visible Month dropdown.
+function computeSelectionSummary_(monthOverride){
+  var m=monthOverride||currentMonth;
+  var isAllMonths=m===ALL_MONTHS;
   var res, rows, yearRowsByMonth=null;
   if(isAllMonths){
-    yearRowsByMonth=MO_ORDER.map(function(m){ return {month:m,res:getBrandSelectionRows_(currentCurrency,currentBrand,m)}; });
+    yearRowsByMonth=MO_ORDER.map(function(mm){ return {month:mm,res:getBrandSelectionRows_(currentCurrency,currentBrand,mm)}; });
     rows=[].concat.apply([],yearRowsByMonth.map(function(x){return x.res.rows;}));
     res=aggregateStatusAcross_(yearRowsByMonth.map(function(x){return x.res;}));
   } else {
-    res=getBrandSelectionRows_(currentCurrency,currentBrand,currentMonth);
+    res=getBrandSelectionRows_(currentCurrency,currentBrand,m);
     rows=res.rows;
   }
   var sum=emptyAgg_();
   rows.forEach(function(r){ addRowToAgg_(sum,r); });
-  return {isAllMonths:isAllMonths,res:res,rows:rows,yearRowsByMonth:yearRowsByMonth,sum:sum};
+  return {isAllMonths:isAllMonths,res:res,rows:rows,yearRowsByMonth:yearRowsByMonth,sum:sum,month:m};
 }
 
 function renderAll(){
-  var summary=computeSelectionSummary_();
+  var onOverview=document.getElementById('page-overview').classList.contains('active');
+  // Overview has no Month picker — it always shows the most recent month with
+  // live data, computed fresh on every render rather than tied to whatever
+  // currentMonth happens to be (that variable now belongs to the other pages).
+  var overviewMonth=onOverview?latestLiveMonth_(currentCurrency,currentBrand):null;
+  var summary=computeSelectionSummary_(onOverview?overviewMonth:undefined);
   var isAllMonths=summary.isAllMonths, res=summary.res, rows=summary.rows, yearRowsByMonth=summary.yearRowsByMonth, sum=summary.sum;
   updateLiveBadges_(res);
-  var monthLabel=isAllMonths?'Full Year (Jan–Dec)':monthNames[currentMonth];
-  var onOverview=document.getElementById('page-overview').classList.contains('active');
+  var monthLabel=onOverview
+    ? (overviewMonth?monthNames[overviewMonth]:'No data yet')
+    : (isAllMonths?'Full Year (Jan–Dec)':monthNames[currentMonth]);
   var activePageId='overview';
   ['dailyreport','trends','summary','brandcomp'].forEach(function(p){
     if(document.getElementById('page-'+p).classList.contains('active')) activePageId=p;
@@ -2801,9 +2858,9 @@ function renderAll(){
         yAxisID:axis};
     });
     trendScales={
-      x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:8},autoSkip:false,maxRotation:60,minRotation:60}},
-      y:{position:'left',beginAtZero:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'Sign Up / FTD / Active',color:'#64748b',font:{size:9}}},
-      y1:{position:'right',beginAtZero:true,grid:{display:false},ticks:{color:'#64748b',font:{size:9}},title:{display:true,text:'FTD Amount',color:'#64748b',font:{size:9}}},
+      x:{grid:{color:chartGridColor_()},ticks:{color:chartTextColor_(),font:{size:8},autoSkip:false,maxRotation:60,minRotation:60}},
+      y:{position:'left',beginAtZero:true,grid:{color:chartGridColor_()},ticks:{color:chartTextColor_(),font:{size:9}},title:{display:true,text:'Sign Up / FTD / Active',color:chartTextColor_(),font:{size:9}}},
+      y1:{position:'right',beginAtZero:true,grid:{display:false},ticks:{color:chartTextColor_(),font:{size:9}},title:{display:true,text:'FTD Amount',color:chartTextColor_(),font:{size:9}}},
       y2:{display:false,beginAtZero:true}
     };
   } else {
@@ -2814,8 +2871,8 @@ function renderAll(){
       {label:lblMap[trendMetric],data:chartRows.map(function(r){return isMoney?pickMoney(r,field,displayMode):r[field];}),borderColor:c,backgroundColor:c+'26',fill:true,tension:.35,pointRadius:0,borderWidth:2}
     ];
     trendScales={
-      x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:8},autoSkip:false,maxRotation:60,minRotation:60}},
-      y:{beginAtZero:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#64748b',font:{size:9}}}
+      x:{grid:{color:chartGridColor_()},ticks:{color:chartTextColor_(),font:{size:8},autoSkip:false,maxRotation:60,minRotation:60}},
+      y:{beginAtZero:true,grid:{color:chartGridColor_()},ticks:{color:chartTextColor_(),font:{size:9}}}
     };
   }
   trendChart=new Chart(document.getElementById('trend-chart').getContext('2d'),{
@@ -2823,12 +2880,12 @@ function renderAll(){
     data:{labels:labels,datasets:trendDatasets},
     options:{responsive:true,maintainAspectRatio:false,
       interaction:{mode:'index',intersect:false},
-      plugins:{legend:{display:true,labels:{color:'#64748b',boxWidth:10,font:{size:10}}}},
+      plugins:{legend:{display:true,labels:{color:chartTextColor_(),boxWidth:10,font:{size:10}}}},
       scales:trendScales}
   });
   attachChartZoom_('trend-chart','Overview — Trend',function(){return trendChart;});
 
-  if(onOverview){ renderOverviewAlerts_(currentCurrency,currentBrand,currentMonth); renderKeyInsights_(currentCurrency,currentBrand,currentMonth); }
+  if(onOverview){ renderKeyInsights_(currentCurrency,currentBrand); }
 
   if(!onOverview){
     if(activePageId==='dailyreport') renderDailyReportPage();
@@ -3503,12 +3560,14 @@ function buildMonthReportHtml_(cur,periodKey){
   return '<!DOCTYPE html><html><head><meta charset="utf-8">'+
     '<title>'+cur+' · '+DATA_OBJ.meta.periodLabel+' Report</title>'+
     '<meta name="viewport" content="width=device-width, initial-scale=1">'+
+    '<script>(function(){try{if(localStorage.getItem("reportTheme")==="light")document.documentElement.setAttribute("data-theme","light");}catch(e){}})();<\/script>'+
     '<link rel="preconnect" href="https://fonts.googleapis.com">'+
     '<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">'+
     '<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"><\/script>'+
     '<style>'+REPORT_STYLE_CSS+'</style>'+
     '</head><body>'+
-    '<div class="topbar"><div class="brand"><span class="dot"></span> Report</div></div>'+
+    '<div class="topbar"><div class="brand"><span class="dot"></span> Report</div>'+
+    '<button class="theme-toggle-btn" onclick="toggleTheme_()" title="Toggle light/dark mode"><span id="theme-toggle-icon">☀</span></button></div>'+
     '<div class="layout"><aside class="sidebar" id="sidebar"></aside><main class="main" id="main"></main></div>'+
     '<script id="report-data" type="application/json">'+dataJson+'<\/script>'+
     '<script>'+REPORT_ENGINE_JS+'<\/script>'+
@@ -3549,12 +3608,9 @@ function exportMonthReport(){
 // Styling for the exported report — matches the reference design system
 // (dark theme, IBM Plex Sans/Mono, teal/amber/red/blue accents, sidebar +
 // main layout) provided as a style reference.
-var REPORT_STYLE_CSS=":root{\n  --bg:#0a0e14;--panel:#131a24;--panel-2:#0d1219;--border:#212b38;--border-soft:#1a222d;\n  --text:#e8edf4;--text-dim:#93a1b3;--text-faint:#5c6b80;\n  --teal:#2bd4ac;--teal-dim:rgba(43,212,172,.13);\n  --amber:#f5a83c;--amber-dim:rgba(245,168,60,.14);\n  --red:#f2596f;--red-dim:rgba(242,89,111,.14);\n  --blue:#6f93ff;--blue-dim:rgba(111,147,255,.13);\n  --radius:10px;--sidebar-w:340px;\n  --font-display:'IBM Plex Sans',system-ui,sans-serif;\n  --font-mono:'IBM Plex Mono',ui-monospace,monospace;\n}\n*{box-sizing:border-box}\nhtml,body{margin:0;padding:0}\nbody{background:var(--bg);color:var(--text);font-family:var(--font-display);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}\n::-webkit-scrollbar{width:10px;height:10px}\n::-webkit-scrollbar-track{background:transparent}\n::-webkit-scrollbar-thumb{background:#26313f;border-radius:8px}\n\n/* topbar */\n.topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:16px;padding:12px 24px;background:linear-gradient(180deg,#0d1320 0%,#0a0e14 100%);border-bottom:1px solid var(--border)}\n.topbar .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px;letter-spacing:.2px;white-space:nowrap}\n.brand .dot{width:9px;height:9px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 3px var(--teal-dim);flex-shrink:0}\n.brand .sub{color:var(--text-faint);font-weight:500;font-size:12px}\n\n/* layout */\n.layout{display:flex;align-items:flex-start;max-width:1600px;margin:0 auto}\n.sidebar{width:var(--sidebar-w);flex-shrink:0;position:sticky;top:57px;height:calc(100vh - 57px);overflow-y:auto;padding:20px 16px 60px 24px;border-right:1px solid var(--border)}\n.main{flex:1;min-width:0;padding:24px 28px 100px 28px}\n@media (max-width:980px){\n  .layout{flex-direction:column}\n  .sidebar{width:100%;position:relative;top:0;height:auto;border-right:none;border-bottom:1px solid var(--border)}\n}\n\n/* cards */\n.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px}\n.card-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--text-faint);font-weight:600;margin:0 0 10px 0;display:flex;align-items:center;gap:8px}\n.card-title .line{flex:1;height:1px;background:var(--border-soft)}\n.eyebrow-badge{font-family:var(--font-mono);font-size:10px;padding:2px 6px;border-radius:4px;background:var(--teal-dim);color:var(--teal);font-weight:600}\n.exec-title{font-size:19px;font-weight:700;margin:2px 0 4px 0;letter-spacing:-.01em}\n.exec-sub{color:var(--text-dim);font-size:12.5px;margin-bottom:16px}\n.exec-para{color:var(--text-dim);font-size:13px;line-height:1.65}\n.exec-para strong{color:var(--text);font-weight:600}\n\n.obstacle-item{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border-soft);font-size:12.5px;color:var(--text-dim)}\n.obstacle-item:last-child{border-bottom:none}\n.tag-resolved{flex-shrink:0;font-family:var(--font-mono);font-size:9.5px;font-weight:600;padding:2px 6px;border-radius:4px;background:var(--teal-dim);color:var(--teal);text-transform:uppercase;letter-spacing:.04em;margin-top:1px}\n.tag-resolved.nodata{background:var(--red-dim);color:var(--red)}\n\n/* nav insight cards */\n.nav-section-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--text-faint);font-weight:600;margin:22px 0 10px 2px}\n.insight-card{border:1px solid var(--border);border-radius:var(--radius);padding:13px 14px;margin-bottom:10px;cursor:pointer;background:var(--panel);transition:border-color .15s,background .15s}\n.insight-card:hover{border-color:var(--blue);background:var(--bg-raised,var(--panel-2))}\n.insight-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}\n.insight-title{font-size:13.5px;font-weight:600}\n.insight-arrow{color:var(--text-faint);font-size:13px;transition:transform .15s}\n.insight-card:hover .insight-arrow{transform:translateX(3px);color:var(--blue)}\n.insight-body{font-size:12px;color:var(--text-dim);line-height:1.55}\n.insight-stat-row{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}\n.mini-stat{font-family:var(--font-mono);font-size:11px;padding:4px 8px;border-radius:6px;background:var(--panel-2);border:1px solid var(--border-soft);color:var(--text-dim)}\n.mini-stat b{color:var(--text);font-weight:600}\n.mini-stat.warn{background:var(--amber-dim);color:var(--amber);border-color:transparent}\n.mini-stat.warn b{color:var(--amber)}\n.mini-stat.crit{background:var(--red-dim);color:var(--red);border-color:transparent}\n.mini-stat.crit b{color:var(--red)}\n.mini-stat.good{background:var(--teal-dim);color:var(--teal);border-color:transparent}\n.mini-stat.good b{color:var(--teal)}\n\n/* section headers */\n.section{margin-bottom:38px;scroll-margin-top:72px}\n.section-head{display:flex;align-items:baseline;gap:12px;margin-bottom:14px;flex-wrap:wrap}\n.section-eyebrow{font-family:var(--font-mono);font-size:11px;color:var(--blue);font-weight:600}\n.section-title{font-size:22px;font-weight:700;letter-spacing:-.01em}\n.section-desc{color:var(--text-dim);font-size:13px;margin:-6px 0 18px 0;max-width:760px}\n\n/* stat cards */\n.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px}\n.stat-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:13px 15px;min-width:0;overflow:hidden}\n.stat-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-faint);font-weight:600;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\n.stat-value{font-family:var(--font-mono);font-size:18px;font-weight:600;overflow-wrap:anywhere;line-height:1.25}\n.stat-value.teal{color:var(--teal)}.stat-value.amber{color:var(--amber)}.stat-value.red{color:var(--red)}.stat-value.blue{color:var(--blue)}\n.stat-foot{margin-top:8px}\n\n/* chart container */\n.chart-wrap{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px;height:280px;margin-bottom:18px;position:relative}\n.chart-wrap canvas{width:100% !important;height:100% !important}\n\n/* table */\n.table-wrap{border:1px solid var(--border);border-radius:var(--radius);overflow:auto;background:var(--panel-2);margin-bottom:18px}\ntable.data-table{width:100%;border-collapse:collapse;font-size:12.5px}\ntable.data-table thead th{position:sticky;top:0;background:var(--panel-2);text-align:left;padding:9px 12px;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint);border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none}\ntable.data-table thead th:hover{color:var(--text)}\ntable.data-table thead th .arrow{margin-left:4px;opacity:.5;font-size:9px}\ntable.data-table tbody td{padding:7px 12px;border-bottom:1px solid var(--border-soft);white-space:nowrap;font-family:var(--font-mono);color:var(--text-dim)}\ntable.data-table tbody td.name-cell{font-family:var(--font-display);color:var(--text);font-weight:500}\ntable.data-table tbody tr:last-child td{border-bottom:none}\ntable.data-table tbody tr:hover td{background:var(--panel)}\n.pill{display:inline-block;padding:2px 7px;border-radius:5px;font-size:11px;font-weight:600;font-family:var(--font-mono)}\n.pill.good{background:var(--teal-dim);color:var(--teal)}\n.pill.warn{background:var(--amber-dim);color:var(--amber)}\n.pill.bad{background:var(--red-dim);color:var(--red)}\n\n/* callouts */\n.callout-box{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px 15px}\n.callout-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}\n.callout-list li{display:flex;align-items:flex-start;gap:10px;font-size:12.5px;color:var(--text-dim);line-height:1.6}\n.change-num{flex-shrink:0;width:18px;height:18px;margin-top:1px;border-radius:5px;background:var(--panel-2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:10px;color:var(--text-faint);font-weight:600}\n\n.pos{color:var(--teal)}.neg{color:var(--red)}\n.delta-inline{font-family:var(--font-mono);font-size:10.5px;font-weight:600;margin-left:6px;white-space:nowrap}\n\n.legend-note{display:flex;align-items:flex-start;gap:8px;font-size:11.5px;color:var(--text-faint);background:var(--panel-2);border:1px solid var(--border-soft);border-radius:8px;padding:9px 12px;margin-bottom:14px;line-height:1.55}\n.legend-note b{color:var(--text-dim)}\n\n.footer-note{text-align:center;color:var(--text-faint);font-size:11.5px;padding:30px 0 10px}\n";
+var REPORT_STYLE_CSS=":root{\n  --bg:#0a0e14;--panel:#131a24;--panel-2:#0d1219;--border:#212b38;--border-soft:#1a222d;\n  --text:#e8edf4;--text-dim:#93a1b3;--text-faint:#5c6b80;\n  --teal:#2bd4ac;--teal-dim:rgba(43,212,172,.13);\n  --amber:#f5a83c;--amber-dim:rgba(245,168,60,.14);\n  --red:#f2596f;--red-dim:rgba(242,89,111,.14);\n  --blue:#6f93ff;--blue-dim:rgba(111,147,255,.13);\n  --radius:10px;--sidebar-w:340px;\n  --font-display:'IBM Plex Sans',system-ui,sans-serif;\n  --font-mono:'IBM Plex Mono',ui-monospace,monospace;\n}\n/* Light mode \u2014 same darken-the-accents approach as the main dashboard, since\n   the dark-mode teal/amber/red/blue are all tuned for a near-black background\n   and lose contrast on white. */\n[data-theme=\"light\"]{\n  --bg:#f4f6fb;--panel:#ffffff;--panel-2:#eef1f6;--border:#e1e6ee;--border-soft:#eceff4;\n  --text:#151b28;--text-dim:#4b5768;--text-faint:#7c8797;\n  --teal:#0f9d76;--teal-dim:rgba(15,157,118,.10);\n  --amber:#b5690a;--amber-dim:rgba(181,105,10,.10);\n  --red:#d4325a;--red-dim:rgba(212,50,90,.10);\n  --blue:#3b5fd9;--blue-dim:rgba(59,95,217,.10);\n}\n*{box-sizing:border-box}\nhtml,body{margin:0;padding:0}\nbody{background:var(--bg);color:var(--text);font-family:var(--font-display);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}\n::-webkit-scrollbar{width:10px;height:10px}\n::-webkit-scrollbar-track{background:transparent}\n::-webkit-scrollbar-thumb{background:#26313f;border-radius:8px}\n[data-theme=\"light\"] ::-webkit-scrollbar-thumb{background:#c7ced9}\n\n/* topbar */\n.topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:16px;padding:12px 24px;background:linear-gradient(180deg,#0d1320 0%,#0a0e14 100%);border-bottom:1px solid var(--border)}\n[data-theme=\"light\"] .topbar{background:linear-gradient(180deg,#ffffff 0%,#f4f6fb 100%)}\n.theme-toggle-btn{margin-left:auto;display:flex;align-items:center;justify-content:center;width:30px;height:30px;background:var(--panel-2);border:1px solid var(--border);color:var(--text-dim);border-radius:7px;cursor:pointer;font-size:12px;flex-shrink:0}\n.theme-toggle-btn:hover{color:var(--text)}\n.topbar .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px;letter-spacing:.2px;white-space:nowrap}\n.brand .dot{width:9px;height:9px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 3px var(--teal-dim);flex-shrink:0}\n.brand .sub{color:var(--text-faint);font-weight:500;font-size:12px}\n\n/* layout */\n.layout{display:flex;align-items:flex-start;max-width:1600px;margin:0 auto}\n.sidebar{width:var(--sidebar-w);flex-shrink:0;position:sticky;top:57px;height:calc(100vh - 57px);overflow-y:auto;padding:20px 16px 60px 24px;border-right:1px solid var(--border)}\n.main{flex:1;min-width:0;padding:24px 28px 100px 28px}\n@media (max-width:980px){\n  .layout{flex-direction:column}\n  .sidebar{width:100%;position:relative;top:0;height:auto;border-right:none;border-bottom:1px solid var(--border)}\n}\n\n/* cards */\n.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px}\n.card-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--text-faint);font-weight:600;margin:0 0 10px 0;display:flex;align-items:center;gap:8px}\n.card-title .line{flex:1;height:1px;background:var(--border-soft)}\n.eyebrow-badge{font-family:var(--font-mono);font-size:10px;padding:2px 6px;border-radius:4px;background:var(--teal-dim);color:var(--teal);font-weight:600}\n.exec-title{font-size:19px;font-weight:700;margin:2px 0 4px 0;letter-spacing:-.01em}\n.exec-sub{color:var(--text-dim);font-size:12.5px;margin-bottom:16px}\n.exec-para{color:var(--text-dim);font-size:13px;line-height:1.65}\n.exec-para strong{color:var(--text);font-weight:600}\n\n.obstacle-item{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border-soft);font-size:12.5px;color:var(--text-dim)}\n.obstacle-item:last-child{border-bottom:none}\n.tag-resolved{flex-shrink:0;font-family:var(--font-mono);font-size:9.5px;font-weight:600;padding:2px 6px;border-radius:4px;background:var(--teal-dim);color:var(--teal);text-transform:uppercase;letter-spacing:.04em;margin-top:1px}\n.tag-resolved.nodata{background:var(--red-dim);color:var(--red)}\n\n/* nav insight cards */\n.nav-section-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--text-faint);font-weight:600;margin:22px 0 10px 2px}\n.insight-card{border:1px solid var(--border);border-radius:var(--radius);padding:13px 14px;margin-bottom:10px;cursor:pointer;background:var(--panel);transition:border-color .15s,background .15s}\n.insight-card:hover{border-color:var(--blue);background:var(--bg-raised,var(--panel-2))}\n.insight-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}\n.insight-title{font-size:13.5px;font-weight:600}\n.insight-arrow{color:var(--text-faint);font-size:13px;transition:transform .15s}\n.insight-card:hover .insight-arrow{transform:translateX(3px);color:var(--blue)}\n.insight-body{font-size:12px;color:var(--text-dim);line-height:1.55}\n.insight-stat-row{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}\n.mini-stat{font-family:var(--font-mono);font-size:11px;padding:4px 8px;border-radius:6px;background:var(--panel-2);border:1px solid var(--border-soft);color:var(--text-dim)}\n.mini-stat b{color:var(--text);font-weight:600}\n.mini-stat.warn{background:var(--amber-dim);color:var(--amber);border-color:transparent}\n.mini-stat.warn b{color:var(--amber)}\n.mini-stat.crit{background:var(--red-dim);color:var(--red);border-color:transparent}\n.mini-stat.crit b{color:var(--red)}\n.mini-stat.good{background:var(--teal-dim);color:var(--teal);border-color:transparent}\n.mini-stat.good b{color:var(--teal)}\n\n/* section headers */\n.section{margin-bottom:38px;scroll-margin-top:72px}\n.section-head{display:flex;align-items:baseline;gap:12px;margin-bottom:14px;flex-wrap:wrap}\n.section-eyebrow{font-family:var(--font-mono);font-size:11px;color:var(--blue);font-weight:600}\n.section-title{font-size:22px;font-weight:700;letter-spacing:-.01em}\n.section-desc{color:var(--text-dim);font-size:13px;margin:-6px 0 18px 0;max-width:760px}\n\n/* stat cards */\n.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px}\n.stat-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:13px 15px;min-width:0;overflow:hidden}\n.stat-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-faint);font-weight:600;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\n.stat-value{font-family:var(--font-mono);font-size:18px;font-weight:600;overflow-wrap:anywhere;line-height:1.25}\n.stat-value.teal{color:var(--teal)}.stat-value.amber{color:var(--amber)}.stat-value.red{color:var(--red)}.stat-value.blue{color:var(--blue)}\n.stat-foot{margin-top:8px}\n\n/* chart container */\n.chart-wrap{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px;height:280px;margin-bottom:18px;position:relative}\n.chart-wrap canvas{width:100% !important;height:100% !important}\n\n/* table */\n.table-wrap{border:1px solid var(--border);border-radius:var(--radius);overflow:auto;background:var(--panel-2);margin-bottom:18px}\ntable.data-table{width:100%;border-collapse:collapse;font-size:12.5px}\ntable.data-table thead th{position:sticky;top:0;background:var(--panel-2);text-align:left;padding:9px 12px;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint);border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none}\ntable.data-table thead th:hover{color:var(--text)}\ntable.data-table thead th .arrow{margin-left:4px;opacity:.5;font-size:9px}\ntable.data-table tbody td{padding:7px 12px;border-bottom:1px solid var(--border-soft);white-space:nowrap;font-family:var(--font-mono);color:var(--text-dim)}\ntable.data-table tbody td.name-cell{font-family:var(--font-display);color:var(--text);font-weight:500}\ntable.data-table tbody tr:last-child td{border-bottom:none}\ntable.data-table tbody tr:hover td{background:var(--panel)}\n.pill{display:inline-block;padding:2px 7px;border-radius:5px;font-size:11px;font-weight:600;font-family:var(--font-mono)}\n.pill.good{background:var(--teal-dim);color:var(--teal)}\n.pill.warn{background:var(--amber-dim);color:var(--amber)}\n.pill.bad{background:var(--red-dim);color:var(--red)}\n\n/* callouts */\n.callout-box{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px 15px}\n.callout-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}\n.callout-list li{display:flex;align-items:flex-start;gap:10px;font-size:12.5px;color:var(--text-dim);line-height:1.6}\n.change-num{flex-shrink:0;width:18px;height:18px;margin-top:1px;border-radius:5px;background:var(--panel-2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:10px;color:var(--text-faint);font-weight:600}\n\n.pos{color:var(--teal)}.neg{color:var(--red)}\n.delta-inline{font-family:var(--font-mono);font-size:10.5px;font-weight:600;margin-left:6px;white-space:nowrap}\n\n.legend-note{display:flex;align-items:flex-start;gap:8px;font-size:11.5px;color:var(--text-faint);background:var(--panel-2);border:1px solid var(--border-soft);border-radius:8px;padding:9px 12px;margin-bottom:14px;line-height:1.55}\n.legend-note b{color:var(--text-dim)}\n\n.footer-note{text-align:center;color:var(--text-faint);font-size:11.5px;padding:30px 0 10px}\n";
 
-// Rendering engine for the exported file — reads DATA back out of the
-// embedded JSON and draws everything itself. No network calls, no
-// dependency on this dashboard or on Google Sheets being reachable.
-var REPORT_ENGINE_JS="var DATA = JSON.parse(document.getElementById(\"report-data\").textContent);\nvar charts = {};\n\nfunction esc(s){ return String(s===undefined||s===null?\"\":s).replace(/[&<>\"']/g, function(c){ return {\"&\":\"&amp;\",\"<\":\"&lt;\",\">\":\"&gt;\",'\"':\"&quot;\",\"'\":\"&#39;\"}[c]; }); }\nfunction fmt(n){ return (n||0).toLocaleString(\"en-US\",{minimumFractionDigits:2,maximumFractionDigits:2}); }\nfunction fmtInt(n){ return Math.round(n||0).toLocaleString(\"en-US\"); }\nfunction money(n){ return DATA.meta.curSymbol + \" \" + fmt(n); }\nfunction dashOr(v){ return (v===null||v===undefined) ? \"\\u2014\" : v; }\n\n// Small colored delta chip \u2014 reused under stat cards and inside prose.\nfunction pctChip(p){\n  if(p==null) return '<span class=\"mini-stat\">no prior period</span>';\n  var cls = p>=0 ? \"good\" : \"crit\";\n  var arrow = p>=0 ? \"\\u25b2\" : \"\\u25bc\";\n  return '<span class=\"mini-stat '+cls+'\"><b>'+arrow+' '+Math.abs(p).toFixed(2)+'%</b> vs '+esc(DATA.prevPeriodLabel)+'</span>';\n}\n\nfunction statCard(lbl,val,colorClass,momPct){\n  return '<div class=\"stat-card\"><div class=\"stat-label\">'+esc(lbl)+'</div><div class=\"stat-value'+(colorClass?(\" \"+colorClass):\"\")+'\">'+val+'</div>'+\n    (momPct!==undefined ? ('<div class=\"stat-foot\">'+pctChip(momPct)+'</div>') : '') +\n    '</div>';\n}\n\nfunction jumpTo(sectionId){\n  var el = document.getElementById(sectionId);\n  if(el) el.scrollIntoView({behavior:\"smooth\", block:\"start\"});\n}\n\n/* ---------------- Executive summary paragraph ---------------- */\nfunction execParaHtml_(){\n  var o=DATA.overview, m=DATA.mom, br=DATA.brandRanking, cur=DATA.meta.currency;\n  var parts=[];\n  parts.push('In '+esc(DATA.meta.periodLabel)+', <strong>'+cur+'</strong> brands recorded <strong>'+fmtInt(o.signup)+'</strong> signups and <strong>'+fmtInt(o.ftd)+'</strong> FTDs across <strong>'+br.length+'</strong> brand'+(br.length===1?'':'s')+', with <strong>'+fmtInt(o.active)+'</strong> active players.');\n  if(m){\n    parts.push('Signups were '+(m.signupPct>=0?'up':'down')+' <strong>'+Math.abs(m.signupPct).toFixed(2)+'%</strong> and FTDs were '+(m.ftdPct>=0?'up':'down')+' <strong>'+Math.abs(m.ftdPct).toFixed(2)+'%</strong> vs '+esc(DATA.prevPeriodLabel)+'.');\n    parts.push('FTD amount reached <strong>'+money(o.ftdAmt)+'</strong> ('+(m.ftdAmtPct>=0?'up':'down')+' '+Math.abs(m.ftdAmtPct).toFixed(2)+'%), deposits reached <strong>'+money(o.deposit)+'</strong> ('+(m.depositPct>=0?'up':'down')+' '+Math.abs(m.depositPct).toFixed(2)+'%), and withdrawals reached <strong>'+money(o.withdraw)+'</strong> ('+(m.withdrawPct>=0?'up':'down')+' '+Math.abs(m.withdrawPct).toFixed(2)+'%'+(m.withdrawPct>=0?' \\u2014 more paid out':'')+').');\n  } else {\n    parts.push('FTD amount reached <strong>'+money(o.ftdAmt)+'</strong>, deposits reached <strong>'+money(o.deposit)+'</strong>, and withdrawals reached <strong>'+money(o.withdraw)+'</strong>. This is the earliest period with data on file \\u2014 no prior-period comparison yet.');\n  }\n  if(br.length){\n    var ftdLeader=br.slice().sort(function(a,b){return b.ftd-a.ftd;})[0];\n    parts.push('<strong>'+esc(ftdLeader.brand)+'</strong> led all brands in FTDs this period (turnover across all brands: '+money(o.turnover)+').');\n  }\n  var unconnected = br.filter(function(b){ return !b.live; });\n  if(unconnected.length){\n    parts.push('\\u26a0\\ufe0f <strong>'+unconnected.length+'</strong> of '+br.length+' brand(s) \\u2014 '+unconnected.map(function(b){return esc(b.brand);}).join(', ')+' \\u2014 have no data connected yet.');\n  }\n  parts.push('Full breakdown is laid out to the right; click any card below to jump straight to the data.');\n  return parts.join(' ');\n}\n\n/* ---------------- Sidebar ---------------- */\nfunction renderSidebar(){\n  var sb = document.getElementById(\"sidebar\");\n  var o=DATA.overview, m=DATA.mom, br=DATA.brandRanking;\n  var liveCount = br.filter(function(b){return b.live;}).length;\n\n  var brandRows = br.map(function(b){\n    var tagClass = b.live ? \"\" : \" nodata\";\n    var tagLabel = b.live ? \"LIVE\" : (b.partialLive ? \"PARTIAL\" : \"NO DATA\");\n    return '<div class=\"obstacle-item\"><span class=\"tag-resolved'+tagClass+'\">'+tagLabel+'</span><span><b>'+esc(b.brand)+':</b> '+fmtInt(b.signup)+' signups \\u00b7 '+fmtInt(b.ftd)+' FTDs</span></div>';\n  }).join(\"\");\n\n  var html = ''+\n    '<div class=\"card\">'+\n      '<div class=\"eyebrow-badge\">'+esc(DATA.meta.periodLabel.toUpperCase())+' \\u00b7 '+DATA.meta.currency+' REPORT</div>'+\n      '<div class=\"exec-title\">Executive Summary</div>'+\n      '<div class=\"exec-sub\">Signup, FTD, active player, FTD amount, deposit &amp; withdraw in one view</div>'+\n      '<div class=\"exec-para\">'+execParaHtml_()+'</div>'+\n    '</div>'+\n    '<div class=\"card\">'+\n      '<div class=\"card-title\">Brands ('+liveCount+'/'+br.length+' live)<span class=\"line\"></span></div>'+\n      brandRows+\n    '</div>'+\n    '<div class=\"nav-section-title\">Report sections \\u2014 click to explore</div>'+\n    '<div class=\"insight-card\" onclick=\"jumpTo(\\'overview\\')\">'+\n      '<div class=\"insight-head\"><span class=\"insight-title\">1 \\u00b7 Overview</span><span class=\"insight-arrow\">\\u2192</span></div>'+\n      '<div class=\"insight-body\">Signup, FTD, active player, FTD amount, deposit and withdraw totals for the period.</div>'+\n      '<div class=\"insight-stat-row\">'+\n        '<span class=\"mini-stat\"><b>'+fmtInt(o.signup)+'</b> signups</span>'+\n        '<span class=\"mini-stat good\"><b>'+fmtInt(o.ftd)+'</b> FTDs</span>'+\n      '</div>'+\n    '</div>'+\n    '<div class=\"insight-card\" onclick=\"jumpTo(\\'trend\\')\">'+\n      '<div class=\"insight-head\"><span class=\"insight-title\">2 \\u00b7 Player &amp; Payment Trend</span><span class=\"insight-arrow\">\\u2192</span></div>'+\n      '<div class=\"insight-body\">'+(DATA.isPeriod ? 'Month-by-month' : 'Day-by-day')+' signup, FTD, active player, FTD amount, deposit and withdraw movement.</div>'+\n    '</div>'+\n    '<div class=\"insight-card\" onclick=\"jumpTo(\\'ranking\\')\">'+\n      '<div class=\"insight-head\"><span class=\"insight-title\">3 \\u00b7 Brand Ranking</span><span class=\"insight-arrow\">\\u2192</span></div>'+\n      '<div class=\"insight-body\">All brands ranked by turnover, with connection status and month-over-month change.</div>'+\n      '<div class=\"insight-stat-row\">'+\n        '<span class=\"mini-stat '+(liveCount===br.length?'good':'warn')+'\"><b>'+liveCount+'/'+br.length+'</b> connected</span>'+\n      '</div>'+\n    '</div>'+\n    (DATA.peakDays && DATA.peakDays.length ? (\n    '<div class=\"insight-card\" onclick=\"jumpTo(\\'peakdays\\')\">'+\n      '<div class=\"insight-head\"><span class=\"insight-title\">4 \\u00b7 Peak Days</span><span class=\"insight-arrow\">\\u2192</span></div>'+\n      '<div class=\"insight-body\">The best day this period for each of the six priority metrics.</div>'+\n    '</div>') : '')+\n    '<div class=\"insight-card\" onclick=\"jumpTo(\\'takeaways\\')\">'+\n      '<div class=\"insight-head\"><span class=\"insight-title\">'+(DATA.peakDays && DATA.peakDays.length ? '5':'4')+' \\u00b7 Key Takeaways</span><span class=\"insight-arrow\">\\u2192</span></div>'+\n      '<div class=\"insight-body\">Auto-generated observations \\u2014 signup, FTD, active player, FTD amount, deposit and withdraw trends.</div>'+\n      '<div class=\"insight-stat-row\"><span class=\"mini-stat\"><b>'+DATA.takeaways.length+'</b> takeaways</span></div>'+\n    '</div>';\n\n  sb.innerHTML = html;\n}\n\n/* ---------------- Main sections ---------------- */\nfunction renderOverview(){\n  var o=DATA.overview, m=DATA.mom;\n  return '<section class=\"section\" id=\"overview\">'+\n    '<div class=\"section-head\"><span class=\"section-eyebrow\">01</span><span class=\"section-title\">Overview</span></div>'+\n    '<div class=\"section-desc\">Headline totals for '+esc(DATA.meta.periodLabel)+', '+DATA.meta.currency+'.</div>'+\n    '<div class=\"stat-grid\">'+\n      statCard(\"Total Signup\", fmtInt(o.signup), null, m?m.signupPct:undefined)+\n      statCard(\"Total FTD\", fmtInt(o.ftd), null, m?m.ftdPct:undefined)+\n      statCard(\"Total Turnover\", money(o.turnover), \"amber\", m?m.turnoverPct:undefined)+\n      statCard(\"Total Deposit\", money(o.deposit), \"blue\")+\n      statCard(\"Total Withdraw\", money(o.withdraw), null)+\n      statCard(\"Revenue\", money(o.revenue), \"teal\", m?m.revenuePct:undefined)+\n    '</div>'+\n  '</section>';\n}\n\nfunction renderTrend(){\n  return '<section class=\"section\" id=\"trend\">'+\n    '<div class=\"section-head\"><span class=\"section-eyebrow\">02</span><span class=\"section-title\">Player &amp; Payment Trend</span></div>'+\n    '<div class=\"section-desc\">'+(DATA.isPeriod ? 'Month-by-month' : 'Day-by-day')+' movement of signups, FTDs, active players, FTD amount, deposits and withdrawals across '+esc(DATA.meta.periodLabel)+'.</div>'+\n    '<div class=\"card-title\">Player Activity<span class=\"line\"></span></div>'+\n    '<div class=\"chart-wrap\"><canvas id=\"playerChart\"></canvas></div>'+\n    '<div class=\"card-title\">Payment Flow<span class=\"line\"></span></div>'+\n    '<div class=\"chart-wrap\"><canvas id=\"paymentChart\"></canvas></div>'+\n  '</section>';\n}\n\n// Compact inline delta shown right next to a number. goodIfUp controls the\n// color logic: true = green on increase (signup/FTD/turnover/deposit/revenue,\n// where more is better), false = green on decrease (withdraw, where less is\n// better). This is called out explicitly above the table so the colors are\n// never ambiguous \u2014 a red \"up\" arrow next to Withdraw does not mean the same\n// thing as a red \"up\" arrow next to Turnover.\nfunction deltaChip(pct, goodIfUp){\n  if(pct==null) return \"\";\n  var up = pct>=0;\n  var isGood = goodIfUp ? up : !up;\n  var cls = isGood ? \"pos\" : \"neg\";\n  var arrow = up ? \"\\u25b2\" : \"\\u25bc\";\n  return ' <span class=\"delta-inline '+cls+'\" title=\"'+(up?\"Up \":\"Down \")+Math.abs(pct).toFixed(2)+\"% vs \"+esc(DATA.prevPeriodLabel)+'\">'+arrow+' '+Math.abs(pct).toFixed(2)+'%</span>';\n}\n\nfunction renderRanking(){\n  var rows = DATA.brandRanking.map(function(b){\n    var pillClass = b.live ? \"good\" : (b.partialLive ? \"warn\" : \"bad\");\n    var pillLabel = b.live ? \"LIVE\" : (b.partialLive ? \"PARTIAL\" : \"NO DATA\");\n    return '<tr>'+\n      '<td class=\"name-cell\">'+esc(b.brand)+'</td>'+\n      '<td><span class=\"pill '+pillClass+'\">'+pillLabel+'</span></td>'+\n      '<td>'+fmtInt(b.signup)+deltaChip(b.signupMomPct,true)+'</td>'+\n      '<td>'+fmtInt(b.ftd)+deltaChip(b.ftdMomPct,true)+'</td>'+\n      '<td>'+money(b.turnover)+deltaChip(b.turnoverMomPct,true)+'</td>'+\n      '<td>'+money(b.deposit)+deltaChip(b.depositMomPct,true)+'</td>'+\n      '<td>'+money(b.withdraw)+deltaChip(b.withdrawMomPct,false)+'</td>'+\n      '<td>'+money(b.revenue)+deltaChip(b.revenueMomPct,true)+'</td>'+\n    '</tr>';\n  }).join(\"\");\n  return '<section class=\"section\" id=\"ranking\">'+\n    '<div class=\"section-head\"><span class=\"section-eyebrow\">03</span><span class=\"section-title\">Brand Ranking</span></div>'+\n    '<div class=\"section-desc\">All brands ranked by turnover for '+esc(DATA.meta.periodLabel)+'.</div>'+\n    (DATA.mom ? (\n    '<div class=\"legend-note\">\\u26a0\\ufe0f <span><b>Color legend:</b> for Signup, FTD, Turnover, Deposit and Revenue, green = increase vs '+esc(DATA.prevPeriodLabel)+' (favorable), red = decrease. '+\n    '<b>Withdraw is the opposite</b> \\u2014 green = decrease (favorable), red = increase (more money paid out).</span></div>'\n    ) : '')+\n    '<div class=\"table-wrap\"><table class=\"data-table\"><thead><tr>'+\n      '<th>Brand</th><th>Source</th><th>Signup</th><th>FTD</th><th>Turnover</th><th>Deposit</th><th>Withdraw</th><th>Revenue</th>'+\n    '</tr></thead><tbody>'+rows+'</tbody></table></div>'+\n  '</section>';\n}\n\nfunction renderPeakDays(){\n  if(!DATA.peakDays || !DATA.peakDays.length) return \"\";\n  var items = DATA.peakDays.map(function(d,i){\n    var valStr = d.kind===\"money\" ? money(d.value) : fmtInt(d.value);\n    return '<li><span class=\"change-num\">'+(i+1)+'</span><span><strong style=\"color:var(--text)\">'+esc(d.metric)+'</strong> peaked on '+esc(d.date)+' at <strong style=\"color:var(--text)\">'+valStr+'</strong>.</span></li>';\n  }).join(\"\");\n  return '<section class=\"section\" id=\"peakdays\">'+\n    '<div class=\"section-head\"><span class=\"section-eyebrow\">04</span><span class=\"section-title\">Peak Days</span></div>'+\n    '<div class=\"section-desc\">The best day this period for each of the six priority metrics.</div>'+\n    '<div class=\"callout-box\"><ul class=\"callout-list\">'+items+'</ul></div>'+\n  '</section>';\n}\n\nfunction renderTakeaways(){\n  var eyebrow = (DATA.peakDays && DATA.peakDays.length) ? \"05\" : \"04\";\n  var items = DATA.takeaways.map(function(t,i){\n    return '<li><span class=\"change-num\">'+(i+1)+'</span><span>'+esc(t)+'</span></li>';\n  }).join(\"\");\n  return '<section class=\"section\" id=\"takeaways\">'+\n    '<div class=\"section-head\"><span class=\"section-eyebrow\">'+eyebrow+'</span><span class=\"section-title\">Key Takeaways</span></div>'+\n    '<div class=\"section-desc\">Auto-generated, rule-based observations \\u2014 signup, FTD, active player, FTD amount, deposit and withdraw trends.</div>'+\n    '<div class=\"callout-box\"><ul class=\"callout-list\">'+items+'</ul></div>'+\n  '</section>';\n}\n\nfunction mountTrendCharts(){\n  var chartType = DATA.isPeriod ? \"bar\" : \"line\";\n  var labels = DATA.trend.map(function(t){return t.label;});\n  // Show every day on the x-axis and let hovering anywhere along a day's\n  // column reveal all series' values for that day at once.\n  var sharedOptions = {\n    responsive:true, maintainAspectRatio:false,\n    interaction:{ mode:\"index\", intersect:false },\n    plugins:{\n      legend:{ labels:{ color:\"#93a1b3\" } },\n      tooltip:{ mode:\"index\", intersect:false }\n    },\n    scales:{\n      x:{ ticks:{ color:\"#93a1b3\", autoSkip:false, maxRotation:60, minRotation:DATA.isPeriod?0:60, font:{size:9} }, grid:{display:false} },\n      y:{ ticks:{ color:\"#93a1b3\" }, grid:{ color:\"rgba(255,255,255,.05)\" } }\n    }\n  };\n  function ds(label,data,color,fillColor){\n    return {label:label, data:data, borderColor:color, backgroundColor: DATA.isPeriod?color:fillColor, fill:!DATA.isPeriod, tension:.3, pointRadius:0, pointHoverRadius:4, pointHitRadius:10, borderWidth:2};\n  }\n\n  var playerCtx = document.getElementById(\"playerChart\");\n  if(playerCtx && typeof Chart!==\"undefined\"){\n    if(charts.player) charts.player.destroy();\n    charts.player = new Chart(playerCtx, {\n      type: chartType,\n      data:{ labels: labels, datasets:[\n        ds(\"Signup\", DATA.trend.map(function(t){return t.signup;}), \"#6f93ff\", \"rgba(111,147,255,.14)\"),\n        ds(\"FTD\", DATA.trend.map(function(t){return t.ftd;}), \"#2bd4ac\", \"rgba(43,212,172,.14)\"),\n        ds(\"Active Player\", DATA.trend.map(function(t){return t.active;}), \"#f5a83c\", \"rgba(245,168,60,.14)\")\n      ]},\n      options: sharedOptions\n    });\n  }\n\n  var paymentCtx = document.getElementById(\"paymentChart\");\n  if(paymentCtx && typeof Chart!==\"undefined\"){\n    if(charts.payment) charts.payment.destroy();\n    charts.payment = new Chart(paymentCtx, {\n      type: chartType,\n      data:{ labels: labels, datasets:[\n        ds(\"FTD Amount\", DATA.trend.map(function(t){return t.ftdAmt;}), \"#f5a83c\", \"rgba(245,168,60,.14)\"),\n        ds(\"Deposit\", DATA.trend.map(function(t){return t.deposit;}), \"#6f93ff\", \"rgba(111,147,255,.14)\"),\n        ds(\"Withdraw\", DATA.trend.map(function(t){return t.withdraw;}), \"#f2596f\", \"rgba(242,89,111,.14)\")\n      ]},\n      options: sharedOptions\n    });\n  }\n}\n\nfunction boot(){\n  var brandEl = document.querySelector(\".topbar .brand\");\n  if(brandEl) brandEl.innerHTML = '<span class=\"dot\"></span> '+DATA.meta.currency+' \\u2014 Player &amp; Payment Report <span class=\"sub\">\\u2014 '+esc(DATA.meta.periodLabel)+'</span>';\n  renderSidebar();\n  var main = document.getElementById(\"main\");\n  main.innerHTML = renderOverview() + renderTrend() + renderRanking() + renderPeakDays() + renderTakeaways() +\n    '<div class=\"footer-note\">This is a standalone snapshot \\u2014 it will not update. Re-export from the dashboard for current numbers. Generated '+new Date(DATA.meta.generatedAt).toLocaleString()+'.</div>';\n  mountTrendCharts();\n}\nboot();\n";
+var REPORT_ENGINE_JS="var DATA = JSON.parse(document.getElementById(\"report-data\").textContent);\nvar charts = {};\n\nfunction esc(s){ return String(s===undefined||s===null?\"\":s).replace(/[&<>\"']/g, function(c){ return {\"&\":\"&amp;\",\"<\":\"&lt;\",\">\":\"&gt;\",'\"':\"&quot;\",\"'\":\"&#39;\"}[c]; }); }\nfunction fmt(n){ return (n||0).toLocaleString(\"en-US\",{minimumFractionDigits:2,maximumFractionDigits:2}); }\nfunction fmtInt(n){ return Math.round(n||0).toLocaleString(\"en-US\"); }\nfunction money(n){ return DATA.meta.curSymbol + \" \" + fmt(n); }\nfunction dashOr(v){ return (v===null||v===undefined) ? \"\\u2014\" : v; }\n\n// Small colored delta chip \u2014 reused under stat cards and inside prose.\nfunction pctChip(p){\n  if(p==null) return '<span class=\"mini-stat\">no prior period</span>';\n  var cls = p>=0 ? \"good\" : \"crit\";\n  var arrow = p>=0 ? \"\\u25b2\" : \"\\u25bc\";\n  return '<span class=\"mini-stat '+cls+'\"><b>'+arrow+' '+Math.abs(p).toFixed(2)+'%</b> vs '+esc(DATA.prevPeriodLabel)+'</span>';\n}\n\nfunction statCard(lbl,val,colorClass,momPct){\n  return '<div class=\"stat-card\"><div class=\"stat-label\">'+esc(lbl)+'</div><div class=\"stat-value'+(colorClass?(\" \"+colorClass):\"\")+'\">'+val+'</div>'+\n    (momPct!==undefined ? ('<div class=\"stat-foot\">'+pctChip(momPct)+'</div>') : '') +\n    '</div>';\n}\n\nfunction jumpTo(sectionId){\n  var el = document.getElementById(sectionId);\n  if(el) el.scrollIntoView({behavior:\"smooth\", block:\"start\"});\n}\n\n/* ---------------- Executive summary paragraph ---------------- */\nfunction execParaHtml_(){\n  var o=DATA.overview, m=DATA.mom, br=DATA.brandRanking, cur=DATA.meta.currency;\n  var parts=[];\n  parts.push('In '+esc(DATA.meta.periodLabel)+', <strong>'+cur+'</strong> brands recorded <strong>'+fmtInt(o.signup)+'</strong> signups and <strong>'+fmtInt(o.ftd)+'</strong> FTDs across <strong>'+br.length+'</strong> brand'+(br.length===1?'':'s')+', with <strong>'+fmtInt(o.active)+'</strong> active players.');\n  if(m){\n    parts.push('Signups were '+(m.signupPct>=0?'up':'down')+' <strong>'+Math.abs(m.signupPct).toFixed(2)+'%</strong> and FTDs were '+(m.ftdPct>=0?'up':'down')+' <strong>'+Math.abs(m.ftdPct).toFixed(2)+'%</strong> vs '+esc(DATA.prevPeriodLabel)+'.');\n    parts.push('FTD amount reached <strong>'+money(o.ftdAmt)+'</strong> ('+(m.ftdAmtPct>=0?'up':'down')+' '+Math.abs(m.ftdAmtPct).toFixed(2)+'%), deposits reached <strong>'+money(o.deposit)+'</strong> ('+(m.depositPct>=0?'up':'down')+' '+Math.abs(m.depositPct).toFixed(2)+'%), and withdrawals reached <strong>'+money(o.withdraw)+'</strong> ('+(m.withdrawPct>=0?'up':'down')+' '+Math.abs(m.withdrawPct).toFixed(2)+'%'+(m.withdrawPct>=0?' \\u2014 more paid out':'')+').');\n  } else {\n    parts.push('FTD amount reached <strong>'+money(o.ftdAmt)+'</strong>, deposits reached <strong>'+money(o.deposit)+'</strong>, and withdrawals reached <strong>'+money(o.withdraw)+'</strong>. This is the earliest period with data on file \\u2014 no prior-period comparison yet.');\n  }\n  if(br.length){\n    var ftdLeader=br.slice().sort(function(a,b){return b.ftd-a.ftd;})[0];\n    parts.push('<strong>'+esc(ftdLeader.brand)+'</strong> led all brands in FTDs this period (turnover across all brands: '+money(o.turnover)+').');\n  }\n  var unconnected = br.filter(function(b){ return !b.live; });\n  if(unconnected.length){\n    parts.push('\\u26a0\\ufe0f <strong>'+unconnected.length+'</strong> of '+br.length+' brand(s) \\u2014 '+unconnected.map(function(b){return esc(b.brand);}).join(', ')+' \\u2014 have no data connected yet.');\n  }\n  parts.push('Full breakdown is laid out to the right; click any card below to jump straight to the data.');\n  return parts.join(' ');\n}\n\n/* ---------------- Sidebar ---------------- */\nfunction renderSidebar(){\n  var sb = document.getElementById(\"sidebar\");\n  var o=DATA.overview, m=DATA.mom, br=DATA.brandRanking;\n  var liveCount = br.filter(function(b){return b.live;}).length;\n\n  var brandRows = br.map(function(b){\n    var tagClass = b.live ? \"\" : \" nodata\";\n    var tagLabel = b.live ? \"LIVE\" : (b.partialLive ? \"PARTIAL\" : \"NO DATA\");\n    return '<div class=\"obstacle-item\"><span class=\"tag-resolved'+tagClass+'\">'+tagLabel+'</span><span><b>'+esc(b.brand)+':</b> '+fmtInt(b.signup)+' signups \\u00b7 '+fmtInt(b.ftd)+' FTDs</span></div>';\n  }).join(\"\");\n\n  var html = ''+\n    '<div class=\"card\">'+\n      '<div class=\"eyebrow-badge\">'+esc(DATA.meta.periodLabel.toUpperCase())+' \\u00b7 '+DATA.meta.currency+' REPORT</div>'+\n      '<div class=\"exec-title\">Executive Summary</div>'+\n      '<div class=\"exec-sub\">Signup, FTD, active player, FTD amount, deposit &amp; withdraw in one view</div>'+\n      '<div class=\"exec-para\">'+execParaHtml_()+'</div>'+\n    '</div>'+\n    '<div class=\"card\">'+\n      '<div class=\"card-title\">Brands ('+liveCount+'/'+br.length+' live)<span class=\"line\"></span></div>'+\n      brandRows+\n    '</div>'+\n    '<div class=\"nav-section-title\">Report sections \\u2014 click to explore</div>'+\n    '<div class=\"insight-card\" onclick=\"jumpTo(\\'overview\\')\">'+\n      '<div class=\"insight-head\"><span class=\"insight-title\">1 \\u00b7 Overview</span><span class=\"insight-arrow\">\\u2192</span></div>'+\n      '<div class=\"insight-body\">Signup, FTD, active player, FTD amount, deposit and withdraw totals for the period.</div>'+\n      '<div class=\"insight-stat-row\">'+\n        '<span class=\"mini-stat\"><b>'+fmtInt(o.signup)+'</b> signups</span>'+\n        '<span class=\"mini-stat good\"><b>'+fmtInt(o.ftd)+'</b> FTDs</span>'+\n      '</div>'+\n    '</div>'+\n    '<div class=\"insight-card\" onclick=\"jumpTo(\\'trend\\')\">'+\n      '<div class=\"insight-head\"><span class=\"insight-title\">2 \\u00b7 Player &amp; Payment Trend</span><span class=\"insight-arrow\">\\u2192</span></div>'+\n      '<div class=\"insight-body\">'+(DATA.isPeriod ? 'Month-by-month' : 'Day-by-day')+' signup, FTD, active player, FTD amount, deposit and withdraw movement.</div>'+\n    '</div>'+\n    '<div class=\"insight-card\" onclick=\"jumpTo(\\'ranking\\')\">'+\n      '<div class=\"insight-head\"><span class=\"insight-title\">3 \\u00b7 Brand Ranking</span><span class=\"insight-arrow\">\\u2192</span></div>'+\n      '<div class=\"insight-body\">All brands ranked by turnover, with connection status and month-over-month change.</div>'+\n      '<div class=\"insight-stat-row\">'+\n        '<span class=\"mini-stat '+(liveCount===br.length?'good':'warn')+'\"><b>'+liveCount+'/'+br.length+'</b> connected</span>'+\n      '</div>'+\n    '</div>'+\n    (DATA.peakDays && DATA.peakDays.length ? (\n    '<div class=\"insight-card\" onclick=\"jumpTo(\\'peakdays\\')\">'+\n      '<div class=\"insight-head\"><span class=\"insight-title\">4 \\u00b7 Peak Days</span><span class=\"insight-arrow\">\\u2192</span></div>'+\n      '<div class=\"insight-body\">The best day this period for each of the six priority metrics.</div>'+\n    '</div>') : '')+\n    '<div class=\"insight-card\" onclick=\"jumpTo(\\'takeaways\\')\">'+\n      '<div class=\"insight-head\"><span class=\"insight-title\">'+(DATA.peakDays && DATA.peakDays.length ? '5':'4')+' \\u00b7 Key Takeaways</span><span class=\"insight-arrow\">\\u2192</span></div>'+\n      '<div class=\"insight-body\">Auto-generated observations \\u2014 signup, FTD, active player, FTD amount, deposit and withdraw trends.</div>'+\n      '<div class=\"insight-stat-row\"><span class=\"mini-stat\"><b>'+DATA.takeaways.length+'</b> takeaways</span></div>'+\n    '</div>';\n\n  sb.innerHTML = html;\n}\n\n/* ---------------- Main sections ---------------- */\nfunction renderOverview(){\n  var o=DATA.overview, m=DATA.mom;\n  return '<section class=\"section\" id=\"overview\">'+\n    '<div class=\"section-head\"><span class=\"section-eyebrow\">01</span><span class=\"section-title\">Overview</span></div>'+\n    '<div class=\"section-desc\">Headline totals for '+esc(DATA.meta.periodLabel)+', '+DATA.meta.currency+'.</div>'+\n    '<div class=\"stat-grid\">'+\n      statCard(\"Total Signup\", fmtInt(o.signup), null, m?m.signupPct:undefined)+\n      statCard(\"Total FTD\", fmtInt(o.ftd), null, m?m.ftdPct:undefined)+\n      statCard(\"Total Turnover\", money(o.turnover), \"amber\", m?m.turnoverPct:undefined)+\n      statCard(\"Total Deposit\", money(o.deposit), \"blue\")+\n      statCard(\"Total Withdraw\", money(o.withdraw), null)+\n      statCard(\"Revenue\", money(o.revenue), \"teal\", m?m.revenuePct:undefined)+\n    '</div>'+\n  '</section>';\n}\n\nfunction renderTrend(){\n  return '<section class=\"section\" id=\"trend\">'+\n    '<div class=\"section-head\"><span class=\"section-eyebrow\">02</span><span class=\"section-title\">Player &amp; Payment Trend</span></div>'+\n    '<div class=\"section-desc\">'+(DATA.isPeriod ? 'Month-by-month' : 'Day-by-day')+' movement of signups, FTDs, active players, FTD amount, deposits and withdrawals across '+esc(DATA.meta.periodLabel)+'.</div>'+\n    '<div class=\"card-title\">Player Activity<span class=\"line\"></span></div>'+\n    '<div class=\"chart-wrap\"><canvas id=\"playerChart\"></canvas></div>'+\n    '<div class=\"card-title\">Payment Flow<span class=\"line\"></span></div>'+\n    '<div class=\"chart-wrap\"><canvas id=\"paymentChart\"></canvas></div>'+\n  '</section>';\n}\n\n// Compact inline delta shown right next to a number. goodIfUp controls the\n// color logic: true = green on increase (signup/FTD/turnover/deposit/revenue,\n// where more is better), false = green on decrease (withdraw, where less is\n// better). This is called out explicitly above the table so the colors are\n// never ambiguous \u2014 a red \"up\" arrow next to Withdraw does not mean the same\n// thing as a red \"up\" arrow next to Turnover.\nfunction deltaChip(pct, goodIfUp){\n  if(pct==null) return \"\";\n  var up = pct>=0;\n  var isGood = goodIfUp ? up : !up;\n  var cls = isGood ? \"pos\" : \"neg\";\n  var arrow = up ? \"\\u25b2\" : \"\\u25bc\";\n  return ' <span class=\"delta-inline '+cls+'\" title=\"'+(up?\"Up \":\"Down \")+Math.abs(pct).toFixed(2)+\"% vs \"+esc(DATA.prevPeriodLabel)+'\">'+arrow+' '+Math.abs(pct).toFixed(2)+'%</span>';\n}\n\nfunction renderRanking(){\n  var rows = DATA.brandRanking.map(function(b){\n    var pillClass = b.live ? \"good\" : (b.partialLive ? \"warn\" : \"bad\");\n    var pillLabel = b.live ? \"LIVE\" : (b.partialLive ? \"PARTIAL\" : \"NO DATA\");\n    return '<tr>'+\n      '<td class=\"name-cell\">'+esc(b.brand)+'</td>'+\n      '<td><span class=\"pill '+pillClass+'\">'+pillLabel+'</span></td>'+\n      '<td>'+fmtInt(b.signup)+deltaChip(b.signupMomPct,true)+'</td>'+\n      '<td>'+fmtInt(b.ftd)+deltaChip(b.ftdMomPct,true)+'</td>'+\n      '<td>'+money(b.turnover)+deltaChip(b.turnoverMomPct,true)+'</td>'+\n      '<td>'+money(b.deposit)+deltaChip(b.depositMomPct,true)+'</td>'+\n      '<td>'+money(b.withdraw)+deltaChip(b.withdrawMomPct,false)+'</td>'+\n      '<td>'+money(b.revenue)+deltaChip(b.revenueMomPct,true)+'</td>'+\n    '</tr>';\n  }).join(\"\");\n  return '<section class=\"section\" id=\"ranking\">'+\n    '<div class=\"section-head\"><span class=\"section-eyebrow\">03</span><span class=\"section-title\">Brand Ranking</span></div>'+\n    '<div class=\"section-desc\">All brands ranked by turnover for '+esc(DATA.meta.periodLabel)+'.</div>'+\n    (DATA.mom ? (\n    '<div class=\"legend-note\">\\u26a0\\ufe0f <span><b>Color legend:</b> for Signup, FTD, Turnover, Deposit and Revenue, green = increase vs '+esc(DATA.prevPeriodLabel)+' (favorable), red = decrease. '+\n    '<b>Withdraw is the opposite</b> \\u2014 green = decrease (favorable), red = increase (more money paid out).</span></div>'\n    ) : '')+\n    '<div class=\"table-wrap\"><table class=\"data-table\"><thead><tr>'+\n      '<th>Brand</th><th>Source</th><th>Signup</th><th>FTD</th><th>Turnover</th><th>Deposit</th><th>Withdraw</th><th>Revenue</th>'+\n    '</tr></thead><tbody>'+rows+'</tbody></table></div>'+\n  '</section>';\n}\n\nfunction renderPeakDays(){\n  if(!DATA.peakDays || !DATA.peakDays.length) return \"\";\n  var items = DATA.peakDays.map(function(d,i){\n    var valStr = d.kind===\"money\" ? money(d.value) : fmtInt(d.value);\n    return '<li><span class=\"change-num\">'+(i+1)+'</span><span><strong style=\"color:var(--text)\">'+esc(d.metric)+'</strong> peaked on '+esc(d.date)+' at <strong style=\"color:var(--text)\">'+valStr+'</strong>.</span></li>';\n  }).join(\"\");\n  return '<section class=\"section\" id=\"peakdays\">'+\n    '<div class=\"section-head\"><span class=\"section-eyebrow\">04</span><span class=\"section-title\">Peak Days</span></div>'+\n    '<div class=\"section-desc\">The best day this period for each of the six priority metrics.</div>'+\n    '<div class=\"callout-box\"><ul class=\"callout-list\">'+items+'</ul></div>'+\n  '</section>';\n}\n\nfunction renderTakeaways(){\n  var eyebrow = (DATA.peakDays && DATA.peakDays.length) ? \"05\" : \"04\";\n  var items = DATA.takeaways.map(function(t,i){\n    return '<li><span class=\"change-num\">'+(i+1)+'</span><span>'+esc(t)+'</span></li>';\n  }).join(\"\");\n  return '<section class=\"section\" id=\"takeaways\">'+\n    '<div class=\"section-head\"><span class=\"section-eyebrow\">'+eyebrow+'</span><span class=\"section-title\">Key Takeaways</span></div>'+\n    '<div class=\"section-desc\">Auto-generated, rule-based observations \\u2014 signup, FTD, active player, FTD amount, deposit and withdraw trends.</div>'+\n    '<div class=\"callout-box\"><ul class=\"callout-list\">'+items+'</ul></div>'+\n  '</section>';\n}\n\nfunction cssVar_(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }\nfunction chartTextColor_(){ return cssVar_(\"--text-faint\")||\"#93a1b3\"; }\nfunction chartGridColor_(){ return isLightTheme_() ? \"rgba(0,0,0,.06)\" : \"rgba(255,255,255,.05)\"; }\n\nfunction mountTrendCharts(){\n  var chartType = DATA.isPeriod ? \"bar\" : \"line\";\n  var labels = DATA.trend.map(function(t){return t.label;});\n  var axisColor = chartTextColor_(), gridColor = chartGridColor_();\n  // Show every day on the x-axis and let hovering anywhere along a day's\n  // column reveal all series' values for that day at once.\n  var sharedOptions = {\n    responsive:true, maintainAspectRatio:false,\n    interaction:{ mode:\"index\", intersect:false },\n    plugins:{\n      legend:{ labels:{ color:axisColor } },\n      tooltip:{ mode:\"index\", intersect:false }\n    },\n    scales:{\n      x:{ ticks:{ color:axisColor, autoSkip:false, maxRotation:60, minRotation:DATA.isPeriod?0:60, font:{size:9} }, grid:{display:false} },\n      y:{ ticks:{ color:axisColor }, grid:{ color:gridColor } }\n    }\n  };\n  function ds(label,data,color,fillColor){\n    return {label:label, data:data, borderColor:color, backgroundColor: DATA.isPeriod?color:fillColor, fill:!DATA.isPeriod, tension:.3, pointRadius:0, pointHoverRadius:4, pointHitRadius:10, borderWidth:2};\n  }\n\n  var playerCtx = document.getElementById(\"playerChart\");\n  if(playerCtx && typeof Chart!==\"undefined\"){\n    if(charts.player) charts.player.destroy();\n    charts.player = new Chart(playerCtx, {\n      type: chartType,\n      data:{ labels: labels, datasets:[\n        ds(\"Signup\", DATA.trend.map(function(t){return t.signup;}), \"#6f93ff\", \"rgba(111,147,255,.14)\"),\n        ds(\"FTD\", DATA.trend.map(function(t){return t.ftd;}), \"#2bd4ac\", \"rgba(43,212,172,.14)\"),\n        ds(\"Active Player\", DATA.trend.map(function(t){return t.active;}), \"#f5a83c\", \"rgba(245,168,60,.14)\")\n      ]},\n      options: sharedOptions\n    });\n  }\n\n  var paymentCtx = document.getElementById(\"paymentChart\");\n  if(paymentCtx && typeof Chart!==\"undefined\"){\n    if(charts.payment) charts.payment.destroy();\n    charts.payment = new Chart(paymentCtx, {\n      type: chartType,\n      data:{ labels: labels, datasets:[\n        ds(\"FTD Amount\", DATA.trend.map(function(t){return t.ftdAmt;}), \"#f5a83c\", \"rgba(245,168,60,.14)\"),\n        ds(\"Deposit\", DATA.trend.map(function(t){return t.deposit;}), \"#6f93ff\", \"rgba(111,147,255,.14)\"),\n        ds(\"Withdraw\", DATA.trend.map(function(t){return t.withdraw;}), \"#f2596f\", \"rgba(242,89,111,.14)\")\n      ]},\n      options: sharedOptions\n    });\n  }\n}\n\n/* ---------------- Theme (dark / light) ----------------\n   Same mechanics as the live dashboard: flip a data-theme attribute (CSS does\n   the actual recoloring), persist the choice, re-read the resulting colors\n   for Chart.js (which needs real strings, not CSS variables) and rebuild the\n   two charts. A tiny synchronous script in <head> applies the stored choice\n   before first paint so there's no dark-then-light flash on open.\n*/\nfunction isLightTheme_(){ return document.documentElement.getAttribute(\"data-theme\")===\"light\"; }\nfunction toggleTheme_(){\n  var light=!isLightTheme_();\n  if(light) document.documentElement.setAttribute(\"data-theme\",\"light\");\n  else document.documentElement.removeAttribute(\"data-theme\");\n  try{ localStorage.setItem(\"reportTheme\", light?\"light\":\"dark\"); }catch(e){}\n  var icon=document.getElementById(\"theme-toggle-icon\");\n  if(icon) icon.textContent = light ? \"\\u263e\" : \"\\u2600\";\n  mountTrendCharts();\n}\n\nfunction boot(){\n  var brandEl = document.querySelector(\".topbar .brand\");\n  if(brandEl) brandEl.innerHTML = '<span class=\"dot\"></span> '+DATA.meta.currency+' \\u2014 Player &amp; Payment Report <span class=\"sub\">\\u2014 '+esc(DATA.meta.periodLabel)+'</span>';\n  var themeIcon = document.getElementById(\"theme-toggle-icon\");\n  if(themeIcon) themeIcon.textContent = isLightTheme_() ? \"\\u263e\" : \"\\u2600\";\n  renderSidebar();\n  var main = document.getElementById(\"main\");\n  main.innerHTML = renderOverview() + renderTrend() + renderRanking() + renderPeakDays() + renderTakeaways() +\n    '<div class=\"footer-note\">This is a standalone snapshot \\u2014 it will not update. Re-export from the dashboard for current numbers. Generated '+new Date(DATA.meta.generatedAt).toLocaleString()+'.</div>';\n  mountTrendCharts();\n}\nboot();\n";
 /* ═══════════ END EXPORT MONTH REPORT ═══════════ */
 
 async function init(){
@@ -3580,6 +3636,7 @@ async function init(){
   document.getElementById('btn-pkr').textContent=currentCurrency;
   document.getElementById('btn-pkr').classList.toggle('active',displayMode==='local');
   document.getElementById('btn-usd').classList.toggle('active',displayMode==='usd');
+  updateThemeIcon_(); // reflect whatever the <head> preset script already applied
 
   renderCurDD();
   renderBrandDD();
