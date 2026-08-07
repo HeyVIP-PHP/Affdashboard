@@ -92,7 +92,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 .tfb-dd .cur-dd-head{padding:7px 10px}
 .tfb-sel{background:var(--card);border:1px solid var(--border2);color:var(--text);font-size:11px;font-family:var(--mono);padding:7px 10px;border-radius:7px;cursor:pointer}
 .tfb-sel:focus{outline:none;border-color:var(--gold)}
-.tfb-summary{margin-left:auto;font-size:9px;color:var(--dim);font-family:var(--mono)}
+.tfb-summary{margin-left:auto;font-size:9px;color:var(--text);font-family:var(--mono)}
 @media (max-width:700px){ .tfb-summary{display:none} }
 
 .nav-item{display:flex;align-items:center;gap:9px;padding:9px 14px;margin:1px 6px;border-radius:8px;font-size:11px;font-weight:600;color:var(--muted);cursor:pointer;transition:.15s;border:1px solid transparent}
@@ -1382,7 +1382,15 @@ function switchBrand(b){ currentBrand=b; renderBrandDD(); renderAll(); saveUiSta
 function switchMonth(m){ currentMonth=m; updateFilterSummary_(); renderAll(); saveUiState_(); }
 function updateFilterSummary_(){
   var el=document.getElementById('tfb-summary');
-  if(el) el.textContent=brandLabel_(currentBrand)+' · '+monthNames[currentMonth]+' · '+currentCurrency;
+  if(!el) return;
+  // On Overview this needs to reflect the same locked "latest live month"
+  // renderAll() uses for everything else on that page — not the raw
+  // currentMonth, which belongs to the (hidden, on Overview) Month picker
+  // and may not match what's actually on screen.
+  var onOverview=document.getElementById('page-overview').classList.contains('active');
+  var m = onOverview ? latestLiveMonth_(currentCurrency,currentBrand) : currentMonth;
+  var monthText = m ? monthNames[m] : 'No data yet';
+  el.textContent=brandLabel_(currentBrand)+' · '+monthText+' · '+currentCurrency;
 }
 function setDisplayCurrency(mode){
   displayMode=mode;
@@ -2867,16 +2875,17 @@ function renderAll(){
   document.getElementById('pg-title').textContent=pgTitles[activePageId];
   var dataLabel=res.status==='ready'?'Live data':res.status==='mixed'?('Mixed data — '+res.liveCount+'/'+res.brandCount+' live'):res.status==='loading'?'Syncing…':res.status==='error'?'Sync error':'No data';
   document.getElementById('pg-sub').textContent=dataLabel+' · '+monthLabel+' · '+currentCurrency+' sheet';
+  updateFilterSummary_(); // keeps the top-right corner summary in sync on every render, not just on explicit month switches
   document.getElementById('chart-tag').textContent=isAllMonths?'Jan – Dec · monthly':monthLabel+' · daily';
 
   // Core Overview KPIs — the full set (FTD Amount, Turnover,
   // Promotion, Revenue) moved to the Daily Report page (renderDailyReportPage).
   document.getElementById('kpi-acq').innerHTML=
-    kpiCard('teal','Total Sign Up',fmtInt(sum.signup),null,"ovJumpTo_('trends',{metric:'signup'})")+
-    kpiCard('gold','Total FTD',fmtInt(sum.ftd),'first-time deposit',"ovJumpTo_('trends',{metric:'ftd'})")+
-    kpiCard('purple','Active Player',fmtInt(sum.active),null,"ovJumpTo_('trends',{metric:'active'})")+
-    kpiCard('teal','Total Deposit',money(pickMoney(sum,'deposit',displayMode),displayMode),null,"ovJumpTo_('trends',{metric:'deposit'})")+
-    kpiCard('amber','Total Withdraw',money(pickMoney(sum,'withdraw',displayMode),displayMode),null,"ovJumpTo_('trends',{metric:'withdraw'})");
+    kpiCard('teal','Total Sign Up',fmtInt(sum.signup),monthLabel,"ovJumpTo_('trends',{metric:'signup'})")+
+    kpiCard('gold','Total FTD',fmtInt(sum.ftd),'first-time deposit · '+monthLabel,"ovJumpTo_('trends',{metric:'ftd'})")+
+    kpiCard('purple','Active Player',fmtInt(sum.active),monthLabel,"ovJumpTo_('trends',{metric:'active'})")+
+    kpiCard('teal','Total Deposit',money(pickMoney(sum,'deposit',displayMode),displayMode),monthLabel,"ovJumpTo_('trends',{metric:'deposit'})")+
+    kpiCard('amber','Total Withdraw',money(pickMoney(sum,'withdraw',displayMode),displayMode),monthLabel,"ovJumpTo_('trends',{metric:'withdraw'})");
 
   // Chart — monthly line (Jan–Dec) when "All Months" is selected, daily otherwise
   var chartRows;
