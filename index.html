@@ -207,6 +207,21 @@ table.dt tbody tr:hover td{background:rgba(255,255,255,.03)}
 .ov-alert.crit .ov-alert-change{color:var(--red)}
 .ov-alert:not(.crit) .ov-alert-change{color:var(--amber)}
 .surge-badge{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:700;font-family:var(--mono);color:var(--purple);background:var(--purple-d);padding:2px 7px;border-radius:5px;margin-left:6px}
+
+/* KEY INSIGHTS — six at-a-glance cards (Overview page) */
+.ki-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.ki-card{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
+.ki-head{display:flex;align-items:center;gap:10px;margin-bottom:11px}
+.ki-icon{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.ki-icon.c-red{background:var(--red-d)}.ki-icon.c-amber{background:var(--amber-d)}
+.ki-icon.c-teal{background:var(--teal-d)}.ki-icon.c-green{background:var(--green-d)}
+.ki-icon.c-gold{background:var(--gold-d)}.ki-icon.c-purple{background:var(--purple-d)}
+.ki-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:700}
+.ki-val{font-size:18px;font-weight:800;letter-spacing:-.02em}
+.ki-val.c-red{color:var(--red)}.ki-val.c-amber{color:var(--amber)}.ki-val.c-teal{color:var(--teal)}
+.ki-val.c-green{color:var(--green)}.ki-val.c-gold{color:var(--gold)}.ki-val.c-purple{color:var(--purple)}
+.ki-sub{font-size:10px;color:var(--muted);margin-top:4px}
+@media (max-width:900px){ .ki-grid{grid-template-columns:repeat(2,minmax(0,1fr))} }
 .filter-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-right:6px}
 .sec-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700}
 .fsel{background:var(--panel);border:1px solid var(--border2);color:var(--text);font-size:11px;font-family:var(--mono);padding:6px 10px;border-radius:6px;cursor:pointer}
@@ -443,6 +458,12 @@ table.dt td.pv-brand{font-weight:800}
       <div class="panel" id="ov-alerts-panel" style="display:none">
         <div class="ph"><span>🚨</span><span class="ph-t">Needs Attention</span><span class="ph-tag" id="ov-alerts-tag">vs last month</span></div>
         <div class="pb" id="ov-alerts-body" style="display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+
+      <!-- Key Insights — six at-a-glance cards, complementary to Needs Attention above -->
+      <div class="panel" id="ki-panel" style="display:none">
+        <div class="ph"><span>🔍</span><span class="ph-t">Key Insights</span></div>
+        <div class="pb ki-grid" id="ki-body"></div>
       </div>
 
       </div>
@@ -2401,38 +2422,57 @@ function aggregateStatusAcross_(resList){
    against the month before it, flag amber at the lower threshold and red
    (crit) at the higher one. No manually-configured "targets" to maintain —
    each metric is just compared against its own recent history.
+
+   Metrics tracked are the six priority ones (Sign Up, FTD, Active Player,
+   FTD Amount, Deposit, Withdraw) — Turnover isn't singled out here since it's
+   not the metric this alert panel is meant to watch (it's still visible in
+   the KPI cards and tables elsewhere).
+
+   Direction matters: this panel exists to flag problems, not to celebrate
+   good news, so each metric only fires in its "bad" direction — a drop for
+   Sign Up/FTD/Active Player/FTD Amount/Deposit, but a *rise* for Withdraw
+   (more money paid out is the concerning direction there). A 50% jump in
+   Sign Up no longer shows up here as if it were a problem.
+
+   computeMomAlerts_ is the pure data half (no DOM) — both the Needs Attention
+   panel and the Key Insights "Critical" card read from it, so the two never
+   disagree about what counts as a critical issue this month.
 */
-function renderOverviewAlerts_(cur,brand,month){
-  var panel=document.getElementById('ov-alerts-panel');
-  var body=document.getElementById('ov-alerts-body');
+function computeMomAlerts_(cur,brand){
   var m=effectiveMonth_();
   var idx=MO_ORDER.indexOf(m);
   var prevM=idx>0?MO_ORDER[idx-1]:null;
-  if(!prevM){ panel.style.display='none'; return; }
+  if(!prevM) return {alerts:[],m:m,prevM:null};
 
   var curRes=getBrandSelectionRows_(cur,brand,m);
   var prevRes=getBrandSelectionRows_(cur,brand,prevM);
-  if(!curRes.live||!prevRes.live){ panel.style.display='none'; return; } // only alert on confirmed live data, never on placeholder zeros
+  if(!curRes.live||!prevRes.live) return {alerts:[],m:m,prevM:prevM}; // only alert on confirmed live data, never on placeholder zeros
 
   var curAgg=emptyAgg_(); curRes.rows.forEach(function(r){ addRowToAgg_(curAgg,r); });
   var prevAgg=emptyAgg_(); prevRes.rows.forEach(function(r){ addRowToAgg_(prevAgg,r); });
 
   var alerts=[];
-  function addAlert_(icon,metric,curVal,prevVal,fmtFn,amberT,redT){
+  // badDirection: 'down' (default) fires only when the metric fell by at
+  // least amberT%; 'up' fires only when it rose by at least amberT%.
+  function addAlert_(icon,metric,curVal,prevVal,fmtFn,amberT,redT,badDirection){
     if(!(prevVal>0)) return;
     var chg=(curVal-prevVal)/prevVal*100;
-    if(Math.abs(chg)<amberT) return;
+    var isBad = badDirection==='up' ? chg>=amberT : chg<=-amberT;
+    if(!isBad) return;
     alerts.push({icon:icon,metric:metric,before:fmtFn(prevVal),after:fmtFn(curVal),
       change:(chg>=0?'▲':'▼')+Math.abs(chg).toFixed(1)+'%',
+      absChg:Math.abs(chg),
       detail:monthNames[prevM]+' → '+monthNames[m],crit:Math.abs(chg)>=redT});
   }
   var moneyFmt=function(v){ return money(v,displayMode); };
-  addAlert_('💰','Total Turnover',pickMoney(curAgg,'turnover',displayMode),pickMoney(prevAgg,'turnover',displayMode),moneyFmt,15,40);
-  addAlert_('🎯','FTD Amount',pickMoney(curAgg,'ftdAmt',displayMode),pickMoney(prevAgg,'ftdAmt',displayMode),moneyFmt,15,40);
-  addAlert_('👥','Sign Up',curAgg.signup,prevAgg.signup,fmtInt,15,40);
-  addAlert_('💸','Total Withdraw',pickMoney(curAgg,'withdraw',displayMode),pickMoney(prevAgg,'withdraw',displayMode),moneyFmt,15,40);
+  addAlert_('👥','Sign Up',curAgg.signup,prevAgg.signup,fmtInt,15,40,'down');
+  addAlert_('🎯','FTD',curAgg.ftd,prevAgg.ftd,fmtInt,15,40,'down');
+  addAlert_('🎮','Active Player',curAgg.active,prevAgg.active,fmtInt,15,40,'down');
+  addAlert_('💵','FTD Amount',pickMoney(curAgg,'ftdAmt',displayMode),pickMoney(prevAgg,'ftdAmt',displayMode),moneyFmt,15,40,'down');
+  addAlert_('🏦','Total Deposit',pickMoney(curAgg,'deposit',displayMode),pickMoney(prevAgg,'deposit',displayMode),moneyFmt,15,40,'down');
+  addAlert_('💸','Total Withdraw',pickMoney(curAgg,'withdraw',displayMode),pickMoney(prevAgg,'withdraw',displayMode),moneyFmt,15,40,'up');
 
-  // Brand workload imbalance — coefficient of variation across brands' Turnover
+  // Brand deposit imbalance — coefficient of variation across brands' Deposit
   // this month. Only meaningful with "All Brands" selected and 3+ live brands.
   if(brand===ALL_BRANDS){
     var brands=BRANDS_BY_CURRENCY[cur]||[];
@@ -2440,28 +2480,185 @@ function renderOverviewAlerts_(cur,brand,month){
       var r=getMonthRows(cur,b,m);
       if(!r.live) return null;
       var a=emptyAgg_(); r.rows.forEach(function(rr){ addRowToAgg_(a,rr); });
-      return pickMoney(a,'turnover',displayMode);
+      return pickMoney(a,'deposit',displayMode);
     }).filter(function(v){ return v!==null && v>0; });
     if(vals.length>=3){
       var mean=vals.reduce(function(s,v){return s+v;},0)/vals.length;
       var variance=vals.reduce(function(s,v){return s+Math.pow(v-mean,2);},0)/vals.length;
       var cv=mean>0?(Math.sqrt(variance)/mean*100):0;
       if(cv>=40){
-        alerts.push({icon:'⚖️',metric:'Brand Turnover Balance',
+        alerts.push({icon:'⚖️',metric:'Brand Deposit Balance',
           before:money(Math.min.apply(null,vals),displayMode)+' min',after:money(Math.max.apply(null,vals),displayMode)+' max',
-          change:Math.round(cv)+'% CV',detail:monthNames[m]+' · '+vals.length+' brands live',crit:cv>=70});
+          change:Math.round(cv)+'% CV', absChg:cv,
+          detail:monthNames[m]+' · '+vals.length+' brands live',crit:cv>=70});
       }
     }
   }
 
-  if(!alerts.length){ panel.style.display='none'; return; }
+  // Worst first: critical alerts before amber ones, then by size of the swing.
+  alerts.sort(function(a,b){
+    if(a.crit!==b.crit) return a.crit ? -1 : 1;
+    return b.absChg-a.absChg;
+  });
+  return {alerts:alerts,m:m,prevM:prevM};
+}
+
+function renderOverviewAlerts_(cur,brand,month){
+  var panel=document.getElementById('ov-alerts-panel');
+  var body=document.getElementById('ov-alerts-body');
+  var res=computeMomAlerts_(cur,brand);
+  if(!res.prevM || !res.alerts.length){ panel.style.display='none'; return; }
   panel.style.display='';
-  document.getElementById('ov-alerts-tag').textContent=monthNames[prevM]+' → '+monthNames[m];
-  body.innerHTML=alerts.map(function(a){
+  document.getElementById('ov-alerts-tag').textContent=monthNames[res.prevM]+' → '+monthNames[res.m];
+  body.innerHTML=res.alerts.map(function(a){
     return '<div class="ov-alert'+(a.crit?' crit':'')+'"><div class="ov-alert-icon">'+a.icon+'</div>'+
       '<div class="ov-alert-body"><div class="ov-alert-metric">'+a.metric+'</div>'+
       '<div class="ov-alert-detail">'+a.detail+' · '+a.before+' → '+a.after+'</div></div>'+
       '<div class="ov-alert-change">'+a.change+'</div></div>';
+  }).join('');
+}
+
+/* ═══════════ KEY INSIGHTS — six at-a-glance cards (Overview page) ═══════════
+   A different lens on the same six priority metrics than Needs Attention:
+   not just "what's wrong this month" but streaks, extremes, and standouts.
+   Runs alongside Needs Attention (not a replacement) — the two answer
+   different questions and a reader may want either one first.
+
+   "All Brands"-only cards (Smallest Brand / Most Improved Brand / Busiest
+   Brand) simply don't render when a single brand is selected, since ranking
+   one brand against itself isn't meaningful.
+*/
+function computeLosingStreak_(cur,brand){
+  // Walks backward month by month from the currently selected month, counting
+  // consecutive months where Deposit fell vs the month before it. Stops at
+  // the first month that isn't a live-data decline (growth, or no data).
+  var m=effectiveMonth_();
+  var idx=MO_ORDER.indexOf(m);
+  var streak=0;
+  while(idx>0){
+    var curRes=getBrandSelectionRows_(cur,brand,MO_ORDER[idx]);
+    var prevRes=getBrandSelectionRows_(cur,brand,MO_ORDER[idx-1]);
+    if(!curRes.live||!prevRes.live) break;
+    var curAgg=emptyAgg_(); curRes.rows.forEach(function(r){ addRowToAgg_(curAgg,r); });
+    var prevAgg=emptyAgg_(); prevRes.rows.forEach(function(r){ addRowToAgg_(prevAgg,r); });
+    var curDep=pickMoney(curAgg,'deposit',displayMode), prevDep=pickMoney(prevAgg,'deposit',displayMode);
+    if(prevDep>0 && curDep<prevDep){ streak++; idx--; } else break;
+  }
+  return streak;
+}
+function computeSmallestBrand_(cur,month){
+  var brands=BRANDS_BY_CURRENCY[cur]||[];
+  var vals=brands.map(function(b){
+    var r=getMonthRows(cur,b,month);
+    if(!r.live) return null;
+    var a=emptyAgg_(); r.rows.forEach(function(rr){ addRowToAgg_(a,rr); });
+    return {brand:b,turnover:pickMoney(a,'turnover',displayMode)};
+  }).filter(function(v){ return v && v.turnover>0; });
+  if(vals.length<2) return null;
+  var total=vals.reduce(function(s,v){return s+v.turnover;},0);
+  var smallest=vals.slice().sort(function(a,b){return a.turnover-b.turnover;})[0];
+  return {brand:smallest.brand,pct:total>0?(smallest.turnover/total*100):0,turnover:smallest.turnover};
+}
+function computeMonthVsPeak_(cur,brand,month){
+  var vals=[];
+  MO_ORDER.forEach(function(mm){
+    var r=getBrandSelectionRows_(cur,brand,mm);
+    if(!r.live) return;
+    var a=emptyAgg_(); r.rows.forEach(function(rr){ addRowToAgg_(a,rr); });
+    vals.push({month:mm,ftd:a.ftd});
+  });
+  if(vals.length<2) return null;
+  var peak=vals.slice().sort(function(a,b){return b.ftd-a.ftd;})[0];
+  var curV=vals.filter(function(v){return v.month===month;})[0];
+  if(!curV || !(peak.ftd>0)) return null;
+  return {pct:(curV.ftd-peak.ftd)/peak.ftd*100,peakMonth:peak.month,curFtd:curV.ftd,peakFtd:peak.ftd};
+}
+function computeMostImprovedBrand_(cur,month,prevMonth){
+  var brands=BRANDS_BY_CURRENCY[cur]||[];
+  var vals=brands.map(function(b){
+    var r=getMonthRows(cur,b,month), pr=getMonthRows(cur,b,prevMonth);
+    if(!r.live||!pr.live) return null;
+    var a=emptyAgg_(); r.rows.forEach(function(rr){ addRowToAgg_(a,rr); });
+    var pa=emptyAgg_(); pr.rows.forEach(function(rr){ addRowToAgg_(pa,rr); });
+    if(!(pa.ftd>0)) return null;
+    return {brand:b,pct:(a.ftd-pa.ftd)/pa.ftd*100};
+  }).filter(function(v){ return v; });
+  if(!vals.length) return null;
+  var best=vals.slice().sort(function(a,b){return b.pct-a.pct;})[0];
+  return best.pct>0 ? best : null;
+}
+function computeBusiestBrand_(cur,month){
+  var brands=BRANDS_BY_CURRENCY[cur]||[];
+  var vals=brands.map(function(b){
+    var r=getMonthRows(cur,b,month);
+    if(!r.live) return null;
+    var a=emptyAgg_(); r.rows.forEach(function(rr){ addRowToAgg_(a,rr); });
+    return {brand:b,active:a.active};
+  }).filter(function(v){ return v && v.active>0; });
+  if(!vals.length) return null;
+  return vals.slice().sort(function(a,b){return b.active-a.active;})[0];
+}
+
+function renderKeyInsights_(cur,brand,month){
+  var panel=document.getElementById('ki-panel');
+  var body=document.getElementById('ki-body');
+  var m=effectiveMonth_();
+  var idx=MO_ORDER.indexOf(m);
+  var prevM=idx>0?MO_ORDER[idx-1]:null;
+  var allBrands=brand===ALL_BRANDS;
+  var cards=[];
+
+  var streak=computeLosingStreak_(cur,brand);
+  cards.push({icon:'📉',color:streak>=3?'red':(streak>0?'amber':'green'),label:'Losing Streak',
+    val:streak>0?(streak+' month'+(streak===1?'':'s')):'None',
+    sub:streak>0?'Deposit declining':'Deposit is not declining'});
+
+  if(allBrands){
+    var smallest=computeSmallestBrand_(cur,m);
+    if(smallest){
+      cards.push({icon:'🏷️',color:'purple',label:'Smallest Brand',
+        val:smallest.brand+' — '+smallest.pct.toFixed(1)+'%',
+        sub:money(smallest.turnover,displayMode)+' turnover'});
+    }
+  }
+
+  var peak=computeMonthVsPeak_(cur,brand,m);
+  if(peak){
+    var atPeak=Math.abs(peak.pct)<0.05;
+    cards.push({icon:'📊',color:atPeak?'green':(peak.pct<=-40?'red':'teal'),label:'Month vs Peak',
+      val:atPeak?'At peak':((peak.pct>=0?'▲':'▼')+Math.abs(peak.pct).toFixed(1)+'%'),
+      sub:'FTD · Peak '+monthNames[peak.peakMonth]});
+  }
+
+  if(allBrands && prevM){
+    var improved=computeMostImprovedBrand_(cur,m,prevM);
+    if(improved){
+      cards.push({icon:'🚀',color:'green',label:'Most Improved Brand',
+        val:improved.brand+' +'+improved.pct.toFixed(1)+'%',
+        sub:'FTD growth vs '+monthNames[prevM]});
+    }
+  }
+
+  if(allBrands){
+    var busiest=computeBusiestBrand_(cur,m);
+    if(busiest){
+      cards.push({icon:'🏆',color:'gold',label:'Busiest Brand',
+        val:busiest.brand,
+        sub:fmtInt(busiest.active)+' active players in '+monthNames[m]});
+    }
+  }
+
+  var momRes=computeMomAlerts_(cur,brand);
+  var critAlerts=momRes.alerts.filter(function(a){ return a.crit; });
+  cards.push({icon:critAlerts.length?'🔴':'✅',color:critAlerts.length?'red':'green',label:'Critical',
+    val:critAlerts.length?(critAlerts.length+' issue'+(critAlerts.length===1?'':'s')):'None',
+    sub:critAlerts.length?(critAlerts[0].metric+' '+critAlerts[0].change):'No critical issues'});
+
+  if(!cards.length){ panel.style.display='none'; return; }
+  panel.style.display='';
+  body.innerHTML=cards.map(function(c){
+    return '<div class="ki-card"><div class="ki-head"><div class="ki-icon c-'+c.color+'">'+c.icon+'</div><div class="ki-lbl">'+c.label+'</div></div>'+
+      '<div class="ki-val c-'+c.color+'">'+c.val+'</div><div class="ki-sub">'+c.sub+'</div></div>';
   }).join('');
 }
 
@@ -2579,7 +2776,7 @@ function renderAll(){
   });
   attachChartZoom_('trend-chart','Overview — Trend',function(){return trendChart;});
 
-  if(onOverview) renderOverviewAlerts_(currentCurrency,currentBrand,currentMonth);
+  if(onOverview){ renderOverviewAlerts_(currentCurrency,currentBrand,currentMonth); renderKeyInsights_(currentCurrency,currentBrand,currentMonth); }
 
   if(!onOverview){
     if(activePageId==='dailyreport') renderDailyReportPage();
@@ -3027,25 +3224,35 @@ function buildMonthReportHtml_(cur,periodKey){
 
   // Trend: daily granularity for a single month, monthly granularity for the full period —
   // same shape either way so the renderer doesn't need to branch on which one it got.
+  // Tracks the operational metrics (signup/FTD/active/FTD amount/deposit/withdraw)
+  // alongside turnover/revenue so the exported report can chart either view.
   var trend;
   if(!isPeriod){
     var days=daysInMonth_(months[0]);
     trend=[];
     for(var d=1; d<=days; d++){
-      var t=0,r=0;
+      var t=0,r=0,su=0,fd=0,ac=0,fa=0,dep=0,wd=0;
       brands.forEach(function(b){
         var row=getMonthRows(cur,b,months[0]).rows[d-1];
-        if(row){ t+=row.turnover; r+=row.revenue; }
+        if(row){
+          t+=row.turnover; r+=row.revenue;
+          su+=row.signup; fd+=row.ftd; ac+=row.active;
+          fa+=(row.ftdAmt||0); dep+=row.deposit; wd+=row.withdraw;
+        }
       });
-      trend.push({label:months[0]+'-'+d,turnover:t,revenue:r});
+      trend.push({label:months[0]+'-'+d,turnover:t,revenue:r,signup:su,ftd:fd,active:ac,ftdAmt:fa,deposit:dep,withdraw:wd});
     }
   } else {
     trend=months.map(function(m){
-      var t=0,r=0;
+      var t=0,r=0,su=0,fd=0,ac=0,fa=0,dep=0,wd=0;
       brands.forEach(function(b){
-        getMonthRows(cur,b,m).rows.forEach(function(row){ t+=row.turnover; r+=row.revenue; });
+        getMonthRows(cur,b,m).rows.forEach(function(row){
+          t+=row.turnover; r+=row.revenue;
+          su+=row.signup; fd+=row.ftd; ac+=row.active;
+          fa+=(row.ftdAmt||0); dep+=row.deposit; wd+=row.withdraw;
+        });
       });
-      return {label:monthNames[m],turnover:t,revenue:r};
+      return {label:monthNames[m],turnover:t,revenue:r,signup:su,ftd:fd,active:ac,ftdAmt:fa,deposit:dep,withdraw:wd};
     });
   }
 
@@ -3067,92 +3274,134 @@ function buildMonthReportHtml_(cur,periodKey){
     turnoverPct:pct_(overview.turnover,prevOverview.turnover),
     revenuePct:pct_(overview.revenue,prevOverview.revenue),
     signupPct:pct_(overview.signup,prevOverview.signup),
-    ftdPct:pct_(overview.ftd,prevOverview.ftd)
+    ftdPct:pct_(overview.ftd,prevOverview.ftd),
+    activePct:pct_(overview.active,prevOverview.active),
+    ftdAmtPct:pct_(overview.ftdAmt,prevOverview.ftdAmt),
+    depositPct:pct_(overview.deposit,prevOverview.deposit),
+    withdrawPct:pct_(overview.withdraw,prevOverview.withdraw)
   } : null;
 
   var brandRanking=brandAggs.slice().sort(function(a,b){return b.turnover-a.turnover;}).map(function(a){
     var prev=prevByBrand[a.brand];
     return {
-      brand:a.brand, signup:a.signup, ftd:a.ftd, active:a.active,
+      brand:a.brand, signup:a.signup, ftd:a.ftd, active:a.active, ftdAmt:a.ftdAmt,
       turnover:a.turnover, deposit:a.deposit, withdraw:a.withdraw, promotion:a.promo, revenue:a.revenue,
       turnoverUsd:a.turnoverUsd, revenueUsd:a.revenueUsd,
+      signupMomPct: prev?pct_(a.signup,prev.signup):null,
+      ftdMomPct: prev?pct_(a.ftd,prev.ftd):null,
+      activeMomPct: prev?pct_(a.active,prev.active):null,
+      ftdAmtMomPct: prev?pct_(a.ftdAmt,prev.ftdAmt):null,
       turnoverMomPct: prev?pct_(a.turnover,prev.turnover):null,
+      depositMomPct: prev?pct_(a.deposit,prev.deposit):null,
+      withdrawMomPct: prev?pct_(a.withdraw,prev.withdraw):null,
       revenueMomPct: prev?pct_(a.revenue,prev.revenue):null,
       live:a.liveMonths===a.totalMonths, partialLive:a.liveMonths>0&&a.liveMonths<a.totalMonths,
       liveMonths:a.liveMonths, totalMonths:a.totalMonths
     };
   });
 
-  // Top days only make sense at daily granularity (single-month exports)
-  var topDays=[];
+  // Peak day per priority metric (signup/FTD/active/FTD amount/deposit/withdraw) —
+  // daily granularity only (single-month exports). Reuses the already-computed
+  // `trend` array instead of re-reading the Sheet a second time.
+  var peakDays=[];
   if(!isPeriod){
-    var dayTotals=[];
-    var days2=daysInMonth_(months[0]);
-    for(var d2=1; d2<=days2; d2++){
-      var rv=0;
-      brands.forEach(function(b){
-        var row=getMonthRows(cur,b,months[0]).rows[d2-1];
-        if(row) rv+=row.revenue;
-      });
-      dayTotals.push({date:months[0]+'-'+d2,revenue:rv});
-    }
-    topDays=dayTotals.slice().sort(function(a,b){return b.revenue-a.revenue;}).slice(0,3);
+    var peakMetricDefs=[
+      {key:'signup', label:'Signup', kind:'count'},
+      {key:'ftd', label:'FTD', kind:'count'},
+      {key:'active', label:'Active Player', kind:'count'},
+      {key:'ftdAmt', label:'FTD Amount', kind:'money'},
+      {key:'deposit', label:'Deposit', kind:'money'},
+      {key:'withdraw', label:'Withdraw', kind:'money'}
+    ];
+    peakDays=peakMetricDefs.map(function(m){
+      var top=trend.slice().sort(function(a,b){ return b[m.key]-a[m.key]; })[0];
+      return {metric:m.label, key:m.key, kind:m.kind, date:top.label, value:top[m.key]};
+    });
   }
 
   // ---- Key Takeaways, built from declarative rank/threshold/custom rules ----
+  // Centered on the six metrics that actually drive decisions here — signup,
+  // FTD, active player, FTD amount, deposit, withdraw — rather than turnover,
+  // which still shows up in the KPI grid and brand table but isn't the story.
   var takeawayRules=[];
 
   if(mom){
     takeawayRules.push({
-      compute:function(){ return {pct:mom.turnoverPct}; },
+      compute:function(){ return {pct:mom.signupPct}; },
       test:function(c){ return c.pct!=null; },
-      en:function(c){ return 'Turnover '+(c.pct>=0?'increased':'decreased')+' by '+Math.abs(c.pct).toFixed(2)+'% vs '+prevPeriodLabel+' ('+expMoney_(overview.turnover,cur)+' vs '+expMoney_(prevOverview.turnover,cur)+').'; }
-    });
-    takeawayRules.push({
-      compute:function(){ return {pct:mom.revenuePct}; },
-      test:function(c){ return c.pct!=null; },
-      en:function(c){ return 'Revenue '+(c.pct>=0?'increased':'decreased')+' by '+Math.abs(c.pct).toFixed(2)+'% vs '+prevPeriodLabel+' ('+expMoney_(overview.revenue,cur)+' vs '+expMoney_(prevOverview.revenue,cur)+').'; }
+      en:function(c){ return 'Signups '+(c.pct>=0?'grew':'declined')+' by '+Math.abs(c.pct).toFixed(2)+'% vs '+prevPeriodLabel+' ('+fmtInt(overview.signup)+' vs '+fmtInt(prevOverview.signup)+').'; }
     });
     takeawayRules.push({
       compute:function(){ return {pct:mom.ftdPct}; },
       test:function(c){ return c.pct!=null; },
-      en:function(c){ return 'FTD count '+(c.pct>=0?'grew':'declined')+' by '+Math.abs(c.pct).toFixed(2)+'% vs '+prevPeriodLabel+'.'; }
+      en:function(c){ return 'FTD count '+(c.pct>=0?'grew':'declined')+' by '+Math.abs(c.pct).toFixed(2)+'% vs '+prevPeriodLabel+' ('+fmtInt(overview.ftd)+' vs '+fmtInt(prevOverview.ftd)+').'; }
+    });
+    takeawayRules.push({
+      compute:function(){ return {pct:mom.activePct}; },
+      test:function(c){ return c.pct!=null; },
+      en:function(c){ return 'Active players '+(c.pct>=0?'grew':'declined')+' by '+Math.abs(c.pct).toFixed(2)+'% vs '+prevPeriodLabel+' ('+fmtInt(overview.active)+' vs '+fmtInt(prevOverview.active)+').'; }
+    });
+    takeawayRules.push({
+      compute:function(){ return {pct:mom.ftdAmtPct}; },
+      test:function(c){ return c.pct!=null; },
+      en:function(c){ return 'FTD amount '+(c.pct>=0?'increased':'decreased')+' by '+Math.abs(c.pct).toFixed(2)+'% vs '+prevPeriodLabel+' ('+expMoney_(overview.ftdAmt,cur)+' vs '+expMoney_(prevOverview.ftdAmt,cur)+').'; }
+    });
+    takeawayRules.push({
+      compute:function(){ return {pct:mom.depositPct}; },
+      test:function(c){ return c.pct!=null; },
+      en:function(c){ return 'Deposits '+(c.pct>=0?'increased':'decreased')+' by '+Math.abs(c.pct).toFixed(2)+'% vs '+prevPeriodLabel+' ('+expMoney_(overview.deposit,cur)+' vs '+expMoney_(prevOverview.deposit,cur)+').'; }
+    });
+    // Withdraw is framed the other way round: an increase is a cost, not a win.
+    takeawayRules.push({
+      compute:function(){ return {pct:mom.withdrawPct}; },
+      test:function(c){ return c.pct!=null; },
+      en:function(c){ return 'Withdrawals '+(c.pct>=0?('rose by '+c.pct.toFixed(2)+'% — more money paid out'):('fell by '+Math.abs(c.pct).toFixed(2)+'% — less money paid out'))+' vs '+prevPeriodLabel+' ('+expMoney_(overview.withdraw,cur)+' vs '+expMoney_(prevOverview.withdraw,cur)+').'; }
     });
 
-    // Turnover leader — rank rule (brandRanking is already sorted desc by turnover,
-    // but we still go through the rank rule so "leader" is derived, not assumed).
+    // FTD leader — rank rule (the metric that matters most for conversion).
+    var ftdLeaderBrand_=brandRanking.length ? brandRanking.slice().sort(function(a,b){return b.ftd-a.ftd;})[0].brand : null;
     if(brandRanking.length){
       takeawayRules.push(buildRankRule_({
         list: function(){ return brandRanking; },
-        keyFn: function(b){ return b.turnover; },
-        isTarget: function(b){ return b.brand===brandRanking[0].brand; },
+        keyFn: function(b){ return b.ftd; },
+        isTarget: function(b){ return b.brand===ftdLeaderBrand_; },
         sortDir: 'desc',
-        en: function(c){ return c.item.brand+' led all '+cur+' brands in turnover this period.'; }
+        en: function(c){ return c.item.brand+' led all '+cur+' brands in FTDs this period.'; }
       }));
     }
 
-    // NEW — FTD leader, only called out when it differs from the turnover
-    // leader (otherwise it's a repeat of the line above and just noise).
+    // Signup leader, only called out when it differs from the FTD leader —
+    // otherwise it's a repeat of the line above and just noise.
     if(brandRanking.length>1){
-      var ftdLeaderBrand=brandRanking.slice().sort(function(a,b){return b.ftd-a.ftd;})[0].brand;
+      var signupLeaderBrand_=brandRanking.slice().sort(function(a,b){return b.signup-a.signup;})[0].brand;
       takeawayRules.push(buildRankRule_({
         list: function(){ return brandRanking; },
-        keyFn: function(b){ return b.ftd; },
-        isTarget: function(b){ return b.brand===ftdLeaderBrand; },
+        keyFn: function(b){ return b.signup; },
+        isTarget: function(b){ return b.brand===signupLeaderBrand_; },
         sortDir: 'desc',
-        test: function(c){ return c.found && c.item.brand!==brandRanking[0].brand; },
-        en: function(c){ return c.item.brand+' brought in the most new FTDs ('+fmtInt(c.item.ftd)+') this period — even though it wasn\'t the turnover leader.'; }
+        test: function(c){ return c.found && c.item.brand!==ftdLeaderBrand_; },
+        en: function(c){ return c.item.brand+' brought in the most signups ('+fmtInt(c.item.signup)+') this period — even though it wasn\'t the FTD leader.'; }
       }));
     }
 
-    // NEW — flag any brand whose turnover fell sharply vs the prior period,
-    // worst offender first (threshold-style: only surfaces when it's actually bad).
-    var laggards=brandRanking.filter(function(b){ return b.turnoverMomPct!=null && b.turnoverMomPct<=-20; })
-                              .sort(function(a,b){ return a.turnoverMomPct-b.turnoverMomPct; });
-    if(laggards.length){
+    // Flag any brand whose withdraw amount spiked vs the prior period — the
+    // withdraw-side equivalent of a red flag, worst offender first.
+    var withdrawSpikes=brandRanking.filter(function(b){ return b.withdrawMomPct!=null && b.withdrawMomPct>=20; })
+                                    .sort(function(a,b){ return b.withdrawMomPct-a.withdrawMomPct; });
+    if(withdrawSpikes.length){
       takeawayRules.push({
-        compute:function(){ return {b:laggards[0]}; },
-        en:function(c){ return '⚠️ '+c.b.brand+'\'s turnover dropped '+Math.abs(c.b.turnoverMomPct).toFixed(2)+'% vs '+prevPeriodLabel+' — worth a closer look.'; }
+        compute:function(){ return {b:withdrawSpikes[0]}; },
+        en:function(c){ return '⚠️ '+c.b.brand+'\'s withdrawals rose '+c.b.withdrawMomPct.toFixed(2)+'% vs '+prevPeriodLabel+' — worth a closer look.'; }
+      });
+    }
+
+    // Flag any brand whose deposits dropped sharply vs the prior period.
+    var depositDrops=brandRanking.filter(function(b){ return b.depositMomPct!=null && b.depositMomPct<=-20; })
+                                  .sort(function(a,b){ return a.depositMomPct-b.depositMomPct; });
+    if(depositDrops.length){
+      takeawayRules.push({
+        compute:function(){ return {b:depositDrops[0]}; },
+        en:function(c){ return '⚠️ '+c.b.brand+'\'s deposits dropped '+Math.abs(c.b.depositMomPct).toFixed(2)+'% vs '+prevPeriodLabel+' — worth a closer look.'; }
       });
     }
   } else {
@@ -3191,7 +3440,7 @@ function buildMonthReportHtml_(cur,periodKey){
     isPeriod:isPeriod,
     brandRanking:brandRanking,
     trend:trend,
-    topDays:topDays,
+    peakDays:peakDays,
     mom:mom,
     prevPeriodLabel:prevPeriodLabel,
     takeaways:takeaways
@@ -3202,10 +3451,13 @@ function buildMonthReportHtml_(cur,periodKey){
   return '<!DOCTYPE html><html><head><meta charset="utf-8">'+
     '<title>'+cur+' · '+DATA_OBJ.meta.periodLabel+' Report</title>'+
     '<meta name="viewport" content="width=device-width, initial-scale=1">'+
+    '<link rel="preconnect" href="https://fonts.googleapis.com">'+
+    '<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">'+
     '<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"><\/script>'+
     '<style>'+REPORT_STYLE_CSS+'</style>'+
     '</head><body>'+
-    '<div id="app"></div>'+
+    '<div class="topbar"><div class="brand"><span class="dot"></span> Report</div></div>'+
+    '<div class="layout"><aside class="sidebar" id="sidebar"></aside><main class="main" id="main"></main></div>'+
     '<script id="report-data" type="application/json">'+dataJson+'<\/script>'+
     '<script>'+REPORT_ENGINE_JS+'<\/script>'+
     '</body></html>';
@@ -3242,70 +3494,15 @@ function exportMonthReport(){
 
 // Minimal self-contained styling for the exported report — deliberately not
 // pulling in the full dashboard stylesheet, just enough to look clean standalone.
-var REPORT_STYLE_CSS=
-  ':root{--bg:#0a0e1a;--panel:#111827;--card:#161d30;--border:#1e2740;--text:#e2e8f0;--muted:#8492a8;--gold:#facc15;--green:#00e676;--red:#ff4081;--teal:#00b0ff}'+
-  '*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,Segoe UI,Roboto,sans-serif}'+
-  '#app{max-width:1100px;margin:0 auto;padding:28px 20px 60px}'+
-  '.rp-hd{margin-bottom:22px}.rp-hd h1{font-size:20px;margin:0 0 4px}.rp-hd .sub{color:var(--muted);font-size:12px}'+
-  '.rp-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:22px}'+
-  '.rp-kpi{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px}'+
-  '.rp-kpi .lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700}'+
-  '.rp-kpi .val{font-size:19px;font-weight:800;margin-top:6px}'+
-  '.rp-kpi .mom{font-size:10px;margin-top:4px;font-weight:700}.rp-kpi .mom.up{color:var(--green)}.rp-kpi .mom.dn{color:var(--red)}'+
-  '.rp-panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:20px}'+
-  '.rp-panel h2{font-size:13px;margin:0 0 14px}'+
-  'table{width:100%;border-collapse:collapse;font-size:11px}th{text-align:left;color:var(--muted);text-transform:uppercase;font-size:9px;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;user-select:none}'+
-  'td{padding:8px 10px;border-bottom:1px solid var(--border)}tr:last-child td{border-bottom:none}'+
-  '.badge{font-size:8px;font-weight:800;padding:2px 6px;border-radius:4px;letter-spacing:.04em}'+
-  '.badge.live{background:rgba(0,230,118,.14);color:var(--green)}.badge.nodata{background:rgba(255,64,129,.14);color:var(--red)}'+
-  '.pos{color:var(--green)}.neg{color:var(--red)}'+
-  '.rp-list{list-style:none;padding:0;margin:0}.rp-list li{padding:10px 0;border-bottom:1px solid var(--border);font-size:12px;line-height:1.6}.rp-list li:last-child{border-bottom:none}'+
-  '.rp-foot{color:var(--muted);font-size:10px;margin-top:30px;text-align:center}';
+// Styling for the exported report — matches the reference design system
+// (dark theme, IBM Plex Sans/Mono, teal/amber/red/blue accents, sidebar +
+// main layout) provided as a style reference.
+var REPORT_STYLE_CSS=":root{\n  --bg:#0a0e14;--panel:#131a24;--panel-2:#0d1219;--border:#212b38;--border-soft:#1a222d;\n  --text:#e8edf4;--text-dim:#93a1b3;--text-faint:#5c6b80;\n  --teal:#2bd4ac;--teal-dim:rgba(43,212,172,.13);\n  --amber:#f5a83c;--amber-dim:rgba(245,168,60,.14);\n  --red:#f2596f;--red-dim:rgba(242,89,111,.14);\n  --blue:#6f93ff;--blue-dim:rgba(111,147,255,.13);\n  --radius:10px;--sidebar-w:340px;\n  --font-display:'IBM Plex Sans',system-ui,sans-serif;\n  --font-mono:'IBM Plex Mono',ui-monospace,monospace;\n}\n*{box-sizing:border-box}\nhtml,body{margin:0;padding:0}\nbody{background:var(--bg);color:var(--text);font-family:var(--font-display);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}\n::-webkit-scrollbar{width:10px;height:10px}\n::-webkit-scrollbar-track{background:transparent}\n::-webkit-scrollbar-thumb{background:#26313f;border-radius:8px}\n\n/* topbar */\n.topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:16px;padding:12px 24px;background:linear-gradient(180deg,#0d1320 0%,#0a0e14 100%);border-bottom:1px solid var(--border)}\n.topbar .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px;letter-spacing:.2px;white-space:nowrap}\n.brand .dot{width:9px;height:9px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 3px var(--teal-dim);flex-shrink:0}\n.brand .sub{color:var(--text-faint);font-weight:500;font-size:12px}\n\n/* layout */\n.layout{display:flex;align-items:flex-start;max-width:1600px;margin:0 auto}\n.sidebar{width:var(--sidebar-w);flex-shrink:0;position:sticky;top:57px;height:calc(100vh - 57px);overflow-y:auto;padding:20px 16px 60px 24px;border-right:1px solid var(--border)}\n.main{flex:1;min-width:0;padding:24px 28px 100px 28px}\n@media (max-width:980px){\n  .layout{flex-direction:column}\n  .sidebar{width:100%;position:relative;top:0;height:auto;border-right:none;border-bottom:1px solid var(--border)}\n}\n\n/* cards */\n.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px}\n.card-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--text-faint);font-weight:600;margin:0 0 10px 0;display:flex;align-items:center;gap:8px}\n.card-title .line{flex:1;height:1px;background:var(--border-soft)}\n.eyebrow-badge{font-family:var(--font-mono);font-size:10px;padding:2px 6px;border-radius:4px;background:var(--teal-dim);color:var(--teal);font-weight:600}\n.exec-title{font-size:19px;font-weight:700;margin:2px 0 4px 0;letter-spacing:-.01em}\n.exec-sub{color:var(--text-dim);font-size:12.5px;margin-bottom:16px}\n.exec-para{color:var(--text-dim);font-size:13px;line-height:1.65}\n.exec-para strong{color:var(--text);font-weight:600}\n\n.obstacle-item{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border-soft);font-size:12.5px;color:var(--text-dim)}\n.obstacle-item:last-child{border-bottom:none}\n.tag-resolved{flex-shrink:0;font-family:var(--font-mono);font-size:9.5px;font-weight:600;padding:2px 6px;border-radius:4px;background:var(--teal-dim);color:var(--teal);text-transform:uppercase;letter-spacing:.04em;margin-top:1px}\n.tag-resolved.nodata{background:var(--red-dim);color:var(--red)}\n\n/* nav insight cards */\n.nav-section-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--text-faint);font-weight:600;margin:22px 0 10px 2px}\n.insight-card{border:1px solid var(--border);border-radius:var(--radius);padding:13px 14px;margin-bottom:10px;cursor:pointer;background:var(--panel);transition:border-color .15s,background .15s}\n.insight-card:hover{border-color:var(--blue);background:var(--bg-raised,var(--panel-2))}\n.insight-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}\n.insight-title{font-size:13.5px;font-weight:600}\n.insight-arrow{color:var(--text-faint);font-size:13px;transition:transform .15s}\n.insight-card:hover .insight-arrow{transform:translateX(3px);color:var(--blue)}\n.insight-body{font-size:12px;color:var(--text-dim);line-height:1.55}\n.insight-stat-row{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}\n.mini-stat{font-family:var(--font-mono);font-size:11px;padding:4px 8px;border-radius:6px;background:var(--panel-2);border:1px solid var(--border-soft);color:var(--text-dim)}\n.mini-stat b{color:var(--text);font-weight:600}\n.mini-stat.warn{background:var(--amber-dim);color:var(--amber);border-color:transparent}\n.mini-stat.warn b{color:var(--amber)}\n.mini-stat.crit{background:var(--red-dim);color:var(--red);border-color:transparent}\n.mini-stat.crit b{color:var(--red)}\n.mini-stat.good{background:var(--teal-dim);color:var(--teal);border-color:transparent}\n.mini-stat.good b{color:var(--teal)}\n\n/* section headers */\n.section{margin-bottom:38px;scroll-margin-top:72px}\n.section-head{display:flex;align-items:baseline;gap:12px;margin-bottom:14px;flex-wrap:wrap}\n.section-eyebrow{font-family:var(--font-mono);font-size:11px;color:var(--blue);font-weight:600}\n.section-title{font-size:22px;font-weight:700;letter-spacing:-.01em}\n.section-desc{color:var(--text-dim);font-size:13px;margin:-6px 0 18px 0;max-width:760px}\n\n/* stat cards */\n.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px}\n.stat-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:13px 15px;min-width:0;overflow:hidden}\n.stat-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-faint);font-weight:600;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\n.stat-value{font-family:var(--font-mono);font-size:18px;font-weight:600;overflow-wrap:anywhere;line-height:1.25}\n.stat-value.teal{color:var(--teal)}.stat-value.amber{color:var(--amber)}.stat-value.red{color:var(--red)}.stat-value.blue{color:var(--blue)}\n.stat-foot{margin-top:8px}\n\n/* chart container */\n.chart-wrap{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px;height:280px;margin-bottom:18px;position:relative}\n.chart-wrap canvas{width:100% !important;height:100% !important}\n\n/* table */\n.table-wrap{border:1px solid var(--border);border-radius:var(--radius);overflow:auto;background:var(--panel-2);margin-bottom:18px}\ntable.data-table{width:100%;border-collapse:collapse;font-size:12.5px}\ntable.data-table thead th{position:sticky;top:0;background:var(--panel-2);text-align:left;padding:9px 12px;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint);border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none}\ntable.data-table thead th:hover{color:var(--text)}\ntable.data-table thead th .arrow{margin-left:4px;opacity:.5;font-size:9px}\ntable.data-table tbody td{padding:7px 12px;border-bottom:1px solid var(--border-soft);white-space:nowrap;font-family:var(--font-mono);color:var(--text-dim)}\ntable.data-table tbody td.name-cell{font-family:var(--font-display);color:var(--text);font-weight:500}\ntable.data-table tbody tr:last-child td{border-bottom:none}\ntable.data-table tbody tr:hover td{background:var(--panel)}\n.pill{display:inline-block;padding:2px 7px;border-radius:5px;font-size:11px;font-weight:600;font-family:var(--font-mono)}\n.pill.good{background:var(--teal-dim);color:var(--teal)}\n.pill.warn{background:var(--amber-dim);color:var(--amber)}\n.pill.bad{background:var(--red-dim);color:var(--red)}\n\n/* callouts */\n.callout-box{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px 15px}\n.callout-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}\n.callout-list li{display:flex;align-items:flex-start;gap:10px;font-size:12.5px;color:var(--text-dim);line-height:1.6}\n.change-num{flex-shrink:0;width:18px;height:18px;margin-top:1px;border-radius:5px;background:var(--panel-2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:10px;color:var(--text-faint);font-weight:600}\n\n.pos{color:var(--teal)}.neg{color:var(--red)}\n.delta-inline{font-family:var(--font-mono);font-size:10.5px;font-weight:600;margin-left:6px;white-space:nowrap}\n\n.legend-note{display:flex;align-items:flex-start;gap:8px;font-size:11.5px;color:var(--text-faint);background:var(--panel-2);border:1px solid var(--border-soft);border-radius:8px;padding:9px 12px;margin-bottom:14px;line-height:1.55}\n.legend-note b{color:var(--text-dim)}\n\n.footer-note{text-align:center;color:var(--text-faint);font-size:11.5px;padding:30px 0 10px}\n";
 
-// Rendering engine for the exported file — reads DATA back out of the embedded
-// JSON and draws everything itself. No network calls, no dependency on this
-// dashboard or on Google Sheets being reachable.
-var REPORT_ENGINE_JS=[
-'var DATA = JSON.parse(document.getElementById("report-data").textContent);',
-'function fmt(n){ return (n||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}); }',
-'function fmtInt(n){ return Math.round(n||0).toLocaleString("en-US"); }',
-'function money(n){ return DATA.meta.curSymbol + " " + fmt(n); }',
-'function momSpan(p){ if(p==null) return ""; var cls = p>=0?"up":"dn"; var sign = p>=0?"+":""; return \'<span class="mom \'+cls+\'">\'+sign+p.toFixed(2)+\'% vs \'+DATA.prevPeriodLabel+\'</span>\'; }',
-'function kpi(lbl,val,momPct){ return \'<div class="rp-kpi"><div class="lbl">\'+lbl+\'</div><div class="val">\'+val+\'</div>\'+(momPct!=null?\'<div class="mom \'+(momPct>=0?"up":"dn")+\'">\'+(momPct>=0?"+":"")+momPct.toFixed(2)+"% vs "+DATA.prevPeriodLabel+\'</div>\':\'\')+\'</div>\'; }',
-'var app=document.getElementById("app");',
-'var html="";',
-'html+=\'<div class="rp-hd"><h1>\'+DATA.meta.currency+\' — \'+DATA.meta.periodLabel+\' Report</h1><div class="sub">Generated \'+new Date(DATA.meta.generatedAt).toLocaleString()+\'</div></div>\';',
-'var o=DATA.overview, m=DATA.mom;',
-'html+=\'<div class="rp-kpis">\'+',
-'  kpi("Total Signup", fmtInt(o.signup), m?m.signupPct:null)+',
-'  kpi("Total FTD", fmtInt(o.ftd), m?m.ftdPct:null)+',
-'  kpi("Total Turnover", money(o.turnover), m?m.turnoverPct:null)+',
-'  kpi("Total Deposit", money(o.deposit))+',
-'  kpi("Total Withdraw", money(o.withdraw))+',
-'  kpi("Revenue", money(o.revenue), m?m.revenuePct:null)+',
-'  \'</div>\';',
-'html+=\'<div class="rp-panel"><h2>Turnover &amp; Revenue Trend</h2><canvas id="trendChart" height="90"></canvas></div>\';',
-'var brandRows=DATA.brandRanking.map(function(b){',
-'  var badge = b.live ? \'<span class="badge live">LIVE</span>\' : (b.partialLive ? \'<span class="badge nodata">PARTIAL</span>\' : \'<span class="badge nodata">NO DATA</span>\');',
-'  return \'<tr><td>\'+b.brand+\'</td><td>\'+badge+\'</td><td>\'+fmtInt(b.signup)+\'</td><td>\'+fmtInt(b.ftd)+\'</td><td>\'+money(b.turnover)+\'</td><td>\'+money(b.deposit)+\'</td><td>\'+money(b.withdraw)+\'</td><td>\'+money(b.revenue)+\'</td><td>\'+(b.turnoverMomPct!=null?momSpan(b.turnoverMomPct):"—")+\'</td></tr>\';',
-'}).join("");',
-'html+=\'<div class="rp-panel"><h2>Brand Ranking (by Turnover)</h2><div style="overflow-x:auto"><table><tr><th>Brand</th><th>Source</th><th>Signup</th><th>FTD</th><th>Turnover</th><th>Deposit</th><th>Withdraw</th><th>Revenue</th><th>Turnover MoM</th></tr>\'+brandRows+\'</table></div></div>\';',
-'if(DATA.topDays && DATA.topDays.length){',
-'  var topHtml=DATA.topDays.map(function(d,i){ return \'<li><b>#\'+(i+1)+\'</b> — \'+d.date+\': \'+money(d.revenue)+\' revenue</li>\'; }).join("");',
-'  html+=\'<div class="rp-panel"><h2>Top 3 Peak Days (by Revenue)</h2><ul class="rp-list">\'+topHtml+\'</ul></div>\';',
-'}',
-'html+=\'<div class="rp-panel"><h2>Key Takeaways</h2><ul class="rp-list">\'+DATA.takeaways.map(function(t){ return "<li>"+t+"</li>"; }).join("")+\'</ul></div>\';',
-'html+=\'<div class="rp-foot">This is a standalone snapshot — it will not update. Re-export from the dashboard for current numbers.</div>\';',
-'app.innerHTML=html;',
-'new Chart(document.getElementById("trendChart").getContext("2d"),{',
-'  type: DATA.isPeriod ? "bar" : "line",',
-'  data:{ labels: DATA.trend.map(function(t){return t.label;}), datasets:[',
-'    {label:"Turnover", data: DATA.trend.map(function(t){return t.turnover;}), borderColor:"#facc15", backgroundColor: DATA.isPeriod?"#facc15":"rgba(250,204,21,.12)", fill:!DATA.isPeriod, tension:.3, pointRadius:0, borderWidth:2},',
-'    {label:"Revenue", data: DATA.trend.map(function(t){return t.revenue;}), borderColor:"#00e676", backgroundColor: DATA.isPeriod?"#00e676":"rgba(0,230,118,.12)", fill:!DATA.isPeriod, tension:.3, pointRadius:0, borderWidth:2}',
-'  ]},',
-'  options:{responsive:true, plugins:{legend:{labels:{color:"#8492a8"}}}, scales:{x:{ticks:{color:"#8492a8",maxTicksLimit:12},grid:{display:false}},y:{ticks:{color:"#8492a8"},grid:{color:"rgba(255,255,255,.05)"}}}}',
-'});'
-].join('\n');
+// Rendering engine for the exported file — reads DATA back out of the
+// embedded JSON and draws everything itself. No network calls, no
+// dependency on this dashboard or on Google Sheets being reachable.
+var REPORT_ENGINE_JS="var DATA = JSON.parse(document.getElementById(\"report-data\").textContent);\nvar charts = {};\n\nfunction esc(s){ return String(s===undefined||s===null?\"\":s).replace(/[&<>\"']/g, function(c){ return {\"&\":\"&amp;\",\"<\":\"&lt;\",\">\":\"&gt;\",'\"':\"&quot;\",\"'\":\"&#39;\"}[c]; }); }\nfunction fmt(n){ return (n||0).toLocaleString(\"en-US\",{minimumFractionDigits:2,maximumFractionDigits:2}); }\nfunction fmtInt(n){ return Math.round(n||0).toLocaleString(\"en-US\"); }\nfunction money(n){ return DATA.meta.curSymbol + \" \" + fmt(n); }\nfunction dashOr(v){ return (v===null||v===undefined) ? \"\\u2014\" : v; }\n\n// Small colored delta chip \u2014 reused under stat cards and inside prose.\nfunction pctChip(p){\n  if(p==null) return '<span class=\"mini-stat\">no prior period</span>';\n  var cls = p>=0 ? \"good\" : \"crit\";\n  var arrow = p>=0 ? \"\\u25b2\" : \"\\u25bc\";\n  return '<span class=\"mini-stat '+cls+'\"><b>'+arrow+' '+Math.abs(p).toFixed(2)+'%</b> vs '+esc(DATA.prevPeriodLabel)+'</span>';\n}\n\nfunction statCard(lbl,val,colorClass,momPct){\n  return '<div class=\"stat-card\"><div class=\"stat-label\">'+esc(lbl)+'</div><div class=\"stat-value'+(colorClass?(\" \"+colorClass):\"\")+'\">'+val+'</div>'+\n    (momPct!==undefined ? ('<div class=\"stat-foot\">'+pctChip(momPct)+'</div>') : '') +\n    '</div>';\n}\n\nfunction jumpTo(sectionId){\n  var el = document.getElementById(sectionId);\n  if(el) el.scrollIntoView({behavior:\"smooth\", block:\"start\"});\n}\n\n/* ---------------- Executive summary paragraph ---------------- */\nfunction execParaHtml_(){\n  var o=DATA.overview, m=DATA.mom, br=DATA.brandRanking, cur=DATA.meta.currency;\n  var parts=[];\n  parts.push('In '+esc(DATA.meta.periodLabel)+', <strong>'+cur+'</strong> brands recorded <strong>'+fmtInt(o.signup)+'</strong> signups and <strong>'+fmtInt(o.ftd)+'</strong> FTDs across <strong>'+br.length+'</strong> brand'+(br.length===1?'':'s')+', with <strong>'+fmtInt(o.active)+'</strong> active players.');\n  if(m){\n    parts.push('Signups were '+(m.signupPct>=0?'up':'down')+' <strong>'+Math.abs(m.signupPct).toFixed(2)+'%</strong> and FTDs were '+(m.ftdPct>=0?'up':'down')+' <strong>'+Math.abs(m.ftdPct).toFixed(2)+'%</strong> vs '+esc(DATA.prevPeriodLabel)+'.');\n    parts.push('FTD amount reached <strong>'+money(o.ftdAmt)+'</strong> ('+(m.ftdAmtPct>=0?'up':'down')+' '+Math.abs(m.ftdAmtPct).toFixed(2)+'%), deposits reached <strong>'+money(o.deposit)+'</strong> ('+(m.depositPct>=0?'up':'down')+' '+Math.abs(m.depositPct).toFixed(2)+'%), and withdrawals reached <strong>'+money(o.withdraw)+'</strong> ('+(m.withdrawPct>=0?'up':'down')+' '+Math.abs(m.withdrawPct).toFixed(2)+'%'+(m.withdrawPct>=0?' \\u2014 more paid out':'')+').');\n  } else {\n    parts.push('FTD amount reached <strong>'+money(o.ftdAmt)+'</strong>, deposits reached <strong>'+money(o.deposit)+'</strong>, and withdrawals reached <strong>'+money(o.withdraw)+'</strong>. This is the earliest period with data on file \\u2014 no prior-period comparison yet.');\n  }\n  if(br.length){\n    var ftdLeader=br.slice().sort(function(a,b){return b.ftd-a.ftd;})[0];\n    parts.push('<strong>'+esc(ftdLeader.brand)+'</strong> led all brands in FTDs this period (turnover across all brands: '+money(o.turnover)+').');\n  }\n  var unconnected = br.filter(function(b){ return !b.live; });\n  if(unconnected.length){\n    parts.push('\\u26a0\\ufe0f <strong>'+unconnected.length+'</strong> of '+br.length+' brand(s) \\u2014 '+unconnected.map(function(b){return esc(b.brand);}).join(', ')+' \\u2014 have no data connected yet.');\n  }\n  parts.push('Full breakdown is laid out to the right; click any card below to jump straight to the data.');\n  return parts.join(' ');\n}\n\n/* ---------------- Sidebar ---------------- */\nfunction renderSidebar(){\n  var sb = document.getElementById(\"sidebar\");\n  var o=DATA.overview, m=DATA.mom, br=DATA.brandRanking;\n  var liveCount = br.filter(function(b){return b.live;}).length;\n\n  var brandRows = br.map(function(b){\n    var tagClass = b.live ? \"\" : \" nodata\";\n    var tagLabel = b.live ? \"LIVE\" : (b.partialLive ? \"PARTIAL\" : \"NO DATA\");\n    return '<div class=\"obstacle-item\"><span class=\"tag-resolved'+tagClass+'\">'+tagLabel+'</span><span><b>'+esc(b.brand)+':</b> '+fmtInt(b.signup)+' signups \\u00b7 '+fmtInt(b.ftd)+' FTDs</span></div>';\n  }).join(\"\");\n\n  var html = ''+\n    '<div class=\"card\">'+\n      '<div class=\"eyebrow-badge\">'+esc(DATA.meta.periodLabel.toUpperCase())+' \\u00b7 '+DATA.meta.currency+' REPORT</div>'+\n      '<div class=\"exec-title\">Executive Summary</div>'+\n      '<div class=\"exec-sub\">Signup, FTD, active player, FTD amount, deposit &amp; withdraw in one view</div>'+\n      '<div class=\"exec-para\">'+execParaHtml_()+'</div>'+\n    '</div>'+\n    '<div class=\"card\">'+\n      '<div class=\"card-title\">Brands ('+liveCount+'/'+br.length+' live)<span class=\"line\"></span></div>'+\n      brandRows+\n    '</div>'+\n    '<div class=\"nav-section-title\">Report sections \\u2014 click to explore</div>'+\n    '<div class=\"insight-card\" onclick=\"jumpTo(\\'overview\\')\">'+\n      '<div class=\"insight-head\"><span class=\"insight-title\">1 \\u00b7 Overview</span><span class=\"insight-arrow\">\\u2192</span></div>'+\n      '<div class=\"insight-body\">Signup, FTD, active player, FTD amount, deposit and withdraw totals for the period.</div>'+\n      '<div class=\"insight-stat-row\">'+\n        '<span class=\"mini-stat\"><b>'+fmtInt(o.signup)+'</b> signups</span>'+\n        '<span class=\"mini-stat good\"><b>'+fmtInt(o.ftd)+'</b> FTDs</span>'+\n      '</div>'+\n    '</div>'+\n    '<div class=\"insight-card\" onclick=\"jumpTo(\\'trend\\')\">'+\n      '<div class=\"insight-head\"><span class=\"insight-title\">2 \\u00b7 Player &amp; Payment Trend</span><span class=\"insight-arrow\">\\u2192</span></div>'+\n      '<div class=\"insight-body\">'+(DATA.isPeriod ? 'Month-by-month' : 'Day-by-day')+' signup, FTD, active player, FTD amount, deposit and withdraw movement.</div>'+\n    '</div>'+\n    '<div class=\"insight-card\" onclick=\"jumpTo(\\'ranking\\')\">'+\n      '<div class=\"insight-head\"><span class=\"insight-title\">3 \\u00b7 Brand Ranking</span><span class=\"insight-arrow\">\\u2192</span></div>'+\n      '<div class=\"insight-body\">All brands ranked by turnover, with connection status and month-over-month change.</div>'+\n      '<div class=\"insight-stat-row\">'+\n        '<span class=\"mini-stat '+(liveCount===br.length?'good':'warn')+'\"><b>'+liveCount+'/'+br.length+'</b> connected</span>'+\n      '</div>'+\n    '</div>'+\n    (DATA.peakDays && DATA.peakDays.length ? (\n    '<div class=\"insight-card\" onclick=\"jumpTo(\\'peakdays\\')\">'+\n      '<div class=\"insight-head\"><span class=\"insight-title\">4 \\u00b7 Peak Days</span><span class=\"insight-arrow\">\\u2192</span></div>'+\n      '<div class=\"insight-body\">The best day this period for each of the six priority metrics.</div>'+\n    '</div>') : '')+\n    '<div class=\"insight-card\" onclick=\"jumpTo(\\'takeaways\\')\">'+\n      '<div class=\"insight-head\"><span class=\"insight-title\">'+(DATA.peakDays && DATA.peakDays.length ? '5':'4')+' \\u00b7 Key Takeaways</span><span class=\"insight-arrow\">\\u2192</span></div>'+\n      '<div class=\"insight-body\">Auto-generated observations \\u2014 signup, FTD, active player, FTD amount, deposit and withdraw trends.</div>'+\n      '<div class=\"insight-stat-row\"><span class=\"mini-stat\"><b>'+DATA.takeaways.length+'</b> takeaways</span></div>'+\n    '</div>';\n\n  sb.innerHTML = html;\n}\n\n/* ---------------- Main sections ---------------- */\nfunction renderOverview(){\n  var o=DATA.overview, m=DATA.mom;\n  return '<section class=\"section\" id=\"overview\">'+\n    '<div class=\"section-head\"><span class=\"section-eyebrow\">01</span><span class=\"section-title\">Overview</span></div>'+\n    '<div class=\"section-desc\">Headline totals for '+esc(DATA.meta.periodLabel)+', '+DATA.meta.currency+'.</div>'+\n    '<div class=\"stat-grid\">'+\n      statCard(\"Total Signup\", fmtInt(o.signup), null, m?m.signupPct:undefined)+\n      statCard(\"Total FTD\", fmtInt(o.ftd), null, m?m.ftdPct:undefined)+\n      statCard(\"Total Turnover\", money(o.turnover), \"amber\", m?m.turnoverPct:undefined)+\n      statCard(\"Total Deposit\", money(o.deposit), \"blue\")+\n      statCard(\"Total Withdraw\", money(o.withdraw), null)+\n      statCard(\"Revenue\", money(o.revenue), \"teal\", m?m.revenuePct:undefined)+\n    '</div>'+\n  '</section>';\n}\n\nfunction renderTrend(){\n  return '<section class=\"section\" id=\"trend\">'+\n    '<div class=\"section-head\"><span class=\"section-eyebrow\">02</span><span class=\"section-title\">Player &amp; Payment Trend</span></div>'+\n    '<div class=\"section-desc\">'+(DATA.isPeriod ? 'Month-by-month' : 'Day-by-day')+' movement of signups, FTDs, active players, FTD amount, deposits and withdrawals across '+esc(DATA.meta.periodLabel)+'.</div>'+\n    '<div class=\"card-title\">Player Activity<span class=\"line\"></span></div>'+\n    '<div class=\"chart-wrap\"><canvas id=\"playerChart\"></canvas></div>'+\n    '<div class=\"card-title\">Payment Flow<span class=\"line\"></span></div>'+\n    '<div class=\"chart-wrap\"><canvas id=\"paymentChart\"></canvas></div>'+\n  '</section>';\n}\n\n// Compact inline delta shown right next to a number. goodIfUp controls the\n// color logic: true = green on increase (signup/FTD/turnover/deposit/revenue,\n// where more is better), false = green on decrease (withdraw, where less is\n// better). This is called out explicitly above the table so the colors are\n// never ambiguous \u2014 a red \"up\" arrow next to Withdraw does not mean the same\n// thing as a red \"up\" arrow next to Turnover.\nfunction deltaChip(pct, goodIfUp){\n  if(pct==null) return \"\";\n  var up = pct>=0;\n  var isGood = goodIfUp ? up : !up;\n  var cls = isGood ? \"pos\" : \"neg\";\n  var arrow = up ? \"\\u25b2\" : \"\\u25bc\";\n  return ' <span class=\"delta-inline '+cls+'\" title=\"'+(up?\"Up \":\"Down \")+Math.abs(pct).toFixed(2)+\"% vs \"+esc(DATA.prevPeriodLabel)+'\">'+arrow+' '+Math.abs(pct).toFixed(2)+'%</span>';\n}\n\nfunction renderRanking(){\n  var rows = DATA.brandRanking.map(function(b){\n    var pillClass = b.live ? \"good\" : (b.partialLive ? \"warn\" : \"bad\");\n    var pillLabel = b.live ? \"LIVE\" : (b.partialLive ? \"PARTIAL\" : \"NO DATA\");\n    return '<tr>'+\n      '<td class=\"name-cell\">'+esc(b.brand)+'</td>'+\n      '<td><span class=\"pill '+pillClass+'\">'+pillLabel+'</span></td>'+\n      '<td>'+fmtInt(b.signup)+deltaChip(b.signupMomPct,true)+'</td>'+\n      '<td>'+fmtInt(b.ftd)+deltaChip(b.ftdMomPct,true)+'</td>'+\n      '<td>'+money(b.turnover)+deltaChip(b.turnoverMomPct,true)+'</td>'+\n      '<td>'+money(b.deposit)+deltaChip(b.depositMomPct,true)+'</td>'+\n      '<td>'+money(b.withdraw)+deltaChip(b.withdrawMomPct,false)+'</td>'+\n      '<td>'+money(b.revenue)+deltaChip(b.revenueMomPct,true)+'</td>'+\n    '</tr>';\n  }).join(\"\");\n  return '<section class=\"section\" id=\"ranking\">'+\n    '<div class=\"section-head\"><span class=\"section-eyebrow\">03</span><span class=\"section-title\">Brand Ranking</span></div>'+\n    '<div class=\"section-desc\">All brands ranked by turnover for '+esc(DATA.meta.periodLabel)+'.</div>'+\n    (DATA.mom ? (\n    '<div class=\"legend-note\">\\u26a0\\ufe0f <span><b>Color legend:</b> for Signup, FTD, Turnover, Deposit and Revenue, green = increase vs '+esc(DATA.prevPeriodLabel)+' (favorable), red = decrease. '+\n    '<b>Withdraw is the opposite</b> \\u2014 green = decrease (favorable), red = increase (more money paid out).</span></div>'\n    ) : '')+\n    '<div class=\"table-wrap\"><table class=\"data-table\"><thead><tr>'+\n      '<th>Brand</th><th>Source</th><th>Signup</th><th>FTD</th><th>Turnover</th><th>Deposit</th><th>Withdraw</th><th>Revenue</th>'+\n    '</tr></thead><tbody>'+rows+'</tbody></table></div>'+\n  '</section>';\n}\n\nfunction renderPeakDays(){\n  if(!DATA.peakDays || !DATA.peakDays.length) return \"\";\n  var items = DATA.peakDays.map(function(d,i){\n    var valStr = d.kind===\"money\" ? money(d.value) : fmtInt(d.value);\n    return '<li><span class=\"change-num\">'+(i+1)+'</span><span><strong style=\"color:var(--text)\">'+esc(d.metric)+'</strong> peaked on '+esc(d.date)+' at <strong style=\"color:var(--text)\">'+valStr+'</strong>.</span></li>';\n  }).join(\"\");\n  return '<section class=\"section\" id=\"peakdays\">'+\n    '<div class=\"section-head\"><span class=\"section-eyebrow\">04</span><span class=\"section-title\">Peak Days</span></div>'+\n    '<div class=\"section-desc\">The best day this period for each of the six priority metrics.</div>'+\n    '<div class=\"callout-box\"><ul class=\"callout-list\">'+items+'</ul></div>'+\n  '</section>';\n}\n\nfunction renderTakeaways(){\n  var eyebrow = (DATA.peakDays && DATA.peakDays.length) ? \"05\" : \"04\";\n  var items = DATA.takeaways.map(function(t,i){\n    return '<li><span class=\"change-num\">'+(i+1)+'</span><span>'+esc(t)+'</span></li>';\n  }).join(\"\");\n  return '<section class=\"section\" id=\"takeaways\">'+\n    '<div class=\"section-head\"><span class=\"section-eyebrow\">'+eyebrow+'</span><span class=\"section-title\">Key Takeaways</span></div>'+\n    '<div class=\"section-desc\">Auto-generated, rule-based observations \\u2014 signup, FTD, active player, FTD amount, deposit and withdraw trends.</div>'+\n    '<div class=\"callout-box\"><ul class=\"callout-list\">'+items+'</ul></div>'+\n  '</section>';\n}\n\nfunction mountTrendCharts(){\n  var chartType = DATA.isPeriod ? \"bar\" : \"line\";\n  var labels = DATA.trend.map(function(t){return t.label;});\n  // Show every day on the x-axis and let hovering anywhere along a day's\n  // column reveal all series' values for that day at once.\n  var sharedOptions = {\n    responsive:true, maintainAspectRatio:false,\n    interaction:{ mode:\"index\", intersect:false },\n    plugins:{\n      legend:{ labels:{ color:\"#93a1b3\" } },\n      tooltip:{ mode:\"index\", intersect:false }\n    },\n    scales:{\n      x:{ ticks:{ color:\"#93a1b3\", autoSkip:false, maxRotation:60, minRotation:DATA.isPeriod?0:60, font:{size:9} }, grid:{display:false} },\n      y:{ ticks:{ color:\"#93a1b3\" }, grid:{ color:\"rgba(255,255,255,.05)\" } }\n    }\n  };\n  function ds(label,data,color,fillColor){\n    return {label:label, data:data, borderColor:color, backgroundColor: DATA.isPeriod?color:fillColor, fill:!DATA.isPeriod, tension:.3, pointRadius:0, pointHoverRadius:4, pointHitRadius:10, borderWidth:2};\n  }\n\n  var playerCtx = document.getElementById(\"playerChart\");\n  if(playerCtx && typeof Chart!==\"undefined\"){\n    if(charts.player) charts.player.destroy();\n    charts.player = new Chart(playerCtx, {\n      type: chartType,\n      data:{ labels: labels, datasets:[\n        ds(\"Signup\", DATA.trend.map(function(t){return t.signup;}), \"#6f93ff\", \"rgba(111,147,255,.14)\"),\n        ds(\"FTD\", DATA.trend.map(function(t){return t.ftd;}), \"#2bd4ac\", \"rgba(43,212,172,.14)\"),\n        ds(\"Active Player\", DATA.trend.map(function(t){return t.active;}), \"#f5a83c\", \"rgba(245,168,60,.14)\")\n      ]},\n      options: sharedOptions\n    });\n  }\n\n  var paymentCtx = document.getElementById(\"paymentChart\");\n  if(paymentCtx && typeof Chart!==\"undefined\"){\n    if(charts.payment) charts.payment.destroy();\n    charts.payment = new Chart(paymentCtx, {\n      type: chartType,\n      data:{ labels: labels, datasets:[\n        ds(\"FTD Amount\", DATA.trend.map(function(t){return t.ftdAmt;}), \"#f5a83c\", \"rgba(245,168,60,.14)\"),\n        ds(\"Deposit\", DATA.trend.map(function(t){return t.deposit;}), \"#6f93ff\", \"rgba(111,147,255,.14)\"),\n        ds(\"Withdraw\", DATA.trend.map(function(t){return t.withdraw;}), \"#f2596f\", \"rgba(242,89,111,.14)\")\n      ]},\n      options: sharedOptions\n    });\n  }\n}\n\nfunction boot(){\n  var brandEl = document.querySelector(\".topbar .brand\");\n  if(brandEl) brandEl.innerHTML = '<span class=\"dot\"></span> '+DATA.meta.currency+' \\u2014 Player &amp; Payment Report <span class=\"sub\">\\u2014 '+esc(DATA.meta.periodLabel)+'</span>';\n  renderSidebar();\n  var main = document.getElementById(\"main\");\n  main.innerHTML = renderOverview() + renderTrend() + renderRanking() + renderPeakDays() + renderTakeaways() +\n    '<div class=\"footer-note\">This is a standalone snapshot \\u2014 it will not update. Re-export from the dashboard for current numbers. Generated '+new Date(DATA.meta.generatedAt).toLocaleString()+'.</div>';\n  mountTrendCharts();\n}\nboot();\n";
 /* ═══════════ END EXPORT MONTH REPORT ═══════════ */
 
 async function init(){
