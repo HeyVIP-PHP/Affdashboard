@@ -2438,8 +2438,22 @@ function aggregateStatusAcross_(resList){
    panel and the Key Insights "Critical" card read from it, so the two never
    disagree about what counts as a critical issue this month.
 */
+// effectiveMonth_() always resolves "All Months" to December, regardless of
+// whether December actually has data yet — fine for full-year chart ranges,
+// but wrong for a MoM comparison, which needs a month that's actually live.
+// This walks backward from December to the most recent month with live data
+// for the given brand selection, so Needs Attention / Key Insights keep
+// working under "All Months" instead of silently going blank.
+function insightsMonth_(cur,brand){
+  if(currentMonth!==ALL_MONTHS) return effectiveMonth_();
+  for(var i=MO_ORDER.length-1;i>=0;i--){
+    if(getBrandSelectionRows_(cur,brand,MO_ORDER[i]).live) return MO_ORDER[i];
+  }
+  return null; // no month has live data yet for this brand selection
+}
 function computeMomAlerts_(cur,brand){
-  var m=effectiveMonth_();
+  var m=insightsMonth_(cur,brand);
+  if(!m) return {alerts:[],m:null,prevM:null};
   var idx=MO_ORDER.indexOf(m);
   var prevM=idx>0?MO_ORDER[idx-1]:null;
   if(!prevM) return {alerts:[],m:m,prevM:null};
@@ -2532,7 +2546,8 @@ function computeLosingStreak_(cur,brand){
   // Walks backward month by month from the currently selected month, counting
   // consecutive months where Deposit fell vs the month before it. Stops at
   // the first month that isn't a live-data decline (growth, or no data).
-  var m=effectiveMonth_();
+  var m=insightsMonth_(cur,brand);
+  if(!m) return 0;
   var idx=MO_ORDER.indexOf(m);
   var streak=0;
   while(idx>0){
@@ -2552,12 +2567,12 @@ function computeSmallestBrand_(cur,month){
     var r=getMonthRows(cur,b,month);
     if(!r.live) return null;
     var a=emptyAgg_(); r.rows.forEach(function(rr){ addRowToAgg_(a,rr); });
-    return {brand:b,turnover:pickMoney(a,'turnover',displayMode)};
-  }).filter(function(v){ return v && v.turnover>0; });
+    return {brand:b,deposit:pickMoney(a,'deposit',displayMode)};
+  }).filter(function(v){ return v && v.deposit>0; });
   if(vals.length<2) return null;
-  var total=vals.reduce(function(s,v){return s+v.turnover;},0);
-  var smallest=vals.slice().sort(function(a,b){return a.turnover-b.turnover;})[0];
-  return {brand:smallest.brand,pct:total>0?(smallest.turnover/total*100):0,turnover:smallest.turnover};
+  var total=vals.reduce(function(s,v){return s+v.deposit;},0);
+  var smallest=vals.slice().sort(function(a,b){return a.deposit-b.deposit;})[0];
+  return {brand:smallest.brand,pct:total>0?(smallest.deposit/total*100):0,deposit:smallest.deposit};
 }
 function computeMonthVsPeak_(cur,brand,month){
   var vals=[];
@@ -2599,10 +2614,30 @@ function computeBusiestBrand_(cur,month){
   return vals.slice().sort(function(a,b){return b.active-a.active;})[0];
 }
 
+// Plain MoM % for a single agg field (no threshold — unlike computeMomAlerts_,
+// this always returns the number when both months are live, since these two
+// cards exist to show the movement itself, not just flag it when it's big).
+function computeMetricMomPct_(cur,brand,field){
+  var m=insightsMonth_(cur,brand);
+  if(!m) return null;
+  var idx=MO_ORDER.indexOf(m);
+  var prevM=idx>0?MO_ORDER[idx-1]:null;
+  if(!prevM) return null;
+  var curRes=getBrandSelectionRows_(cur,brand,m);
+  var prevRes=getBrandSelectionRows_(cur,brand,prevM);
+  if(!curRes.live||!prevRes.live) return null;
+  var curAgg=emptyAgg_(); curRes.rows.forEach(function(r){ addRowToAgg_(curAgg,r); });
+  var prevAgg=emptyAgg_(); prevRes.rows.forEach(function(r){ addRowToAgg_(prevAgg,r); });
+  var curVal=pickMoney(curAgg,field,displayMode), prevVal=pickMoney(prevAgg,field,displayMode);
+  if(!(prevVal>0)) return null;
+  return {pct:(curVal-prevVal)/prevVal*100,curVal:curVal,prevVal:prevVal,m:m,prevM:prevM};
+}
+
 function renderKeyInsights_(cur,brand,month){
   var panel=document.getElementById('ki-panel');
   var body=document.getElementById('ki-body');
-  var m=effectiveMonth_();
+  var m=insightsMonth_(cur,brand);
+  if(!m){ panel.style.display='none'; return; } // no live month at all yet for this selection
   var idx=MO_ORDER.indexOf(m);
   var prevM=idx>0?MO_ORDER[idx-1]:null;
   var allBrands=brand===ALL_BRANDS;
@@ -2618,7 +2653,7 @@ function renderKeyInsights_(cur,brand,month){
     if(smallest){
       cards.push({icon:'🏷️',color:'purple',label:'Smallest Brand',
         val:smallest.brand+' — '+smallest.pct.toFixed(1)+'%',
-        sub:money(smallest.turnover,displayMode)+' turnover'});
+        sub:money(smallest.deposit,displayMode)+' deposit'});
     }
   }
 
@@ -2646,6 +2681,23 @@ function renderKeyInsights_(cur,brand,month){
         val:busiest.brand,
         sub:fmtInt(busiest.active)+' active players in '+monthNames[m]});
     }
+  }
+
+  // Deposit: up is favorable (green), down is unfavorable (red).
+  var depositMom=computeMetricMomPct_(cur,brand,'deposit');
+  if(depositMom){
+    cards.push({icon:'🏦',color:depositMom.pct>=0?'green':'red',label:'Deposit Performance',
+      val:(depositMom.pct>=0?'▲':'▼')+Math.abs(depositMom.pct).toFixed(1)+'%',
+      sub:money(depositMom.prevVal,displayMode)+' → '+money(depositMom.curVal,displayMode)});
+  }
+
+  // Withdraw: the opposite — down is favorable (green), up is unfavorable
+  // (red), same reversed logic as everywhere else Withdraw shows up.
+  var withdrawMom=computeMetricMomPct_(cur,brand,'withdraw');
+  if(withdrawMom){
+    cards.push({icon:'💸',color:withdrawMom.pct<=0?'green':'red',label:'Withdraw Performance',
+      val:(withdrawMom.pct>=0?'▲':'▼')+Math.abs(withdrawMom.pct).toFixed(1)+'%',
+      sub:money(withdrawMom.prevVal,displayMode)+' → '+money(withdrawMom.curVal,displayMode)});
   }
 
   var momRes=computeMomAlerts_(cur,brand);
