@@ -1660,6 +1660,43 @@ function renderPerformancePeaks(){
       valley:pool.reduce(function(a,x){return x.val<a.val?x:a;})
     };
   }
+  // Per-brand version of the same "≥10 empty days ⇒ not eligible" rule above,
+  // but checked against *that one brand's* own data instead of whether
+  // anybody logged anything that month. Without this, a brand that simply
+  // never had February data would still have February sitting in its
+  // candidate pool (because some *other* brand did have February data,
+  // keeping the month eligible page-wide) and its own zero would trivially
+  // "win" Valley — exactly the bug this fixes. Only used for the per-brand
+  // tables below; the aggregate Peak/Valley cards and Top 3 lists keep using
+  // the page-level version above, since those are genuinely about the whole
+  // page's selection, not one brand.
+  var brandMonthEligibleCache_={};
+  function brandMonthEligible_(brand){
+    if(brandMonthEligibleCache_[brand]) return brandMonthEligibleCache_[brand];
+    var elig={};
+    MO_ORDER.forEach(function(m){
+      var days=daysInMonth_(m), emptyDays=0;
+      var rows=getMonthRows(cur,brand,m).rows;
+      for(var i=0;i<days;i++){
+        var row=rows[i];
+        var has=row && ((row.signup||0)>0 || (row.ftd||0)>0 || (row.active||0)>0 ||
+                         (row.deposit||0)>0 || (row.withdraw||0)>0 || (row.turnover||0)>0);
+        if(!has) emptyDays++;
+      }
+      elig[m]=emptyDays<=10;
+    });
+    brandMonthEligibleCache_[brand]=elig;
+    return elig;
+  }
+  function pickPeakValleyForBrand_(brand, list, monthOfFn){
+    var elig=brandMonthEligible_(brand);
+    var eligible=list.filter(function(x){ return elig[monthOfFn(x)]; });
+    var pool=eligible.length?eligible:list;
+    return {
+      peak:pool.reduce(function(a,x){return x.val>a.val?x:a;}),
+      valley:pool.reduce(function(a,x){return x.val<a.val?x:a;})
+    };
+  }
 
   // ── per-brand weekly peak/valley ──
   // Normal mode: 4 weeks within the currently selected month.
@@ -1687,7 +1724,7 @@ function renderPerformancePeaks(){
   }
   var brandWeekData=brands.map(function(b){
     var weeks=brandWeeklyBuckets_(b);
-    var pv=pickPeakValley_(weeks, function(w){return w.month;});
+    var pv=pickPeakValleyForBrand_(b, weeks, function(w){return w.month;});
     return {brand:b,weeks:weeks,peak:pv.peak,valley:pv.valley};
   });
 
@@ -1706,7 +1743,7 @@ function renderPerformancePeaks(){
       var rows=getMonthRows(cur,b,m).rows;
       return {label:monthNames[m],val:rows.reduce(function(s,r){return s+mv(r);},0),month:m};
     });
-    var pv=pickPeakValley_(monthly, function(mo){return mo.month;});
+    var pv=pickPeakValleyForBrand_(b, monthly, function(mo){return mo.month;});
     return {brand:b,monthly:monthly,peak:pv.peak,valley:pv.valley};
   });
 
