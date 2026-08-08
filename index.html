@@ -231,7 +231,6 @@ table.dt tbody tr:hover td{background:var(--ov-03)}
 .filter-bar{display:flex;gap:10px;align-items:center;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 16px;flex-wrap:wrap}
 .section-divider{display:flex;align-items:center;gap:10px;margin:4px 0;color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
 .section-divider::after{content:"";flex:1;height:1px;background:var(--border)}
-.surge-badge{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:700;font-family:var(--mono);color:var(--purple);background:var(--purple-d);padding:2px 7px;border-radius:5px;margin-left:6px}
 
 /* KEY INSIGHTS — eight at-a-glance cards (Overview page), 4 per row */
 .ki-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
@@ -1693,13 +1692,11 @@ function renderPerformancePeaks(){
   });
 
   document.getElementById('spv-week-table').innerHTML=
-    '<tr><th>Brand</th><th>▲ Peak Week</th><th>Volume</th><th>▼ Valley Week</th><th>Volume</th><th>Surge</th></tr>'+
+    '<tr><th class="grp-end">Brand</th><th>▲ Peak Week</th><th class="grp-end">Volume</th><th>▼ Valley Week</th><th>Volume</th></tr>'+
     brandWeekData.map(function(d){
-      var surge=d.valley.val>0?(d.peak.val/d.valley.val).toFixed(1)+'×':'—';
-      return '<tr><td class="pv-brand" style="color:'+brandColor_(brands,d.brand)+'">'+d.brand+'</td>'+
-        '<td><span class="pv-pill peak">'+d.peak.label+'</span></td><td>'+fmtVal(d.peak.val)+'</td>'+
-        '<td><span class="pv-pill valley">'+d.valley.label+'</span></td><td>'+fmtVal(d.valley.val)+'</td>'+
-        '<td><span class="surge-badge">'+surge+'</span></td></tr>';
+      return '<tr><td class="pv-brand grp-end" style="color:'+brandColor_(brands,d.brand)+'">'+d.brand+'</td>'+
+        '<td><span class="pv-pill peak">'+d.peak.label+'</span></td><td class="grp-end">'+fmtVal(d.peak.val)+'</td>'+
+        '<td><span class="pv-pill valley">'+d.valley.label+'</span></td><td>'+fmtVal(d.valley.val)+'</td></tr>';
     }).join('');
   document.getElementById('spv-w-tag').textContent=(currentMonth===ALL_MONTHS?'Jan–Dec (All Months) — week positions summed across the year':monthNames[currentMonth])+' · by '+METRIC_LABEL[metric];
 
@@ -1714,13 +1711,11 @@ function renderPerformancePeaks(){
   });
 
   document.getElementById('spv-month-table').innerHTML=
-    '<tr><th>Brand</th><th>▲ Peak Month</th><th>Volume</th><th>▼ Valley Month</th><th>Volume</th><th>Surge</th></tr>'+
+    '<tr><th class="grp-end">Brand</th><th>▲ Peak Month</th><th class="grp-end">Volume</th><th>▼ Valley Month</th><th>Volume</th></tr>'+
     brandMonthData.map(function(d){
-      var surge=d.valley.val>0?(d.peak.val/d.valley.val).toFixed(1)+'×':'—';
-      return '<tr><td class="pv-brand" style="color:'+brandColor_(brands,d.brand)+'">'+d.brand+'</td>'+
-        '<td><span class="pv-pill peak">'+d.peak.label+'</span></td><td>'+fmtVal(d.peak.val)+'</td>'+
-        '<td><span class="pv-pill valley">'+d.valley.label+'</span></td><td>'+fmtVal(d.valley.val)+'</td>'+
-        '<td><span class="surge-badge">'+surge+'</span></td></tr>';
+      return '<tr><td class="pv-brand grp-end" style="color:'+brandColor_(brands,d.brand)+'">'+d.brand+'</td>'+
+        '<td><span class="pv-pill peak">'+d.peak.label+'</span></td><td class="grp-end">'+fmtVal(d.peak.val)+'</td>'+
+        '<td><span class="pv-pill valley">'+d.valley.label+'</span></td><td>'+fmtVal(d.valley.val)+'</td></tr>';
     }).join('');
 
   // ── Top 3 peak weeks / months, summed across every brand ──
