@@ -1246,6 +1246,29 @@ function csPf(v){
   var m1=s.match(/(\d+)m/); if(m1) return parseInt(m1[1],10)*60;
   var f=parseFloat(s.replace('%','').replace(/,/g,'')); return isNaN(f)?0:f;
 }
+/* Parses a DURATION cell — FRT / MRT / AHT — into whole seconds. Separate from csPf()
+   (which stays as-is for CSAT, a genuine 0–1 fraction) because durations need one extra
+   case: when a Sheets column has a real duration/time NUMBER FORMAT applied (which is what
+   makes it display as "5m 54s"), reading it with valueRenderOption=UNFORMATTED_VALUE — used
+   here so the dashboard's money totals match the Sheet's own SUM() exactly — hands back the
+   pre-formatting value instead of that text: Sheets' native time serial, a FRACTION OF A DAY
+   (e.g. "1m 54s" is stored as 114 seconds ÷ 86400 = 0.00132...). Treated as plain seconds,
+   that rounds to 0 — which is exactly why FRT/MRT/AHT were showing as "—" even though the
+   Sheet visibly has mm:ss values. Any real FRT/MRT/AHT is well under a day, so a raw value
+   under 1 is unambiguously that day-fraction serial and gets ×86400 back into seconds; 1 or
+   more means the cell already holds a plain seconds number (no duration formatting), so it's
+   used as-is. Text like "5m 54s" (a column stored as literal text, not a formatted number)
+   is still matched first and unaffected by any of this. */
+function csPfDur_(v){
+  if(v===undefined||v===null||v==='') return 0;
+  if(typeof v==='number') return v>0 && v<1 ? Math.round(v*86400) : Math.round(v);
+  var s=String(v).trim();
+  if(!s||s==='-') return 0;
+  var mm=s.match(/(\d+)m\s*(\d+)s/); if(mm) return parseInt(mm[1],10)*60+parseInt(mm[2],10);
+  var m1=s.match(/(\d+)m/); if(m1) return parseInt(m1[1],10)*60;
+  var f=parseFloat(s.replace(/,/g,'')); if(isNaN(f)) return 0;
+  return f>0 && f<1 ? Math.round(f*86400) : Math.round(f);
+}
 function csFt(sec){ if(!sec) return '—'; var m=Math.floor(sec/60), s=Math.round(sec%60); return m>0?(m+'m '+s+'s'):(s+'s'); }
 function csAv(arr){ var a=(arr||[]).filter(function(x){return x>0;}); return a.length ? a.reduce(function(s,x){return s+x;},0)/a.length : 0; }
 function csExpandMonths(val){ if(val==='H1') return CS_H1; if(val==='H2') return CS_H2; if(val==='all') return null; return [val]; }
@@ -1341,7 +1364,7 @@ function csParseSLA(rows, source){
       var psId=f, staffName=f2, csName=f3, group=f4;
       var agentWeeks=curWS.map(function(ws,wi){
         var cm=curColMap[wi]||{frt:ws+1,mrt:ws+2,aht:ws+3,csat:ws+4};
-        return {week:wi+1, label:curWeekLabels[wi]||('Week '+(wi+1)), chats:csPi(row[ws]), frt:csPf(row[cm.frt]), mrt:csPf(row[cm.mrt]), aht:csPf(row[cm.aht]), csat:csPf(row[cm.csat])};
+        return {week:wi+1, label:curWeekLabels[wi]||('Week '+(wi+1)), chats:csPi(row[ws]), frt:csPfDur_(row[cm.frt]), mrt:csPfDur_(row[cm.mrt]), aht:csPfDur_(row[cm.aht]), csat:csPf(row[cm.csat])};
       });
       var totalChats=agentWeeks.reduce(function(s,w){return s+w.chats;},0);
       var frtVals=agentWeeks.filter(function(w){return w.frt>0;}).map(function(w){return w.frt;});
