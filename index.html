@@ -292,13 +292,20 @@ table.dt tbody tr:hover td{background:var(--ov-03)}
         never visually buried even in an otherwise healthy row.
 */
 #sla-tbl tr:first-child th{position:sticky;top:0;background:var(--panel);z-index:6}
-.sla-row-agent td{background:var(--panel);font-weight:700;border-left:3px solid var(--purple);border-bottom:1px solid var(--border2)}
+/* Left-edge bars were previously color-coded per level (purple/gold) as a
+   hierarchy cue, but that reads as a status/meaning signal it isn't — and
+   competes with the metric pills' own color coding. Divider color is now
+   neutral (var(--border2)/var(--border)) at every level; hierarchy is
+   carried instead by background shade + indentation + font-weight, and text
+   is upgraded from --muted (low contrast, was hard to read on Week rows) to
+   --text so every level stays clearly legible, not just the top one. */
+.sla-row-agent td{background:var(--panel);font-weight:800;color:var(--text);border-left:3px solid var(--border2);border-bottom:1px solid var(--border2)}
 .sla-row-agent td:first-child{border-top-left-radius:8px;border-bottom-left-radius:8px}
 .sla-row-agent:hover td{background:var(--ov-05)}
-.sla-row-month td{background:var(--card);border-left:3px solid var(--gold);border-bottom:1px solid var(--border);font-weight:600}
+.sla-row-month td{background:var(--card);border-left:3px solid var(--border2);border-bottom:1px solid var(--border);font-weight:700;color:var(--text)}
 .sla-row-month td:first-child{border-top-left-radius:6px;border-bottom-left-radius:6px}
 .sla-row-month:hover td{background:var(--ov-04)}
-.sla-row-week td{background:transparent;border-left:3px solid var(--border2);border-bottom:1px solid var(--border);color:var(--muted)}
+.sla-row-week td{background:transparent;border-left:3px solid var(--border);border-bottom:1px solid var(--border);font-weight:600;color:var(--text)}
 .sla-row-week:hover td{background:var(--ov-03)}
 .sla-mv{display:inline-block;font-size:10px;font-weight:700;padding:3px 9px;border-radius:5px;font-family:var(--mono);white-space:nowrap;min-width:38px;text-align:center}
 .sla-mv.frt,.sla-mv.mrt{background:var(--green-d);color:var(--green)}
