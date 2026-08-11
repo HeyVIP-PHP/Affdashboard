@@ -267,7 +267,45 @@ table.dt tbody tr:hover td{background:var(--ov-03)}
 .pv-pill.valley{background:var(--red-d);color:var(--red)}
 .pv-pill.good{background:var(--green-d);color:var(--green)}
 .pv-pill.warn{background:var(--amber-d);color:var(--amber)}
+/* AVERAGE (2 metrics over target) and BAD (all 3 over target) used to share
+   the same red class, so the two most-different severities looked
+   identical — gold reads as "caution, worse than Normal" without being
+   confused with the amber Normal pill or the red Bad pill. */
+.pv-pill.average{background:var(--gold-d);color:var(--gold)}
 .pv-pill.bad{background:var(--red-d);color:var(--red)}
+
+/* ═══════════ SLA TABLE — Agent → Month → Week hierarchy + metric pills ═══════════
+   Goal: the eye should be able to scan a column (all FRT values, say) without
+   reading text, and immediately tell which row-level (agent/month/week) a
+   row belongs to without reading the indentation. Two devices do that:
+     1. A colored left-edge bar per row level (purple=agent, gold=month,
+        muted=week) — same trick used elsewhere in this dashboard (peak-rank
+        dots, ki-icon colors) so it stays visually consistent with the rest
+        of the app rather than introducing a new pattern.
+     2. Fixed per-column pill colors for FRT/MRT (green — these are the
+        "fast is good" latency metrics) vs AHT (red/pink — handle time,
+        the metric that's naturally biggest and worth flagging visually)
+        vs CSAT (plain colored text, not a pill, since it's a % not a
+        duration). This is a column identity color, independent of the
+        Status badge's pass/fail color — a row can be "GOOD" overall while
+        its AHT pill still reads red, by design, so slow-handle-time is
+        never visually buried even in an otherwise healthy row.
+*/
+#sla-tbl tr:first-child th{position:sticky;top:0;background:var(--panel);z-index:6}
+.sla-row-agent td{background:var(--panel);font-weight:700;border-left:3px solid var(--purple);border-bottom:1px solid var(--border2)}
+.sla-row-agent td:first-child{border-top-left-radius:8px;border-bottom-left-radius:8px}
+.sla-row-agent:hover td{background:var(--ov-05)}
+.sla-row-month td{background:var(--card);border-left:3px solid var(--gold);border-bottom:1px solid var(--border);font-weight:600}
+.sla-row-month td:first-child{border-top-left-radius:6px;border-bottom-left-radius:6px}
+.sla-row-month:hover td{background:var(--ov-04)}
+.sla-row-week td{background:transparent;border-left:3px solid var(--border2);border-bottom:1px solid var(--border);color:var(--muted)}
+.sla-row-week:hover td{background:var(--ov-03)}
+.sla-mv{display:inline-block;font-size:10px;font-weight:700;padding:3px 9px;border-radius:5px;font-family:var(--mono);white-space:nowrap;min-width:38px;text-align:center}
+.sla-mv.frt,.sla-mv.mrt{background:var(--green-d);color:var(--green)}
+.sla-mv.aht{background:var(--red-d);color:var(--red)}
+.sla-mv.dash{background:transparent;color:var(--dim);padding:3px 2px;min-width:0}
+.sla-csat{font-family:var(--mono);font-weight:700;color:var(--teal)}
+.sla-csat.dash{color:var(--dim);font-weight:400}
 /* CS Performance (SLA/Automation) compliance bar rows — reuses the Peaks & Valleys bar-row visual language */
 .cs-bar-row{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--panel);border-radius:8px;border:1px solid var(--border);margin-bottom:8px}
 .cs-bar-row:last-child{margin-bottom:0}
@@ -1320,13 +1358,28 @@ function csParseSLA(rows, source){
 
     // "Total Chat" sub-header row — the real Sheet splits this onto its OWN row
     // below the PSD-ID/STAFF NAME/Cs Name row rather than sharing it, so this is
-    // detected independently: any row containing "total chat"/"total" cells
-    // defines that block's week-start columns, whichever row it lands on.
-    var wsRow=[];
+    // detected independently: any row containing "total chat" cells defines
+    // that block's week-start columns, whichever row it lands on.
+    //
+    // BUG FIX: this used to also match a bare "total" cell as a week-start,
+    // which was meant as a fallback for Sheets whose week headers omit
+    // "Chat". But a real Sheet's month block ends with its OWN bare "Total"
+    // column — the Monthly Total summary, not a 5th week — and that column
+    // was getting swept into wsRow right along with the four real "Total
+    // Chat" columns. The result was a phantom "Week 5" whose data was
+    // actually the month's own total (duplicating it), which also inflated
+    // the month-level aggregate (real weeks summed + the duplicate = 2x).
+    // Fix: only fall back to bare "total" matches when a header row has NO
+    // "total chat" cells at all — once real "Total Chat" columns are found,
+    // any bare "total" column is the trailing Monthly Total summary and is
+    // correctly excluded from the week list.
+    var chatWsRow=[], bareTotalRow=[];
     for(var ci=0; ci<row.length; ci++){
       var nh=String(row[ci]||'').trim().toLowerCase();
-      if(nh==='total chat'||nh==='total') wsRow.push(ci);
+      if(nh==='total chat') chatWsRow.push(ci);
+      else if(nh==='total') bareTotalRow.push(ci);
     }
+    var wsRow = chatWsRow.length ? chatWsRow : bareTotalRow;
     if(wsRow.length){
       curWS=wsRow;
       curWeekLabels=curWS.map(function(_,i){return 'Week '+(i+1);});
@@ -1430,9 +1483,24 @@ function csSlaStatusBadge_(frt,mrt,aht){
   var mrtOk=mrt>0 && mrt<=CS_SLA_TARGETS.mrt;
   var ahtOk=aht>0 && aht<=CS_SLA_TARGETS.aht;
   var overCount=(frtOk?0:1)+(mrtOk?0:1)+(ahtOk?0:1);
-  return overCount===0 ? '<span class="pv-pill good">✓ GOOD</span>'
-       : overCount===1 ? '<span class="pv-pill warn">NORMAL</span>'
-       : '<span class="pv-pill bad">'+(overCount===3?'BAD':'AVERAGE')+'</span>';
+  // Four distinct severities, four distinct colors — AVERAGE (2 of 3 metrics
+  // over target) previously rendered identically to BAD (all 3 over target),
+  // which hid exactly the distinction this badge exists to show.
+  if(overCount===0) return '<span class="pv-pill good">✓ GOOD</span>';
+  if(overCount===1) return '<span class="pv-pill warn">NORMAL</span>';
+  if(overCount===2) return '<span class="pv-pill average">AVERAGE</span>';
+  return '<span class="pv-pill bad">BAD</span>';
+}
+// Wraps a duration value (seconds) in a column-colored pill for the SLA
+// table — frt/mrt read green, aht reads red, regardless of whether that
+// particular value is over/under target (that judgment is what the Status
+// badge is for; this pill is just "which column am I looking at").
+function csMv_(sec,type){
+  if(!sec) return '<span class="sla-mv dash">—</span>';
+  return '<span class="sla-mv '+type+'">'+csFt(sec)+'</span>';
+}
+function csCsatTxt_(csat){
+  return csat ? '<span class="sla-csat">'+Math.round(csat*100)+'%</span>' : '<span class="sla-csat dash">—</span>';
 }
 
 /* Builds the Agent → Month → Week tree for the expandable "Agent SLA Performance" table.
@@ -1490,8 +1558,8 @@ function csSlaTreeRowsHtml_(list){
     var arrow=hasChildren ? '<i class="fa-solid fa-chevron-'+(expanded?'down':'right')+'" style="width:9px;font-size:8px;display:inline-block;margin-right:6px;color:var(--muted)"></i>' : '<span style="display:inline-block;width:15px"></span>';
     out.push('<tr class="sla-row-agent"'+(hasChildren?' onclick="csToggleSlaRow_(\''+agentId.replace(/'/g,"\\'")+'\')" style="cursor:pointer"':'')+'>'+
       '<td>'+arrow+csEsc(a.psdId)+'</td><td>'+csEsc(a.name)+'</td><td>'+csEsc(a.csName||'')+'</td><td>'+csEsc(a.group||'')+'</td>'+
-      '<td>'+fmtInt(a.chats)+'</td><td>'+csFt(a.frt)+'</td><td>'+csFt(a.mrt)+'</td><td>'+csFt(a.aht)+'</td>'+
-      '<td>'+(a.csat?Math.round(a.csat*100)+'%':'—')+'</td><td>'+csSlaStatusBadge_(a.frt,a.mrt,a.aht)+'</td></tr>');
+      '<td>'+fmtInt(a.chats)+'</td><td>'+csMv_(a.frt,'frt')+'</td><td>'+csMv_(a.mrt,'mrt')+'</td><td>'+csMv_(a.aht,'aht')+'</td>'+
+      '<td>'+csCsatTxt_(a.csat)+'</td><td>'+csSlaStatusBadge_(a.frt,a.mrt,a.aht)+'</td></tr>');
     if(!expanded) return;
     a.monthKeys.forEach(function(mk){
       var md=a.months[mk];
@@ -1501,16 +1569,16 @@ function csSlaTreeRowsHtml_(list){
       var hasWeeks=weeks.length>0;
       var marrow=hasWeeks ? '<i class="fa-solid fa-chevron-'+(mExpanded?'down':'right')+'" style="width:9px;font-size:8px;display:inline-block;margin-right:6px;color:var(--muted)"></i>' : '<span style="display:inline-block;width:15px"></span>';
       var monthLbl=CS_MONTHS_FULL[CS_MONTHS.indexOf(mk)]||mk;
-      out.push('<tr class="sla-row-month"'+(hasWeeks?' onclick="csToggleSlaRow_(\''+monthId.replace(/'/g,"\\'")+'\')" style="cursor:pointer;background:var(--ov-03)"':' style="background:var(--ov-03)"')+'>'+
+      out.push('<tr class="sla-row-month"'+(hasWeeks?' onclick="csToggleSlaRow_(\''+monthId.replace(/'/g,"\\'")+'\')" style="cursor:pointer"':'')+'>'+
         '<td style="padding-left:26px">'+marrow+csEsc(monthLbl)+'</td><td></td><td></td><td></td>'+
-        '<td>'+fmtInt(md.chats)+'</td><td>'+csFt(md.frt)+'</td><td>'+csFt(md.mrt)+'</td><td>'+csFt(md.aht)+'</td>'+
-        '<td>'+(md.csat?Math.round(md.csat*100)+'%':'—')+'</td><td>'+csSlaStatusBadge_(md.frt,md.mrt,md.aht)+'</td></tr>');
+        '<td>'+fmtInt(md.chats)+'</td><td>'+csMv_(md.frt,'frt')+'</td><td>'+csMv_(md.mrt,'mrt')+'</td><td>'+csMv_(md.aht,'aht')+'</td>'+
+        '<td>'+csCsatTxt_(md.csat)+'</td><td>'+csSlaStatusBadge_(md.frt,md.mrt,md.aht)+'</td></tr>');
       if(!mExpanded) return;
       weeks.forEach(function(w){
-        out.push('<tr class="sla-row-week" style="background:var(--ov-04)">'+
-          '<td style="padding-left:46px;color:var(--muted)">'+csEsc(w.label||('Week '+w.week))+'</td><td></td><td></td><td></td>'+
-          '<td>'+fmtInt(w.chats)+'</td><td>'+csFt(w.frt)+'</td><td>'+csFt(w.mrt)+'</td><td>'+csFt(w.aht)+'</td>'+
-          '<td>'+(w.csat?Math.round(w.csat*100)+'%':'—')+'</td><td>'+csSlaStatusBadge_(w.frt,w.mrt,w.aht)+'</td></tr>');
+        out.push('<tr class="sla-row-week">'+
+          '<td style="padding-left:46px">'+csEsc(w.label||('Week '+w.week))+'</td><td></td><td></td><td></td>'+
+          '<td>'+fmtInt(w.chats)+'</td><td>'+csMv_(w.frt,'frt')+'</td><td>'+csMv_(w.mrt,'mrt')+'</td><td>'+csMv_(w.aht,'aht')+'</td>'+
+          '<td>'+csCsatTxt_(w.csat)+'</td><td>'+csSlaStatusBadge_(w.frt,w.mrt,w.aht)+'</td></tr>');
       });
     });
   });
