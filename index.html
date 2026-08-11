@@ -793,9 +793,9 @@ table.dt td.pv-brand{font-weight:800}
         </div>
 
         <div class="kpi-grid g4">
-          <div class="kpi c-green"><div class="kpi-lbl">Containment Rate</div><div class="kpi-val" id="au-rate">—</div><div class="kpi-d" id="au-rate-d">Target ≥ 55%</div></div>
-          <div class="kpi c-purple"><div class="kpi-lbl">Bot Chats</div><div class="kpi-val" id="au-bot">—</div><div class="kpi-d">—</div></div>
-          <div class="kpi c-teal"><div class="kpi-lbl">Agent Chats</div><div class="kpi-val" id="au-ag">—</div><div class="kpi-d">—</div></div>
+          <div class="kpi c-green"><div class="kpi-lbl">Containment Rate</div><div class="kpi-val" id="au-rate">—</div><div class="kpi-d" id="au-rate-d" title="Target ≥ 55%">Target ≥ 55%</div></div>
+          <div class="kpi c-purple"><div class="kpi-lbl">Bot Chats</div><div class="kpi-val" id="au-bot">—</div><div class="kpi-d" id="au-bot-d">—</div></div>
+          <div class="kpi c-teal"><div class="kpi-lbl">Agent Chats</div><div class="kpi-val" id="au-ag">—</div><div class="kpi-d" id="au-ag-d">—</div></div>
           <div class="kpi c-amber"><div class="kpi-lbl">Total Chats</div><div class="kpi-val" id="au-tot">—</div><div class="kpi-d">Combined</div></div>
         </div>
         <div class="row2 c66">
@@ -2287,10 +2287,20 @@ function renderAutoPage(){
   document.getElementById('pg-sub').textContent=currentCurrency+' · '+monthLbl+' · '+(auBrand==='all'?'All Brands':auBrand);
   document.getElementById('au-filter-info').textContent=currentCurrency+' · '+monthLbl+' · '+(auBrand==='all'?'All Brands':auBrand);
 
+  var auAboveTarget=containmentRate>=CS_AUTOMATION_TARGET_PCT;
   document.getElementById('au-rate').textContent=containmentRate+'%';
-  document.getElementById('au-rate-d').textContent='Target ≥ '+CS_AUTOMATION_TARGET_PCT+'%'+(containmentRate>=CS_AUTOMATION_TARGET_PCT?' · ✓ Above target':' · ⚠ Below target');
+  var auRateD=document.getElementById('au-rate-d');
+  auRateD.textContent=auAboveTarget?'✓ Above Target':'⚠ Below Target';
+  auRateD.title='Target ≥ '+CS_AUTOMATION_TARGET_PCT+'%';
+  auRateD.style.color=auAboveTarget?'var(--green)':'var(--red)';
   document.getElementById('au-bot').textContent=fmtInt(btAll);
+  var auBotD=document.getElementById('au-bot-d');
+  auBotD.textContent='Bot resolved';
+  auBotD.style.color='var(--teal)';
   document.getElementById('au-ag').textContent=fmtInt(agAll);
+  var auAgD=document.getElementById('au-ag-d');
+  auAgD.textContent='Human handled';
+  auAgD.style.color='var(--teal)';
   document.getElementById('au-tot').textContent=fmtInt(totAll);
 
   if(auChart_) auChart_.destroy();
