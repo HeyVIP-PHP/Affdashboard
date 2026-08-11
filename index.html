@@ -2080,9 +2080,26 @@ function getBrandSelectionRows_(cur,brandSel,month){
   return {rows:rows,live:liveCount===brands.length,status:status,error:error,liveCount:liveCount,brandCount:brands.length};
 }
 
+// Clears every cached CS Sheet fetch (SLA + every currency's Automation tab) so "Refresh
+// live data" actually re-tries them too — otherwise a cached permission/error result from
+// before the Sheet was shared would just sit there forever until a full page reload.
+function csClearCache_(){
+  var cfg=csCfg_();
+  if(cfg.slaSheetId){
+    if(cfg.slaTabInternal) delete sheetTabCache[sheetTabKey_(cfg.slaSheetId,cfg.slaTabInternal)];
+    if(cfg.slaTabOutsource) delete sheetTabCache[sheetTabKey_(cfg.slaSheetId,cfg.slaTabOutsource)];
+  }
+  var byCur=cfg.dailyByCurrency||{};
+  csCurrencyList_().forEach(function(c){
+    var d=byCur[c];
+    if(d && d.sheetId && d.tab) delete sheetTabCache[sheetTabKey_(d.sheetId,d.tab)];
+  });
+}
+
 function refreshCurrent(){
+  csClearCache_();
   var cfg=SHEET_LINKS[currentCurrency];
-  if(!cfg||!cfg.sheetId) { openSettings(); return; }
+  if(!cfg||!cfg.sheetId) { renderAll(); return; }
   if(currentBrand===ALL_BRANDS){
     (BRANDS_BY_CURRENCY[currentCurrency]||[]).forEach(function(b){
       delete sheetTabCache[sheetTabKey_(cfg.sheetId,tabNameFor_(currentCurrency,b))];
@@ -4160,17 +4177,14 @@ function renderSettings(){
 
   document.getElementById('settings-body').innerHTML=
     '<div class="md-brand-title">'+cur+' Sheet</div>'+
-    '<div class="md-brand-sub">This whole currency shares one Google Sheet — each brand below maps to a Tab in it</div>'+
-    '<div class="md-field"><span class="md-label">Google Sheet link</span>'+
-      '<input class="md-input" id="set-url" placeholder="https://docs.google.com/spreadsheets/d/…/edit" value="'+(cfg.rawUrl||'').replace(/"/g,'&quot;')+'">'+
-      '<div class="md-hint">The Sheet can stay private — just share it with your service account email (Viewer access). You can also paste the Sheet ID directly.</div></div>'+
+    '<div class="md-field">'+
+      '<input class="md-input" id="set-url" placeholder="Sheet URL e.g. https://docs.google.com/sprea…" value="'+(cfg.rawUrl||'').replace(/"/g,'&quot;')+'" onblur="csAutoId_(this)"></div>'+
     statusHtml+
     '<div class="md-actions">'+
       '<button class="md-btn primary" onclick="saveCurrencySheet_()">Save</button>'+
       '<button class="md-btn danger" onclick="clearCurrencySheet_()">Clear</button>'+
     '</div>'+
     '<div class="md-label" style="margin-top:20px;margin-bottom:8px">Brand tab names — '+cur+'</div>'+
-    '<div class="md-hint" style="margin-bottom:8px">Defaults to the brand name shown below. Only fill this in if the Sheet\'s actual tab label is different (case-sensitive) — e.g. "Sbi66" instead of "SBJ66".</div>'+
     '<div class="brand-row-list">'+brandsHtml+'</div>';
 
   var newList=document.querySelector('#settings-body .brand-row-list');
