@@ -330,6 +330,14 @@ table.dt tbody tr:hover td{background:var(--ov-03)}
 .sla-mv.dash{background:transparent;color:var(--dim);padding:3px 2px;min-width:0}
 .sla-csat{font-family:var(--mono);font-weight:700;color:var(--teal)}
 .sla-csat.dash{color:var(--dim);font-weight:400}
+/* "⚠ Cross-team" badge — flags an agent/month whose numbers were merged
+   from more than one Group/team row (see csParseSLA's merge logic). Amber
+   like the NORMAL status pill (a caution, not a failure) — this isn't
+   itself an SLA breach, it's a data-provenance flag for whoever reviews
+   mis-routed chats. Tooltip (native title attr) carries the actual detail
+   (which teams, which months) so hovering answers "which team did this
+   come from" without needing to click anything. */
+.sla-warn-badge{display:inline-flex;align-items:center;gap:4px;font-size:8px;font-weight:700;padding:2px 6px;border-radius:4px;background:var(--amber-d);color:var(--amber);margin-left:7px;cursor:help;white-space:nowrap;text-transform:uppercase;letter-spacing:.03em;flex-shrink:0}
 /* CS Performance (SLA/Automation) compliance bar rows — reuses the Peaks & Valleys bar-row visual language */
 .cs-bar-row{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--panel);border-radius:8px;border:1px solid var(--border);margin-bottom:8px}
 .cs-bar-row:last-child{margin-bottom:0}
@@ -1342,7 +1350,8 @@ function csBarRow(label,pct,color){
 }
 
 /* ---------- SLA parser: month-block state machine + dynamic "Total Chat" column scan ---------- */
-function csParseSLA(rows, source){
+function csParseSLA(rows, source, cfg){
+  cfg = cfg || {};
   source = source || 'A';
   if(!rows || rows.length<3) return {months:{}, monthList:[]};
   var months={}, curMonth=null, curWS=[], curWeekLabels=[], curColMap=[];
@@ -1472,10 +1481,108 @@ function csParseSLA(rows, source){
       var agentName=staffName||csName||psId;
       if(!agentName) continue;
       var agent={name:agentName, csName:csName, group:group, source:source, psdId:psId||'', chats:totalChats,
-        frt:Math.round(csAv(frtVals)), mrt:Math.round(csAv(mrtVals)), aht:Math.round(csAv(ahtVals)), csat:csAv(csatVals), weeks:agentWeeks};
-      months[curMonth].agents[source+'::'+(agent.psdId||agent.name)]=agent; // source-prefixed key so a same-named agent in a second tab never collides
+        frt:Math.round(csAv(frtVals)), mrt:Math.round(csAv(mrtVals)), aht:Math.round(csAv(ahtVals)), csat:csAv(csatVals), weeks:agentWeeks,
+        groups:[group], crossGroup:false};
+      // Currency-bucket the merge key, not just psdId — this is what keeps
+      // a stray cross-currency row (e.g. one PKR chat landing on a BDT
+      // agent's PSD-ID) from getting blended into the SAME totals as their
+      // real work. Rows whose group resolves to the SAME currency set still
+      // merge together as before (e.g. two different BDT sub-teams for the
+      // same person legitimately combine into one BDT number). Rows that
+      // resolve to a genuinely DIFFERENT currency get their own bucket —
+      // so under the BDT view this agent shows only their BDT numbers, and
+      // under the PKR view they show only that one stray PKR chat, instead
+      // of the same blended full-year total appearing under both.
+      var rowCurrencies_=csResolveGroupCurrencies_(group, cfg);
+      var curBucket_=rowCurrencies_.length ? rowCurrencies_.slice().sort().join('+') : '?unresolved';
+      var agentKey_=source+'::'+(agent.psdId||agent.name)+'::'+curBucket_;
+      var existingAgent_=months[curMonth].agents[agentKey_];
+      if(existingAgent_){
+        // Same PSD-ID showing up more than once inside the SAME month's block —
+        // real Sheets do this when one agent is split across multiple
+        // brand-group rows (e.g. a "TEAM A, JW, JB..." row AND a separate
+        // "S10 PKR Aff team" row for the same person) — in practice usually
+        // because that agent accidentally answered a chat that belonged to
+        // a different team. Simply overwriting (the old behavior) meant
+        // whichever of the two rows parsed LAST won outright and the
+        // other's chat volume vanished — if the near-empty row happened to
+        // come second in the Sheet, a month with thousands of real chats
+        // would collapse down to whatever the tiny row held.
+        // Merge instead: chats sum per week; FRT/MRT/AHT are chat-weighted
+        // averages per week (a plain average would let a near-empty row's
+        // duration numbers distort a week mostly handled under the other
+        // group); CSAT likewise chat-weighted. Group text is the union of
+        // both rows' groups (deduped) so the merged agent still shows every
+        // team they actually worked under that month. `groups`/`crossGroup`
+        // (distinct from the deduped display `group` string) are kept
+        // separately so the UI can flag "this agent's numbers this month
+        // came from more than one team" — worth surfacing to management as
+        // a possible mis-routed-chat signal, not just quietly folded away.
+        var maxLen_=Math.max(agent.weeks.length, existingAgent_.weeks.length);
+        var mergedWeeks_=[];
+        for(var mwi_=0; mwi_<maxLen_; mwi_++){
+          var ew_=existingAgent_.weeks[mwi_]||{week:mwi_+1,label:'Week '+(mwi_+1),chats:0,frt:0,mrt:0,aht:0,csat:0};
+          var nw_=agent.weeks[mwi_]||{week:mwi_+1,label:ew_.label,chats:0,frt:0,mrt:0,aht:0,csat:0};
+          var mc_=(ew_.chats||0)+(nw_.chats||0);
+          var wavg_=function(av,ac,bv,bc){ var t=ac+bc; return t>0 ? Math.round(((av||0)*ac+(bv||0)*bc)/t) : 0; };
+          mergedWeeks_.push({week:nw_.week||ew_.week, label:nw_.label||ew_.label, chats:mc_,
+            frt:wavg_(ew_.frt,ew_.chats||0,nw_.frt,nw_.chats||0),
+            mrt:wavg_(ew_.mrt,ew_.chats||0,nw_.mrt,nw_.chats||0),
+            aht:wavg_(ew_.aht,ew_.chats||0,nw_.aht,nw_.chats||0),
+            csat: mc_>0 ? ((ew_.csat||0)*(ew_.chats||0)+(nw_.csat||0)*(nw_.chats||0))/mc_ : 0});
+        }
+        var mChats_=mergedWeeks_.reduce(function(s,w){return s+w.chats;},0);
+        var mFrtVals_=mergedWeeks_.filter(function(w){return w.frt>0;}).map(function(w){return w.frt;});
+        var mMrtVals_=mergedWeeks_.filter(function(w){return w.mrt>0;}).map(function(w){return w.mrt;});
+        var mAhtVals_=mergedWeeks_.filter(function(w){return w.aht>0;}).map(function(w){return w.aht;});
+        var mCsatVals_=mergedWeeks_.filter(function(w){return w.csat>0;}).map(function(w){return w.csat;});
+        var seenG_={};
+        var mergedGroup_=(String(existingAgent_.group||'')+','+String(group||'')).split(',')
+          .map(function(s){return s.trim();}).filter(function(g){ if(!g||seenG_[g]) return false; seenG_[g]=true; return true; }).join(', ');
+        var mergedGroupsArr_=(existingAgent_.groups||[existingAgent_.group]).slice();
+        if(mergedGroupsArr_.indexOf(group)<0) mergedGroupsArr_.push(group);
+        agent={name:existingAgent_.name||agentName, csName:existingAgent_.csName||csName, group:mergedGroup_, source:source,
+          psdId:agent.psdId||existingAgent_.psdId, chats:mChats_,
+          frt:Math.round(csAv(mFrtVals_)), mrt:Math.round(csAv(mMrtVals_)), aht:Math.round(csAv(mAhtVals_)), csat:csAv(mCsatVals_), weeks:mergedWeeks_,
+          groups:mergedGroupsArr_, crossGroup:mergedGroupsArr_.length>1};
+      }
+      months[curMonth].agents[agentKey_]=agent; // source-prefixed AND currency-bucket-prefixed key: same-currency duplicates merge above; different-currency duplicates stay separate, linked below
     }
   }
+  // Cross-CURRENCY linking pass: if the same person (psdId||name) ended up
+  // with more than one currency-bucket entry in the same month (e.g. their
+  // real BDT bucket AND a stray PKR bucket from one misrouted chat), flag
+  // BOTH bucket entries with crossGroup so the "⚠ Cross-team" badge still
+  // shows up under every currency view they appear in — but leave their
+  // `chats`/`frt`/`mrt`/`aht` numbers, AND their own `groups` (which
+  // currency resolution reads), exactly as parsed for that bucket alone.
+  // The other bucket(s)' group names go in a SEPARATE `otherGroups` field,
+  // used only for the tooltip text — overwriting `groups` itself here was
+  // an earlier bug: it fed the union straight back into currency
+  // resolution, silently re-merging the two buckets back into showing
+  // under both currencies, undoing the whole point of bucketing by
+  // currency in the first place.
+  Object.keys(months).forEach(function(m){
+    var byPerson_={};
+    Object.keys(months[m].agents).forEach(function(k){
+      var a=months[m].agents[k];
+      var pk=a.source+'::'+(a.psdId||a.name);
+      (byPerson_[pk]=byPerson_[pk]||[]).push(a);
+    });
+    Object.keys(byPerson_).forEach(function(pk){
+      var list=byPerson_[pk];
+      if(list.length<2) return; // only one currency bucket this month — nothing cross-currency to flag
+      list.forEach(function(a){
+        var others=[]; var seenG2_={};
+        list.forEach(function(other){
+          if(other===a) return;
+          (other.groups||[other.group]).forEach(function(g){ if(g&&!seenG2_[g]){ seenG2_[g]=true; others.push(g); } });
+        });
+        a.crossGroup=true;
+        a.otherGroups=others; // for the tooltip only — a.groups (this bucket's own) stays untouched
+      });
+    });
+  });
   var monthList=CS_MONTHS.filter(function(m){return months[m] && Object.keys(months[m].agents).length>0;});
   return {months:months, monthList:monthList};
 }
@@ -1504,8 +1611,9 @@ function csGetAgentsForSelection(parsed, monthSel, weekSel){
       var a=md.agents[k];
       var wd = weekSel==='all' ? null : (a.weeks && a.weeks[parseInt(weekSel,10)-1]);
       if(weekSel!=='all' && !wd) return;
-      if(!byKey[k]) byKey[k]={name:a.name, csName:a.csName, group:a.group, source:a.source, psdId:a.psdId, chats:0, frtArr:[], mrtArr:[], ahtArr:[], csatArr:[]};
+      if(!byKey[k]) byKey[k]={name:a.name, csName:a.csName, group:a.group, groups:[], source:a.source, psdId:a.psdId, chats:0, frtArr:[], mrtArr:[], ahtArr:[], csatArr:[]};
       var b=byKey[k];
+      (a.groups||[a.group]).forEach(function(g){ if(g && b.groups.indexOf(g)<0) b.groups.push(g); });
       var src = weekSel==='all' ? a : wd;
       b.chats+=src.chats||0;
       if(src.frt>0) b.frtArr.push(src.frt);
@@ -1515,7 +1623,7 @@ function csGetAgentsForSelection(parsed, monthSel, weekSel){
     });
   });
   return Object.values(byKey).map(function(b){
-    return {key:b.name+'::'+(b.psdId||''), name:b.name, csName:b.csName, group:b.group, source:b.source, psdId:b.psdId, chats:b.chats,
+    return {key:b.name+'::'+(b.psdId||''), name:b.name, csName:b.csName, group:b.group, groups:b.groups, source:b.source, psdId:b.psdId, chats:b.chats,
       frt:Math.round(csAv(b.frtArr)), mrt:Math.round(csAv(b.mrtArr)), aht:Math.round(csAv(b.ahtArr)), csat:csAv(b.csatArr)};
   }).filter(function(a){ return a.chats>0 || a.frt>0 || a.mrt>0; }); // drop rows with genuinely nothing in them (empty week/blank row)
 }
@@ -1569,10 +1677,26 @@ function csBuildSlaTree_(parsed, monthSel, weekSel){
         if(w.csat>0) mCsatArr.push(w.csat);
       });
       if(mChats<=0 && !mFrtArr.length && !mMrtArr.length) return; // nothing for this agent this month within the current selection
-      if(!byKey[k]) byKey[k]={name:a.name, csName:a.csName, group:a.group, source:a.source, psdId:a.psdId, chats:0, frtArr:[], mrtArr:[], ahtArr:[], csatArr:[], months:{}};
+      if(!byKey[k]) byKey[k]={name:a.name, csName:a.csName, group:a.group, groups:[], source:a.source, psdId:a.psdId, chats:0, frtArr:[], mrtArr:[], ahtArr:[], csatArr:[], months:{}, hasCrossGroup:false, crossDetails:[]};
       var b=byKey[k];
       b.months[m]={chats:mChats, frt:Math.round(csAv(mFrtArr)), mrt:Math.round(csAv(mMrtArr)), aht:Math.round(csAv(mAhtArr)), csat:csAv(mCsatArr),
-        weeks:weeksForMonth.filter(function(w){return w.chats>0 || w.frt>0 || w.mrt>0;})};
+        weeks:weeksForMonth.filter(function(w){return w.chats>0 || w.frt>0 || w.mrt>0;}),
+        crossGroup:!!a.crossGroup, groups:(a.groups||[a.group]).concat(a.otherGroups||[])};
+      // Union every distinct raw group this agent touched across all months
+      // in scope — this is what lets currency resolution (below, in
+      // renderSlaPage) check each real group independently instead of
+      // whatever the flattened `group` display text happens to say.
+      (a.groups||[a.group]).forEach(function(g){ if(g && b.groups.indexOf(g)<0) b.groups.push(g); });
+      // Bubble the cross-team-reply signal up to the agent level too, with
+      // enough detail (which month, which teams) to show in a tooltip —
+      // this is what lets the "⚠ Cross-team" badge on the agent's own row
+      // summarize every month it happened in, not just the one currently
+      // expanded.
+      if(a.crossGroup){
+        var tooltipGroups_=(a.groups||[a.group]).slice();
+        (a.otherGroups||[]).forEach(function(g){ if(g&&tooltipGroups_.indexOf(g)<0) tooltipGroups_.push(g); });
+        b.hasCrossGroup=true; b.crossDetails.push({month:m, groups:tooltipGroups_});
+      }
       b.chats+=mChats;
       b.frtArr=b.frtArr.concat(mFrtArr); b.mrtArr=b.mrtArr.concat(mMrtArr); b.ahtArr=b.ahtArr.concat(mAhtArr); b.csatArr=b.csatArr.concat(mCsatArr);
     });
@@ -1580,9 +1704,9 @@ function csBuildSlaTree_(parsed, monthSel, weekSel){
   return Object.keys(byKey).map(function(k){
     var b=byKey[k];
     var monthKeys=Object.keys(b.months).sort(function(x,y){return CS_MONTHS.indexOf(x)-CS_MONTHS.indexOf(y);});
-    return {key:k, name:b.name, csName:b.csName, group:b.group, source:b.source, psdId:b.psdId, chats:b.chats,
+    return {key:k, name:b.name, csName:b.csName, group:b.group, groups:b.groups, source:b.source, psdId:b.psdId, chats:b.chats,
       frt:Math.round(csAv(b.frtArr)), mrt:Math.round(csAv(b.mrtArr)), aht:Math.round(csAv(b.ahtArr)), csat:csAv(b.csatArr),
-      months:b.months, monthKeys:monthKeys};
+      months:b.months, monthKeys:monthKeys, hasCrossGroup:b.hasCrossGroup, crossDetails:b.crossDetails};
   }).filter(function(a){ return a.chats>0 || a.frt>0 || a.mrt>0; });
 }
 
@@ -1591,6 +1715,17 @@ function csBuildSlaTree_(parsed, monthSel, weekSel){
    change) doesn't collapse rows the person already opened. */
 var slaExpanded_={};
 function csToggleSlaRow_(id){ slaExpanded_[id]=!slaExpanded_[id]; renderSlaPage(); }
+
+// "⚠ Cross-team" badge — shown when an agent's chat data for a period came
+// from more than one Group/team row in the Sheet (see the merge logic in
+// csParseSLA above). This is usually a chat that got answered by an agent
+// outside their assigned team, so it's surfaced rather than silently
+// folded into the merged totals — the tooltip lists exactly which teams
+// and (at the agent level) which months, so it's actionable for whoever
+// reviews it, not just a vague warning icon.
+function csCrossBadge_(tooltip){
+  return '<span class="sla-warn-badge" title="'+csEsc(tooltip)+'"><i class="fa-solid fa-triangle-exclamation" style="font-size:8px"></i> Cross-team</span>';
+}
 
 /* Renders the Agent → Month → Week rows for the expandable SLA table. */
 function csSlaTreeRowsHtml_(list){
@@ -1601,8 +1736,12 @@ function csSlaTreeRowsHtml_(list){
     var hasChildren=a.monthKeys.length>0;
     var arrow=hasChildren ? '<i class="fa-solid fa-chevron-'+(expanded?'down':'right')+'" style="width:9px;font-size:8px;display:inline-block;margin-right:6px;color:var(--muted)"></i>' : '<span style="display:inline-block;width:15px"></span>';
     out.push('<div class="sla-agent-card">');
+    var agentCrossBadge=a.hasCrossGroup ? csCrossBadge_((a.crossDetails||[]).map(function(d){
+        var mLbl=CS_MONTHS_FULL[CS_MONTHS.indexOf(d.month)]||d.month;
+        return mLbl+': '+d.groups.join(' / ');
+      }).join('\n')) : '';
     out.push('<div class="sla-row-agent'+(hasChildren?' has-kids'+(expanded?' expanded':''):'')+'"'+(hasChildren?' onclick="csToggleSlaRow_(\''+agentId.replace(/'/g,"\\'")+'\')"':'')+'>'+
-      '<div>'+arrow+csEsc(a.psdId)+'</div><div>'+csEsc(a.name)+'</div><div>'+csEsc(a.csName||'')+'</div><div>'+csEsc(a.group||'')+'</div>'+
+      '<div>'+arrow+csEsc(a.psdId)+'</div><div>'+csEsc(a.name)+agentCrossBadge+'</div><div>'+csEsc(a.csName||'')+'</div><div>'+csEsc(a.group||'')+'</div>'+
       '<div>'+fmtInt(a.chats)+'</div><div>'+csMv_(a.frt,'frt')+'</div><div>'+csMv_(a.mrt,'mrt')+'</div><div>'+csMv_(a.aht,'aht')+'</div>'+
       '<div>'+csCsatTxt_(a.csat)+'</div><div>'+csSlaStatusBadge_(a.frt,a.mrt,a.aht)+'</div></div>');
     if(expanded){
@@ -1615,9 +1754,10 @@ function csSlaTreeRowsHtml_(list){
         var hasWeeks=weeks.length>0;
         var marrow=hasWeeks ? '<i class="fa-solid fa-chevron-'+(mExpanded?'down':'right')+'" style="width:9px;font-size:8px;display:inline-block;margin-right:6px;color:var(--muted)"></i>' : '<span style="display:inline-block;width:15px"></span>';
         var monthLbl=CS_MONTHS_FULL[CS_MONTHS.indexOf(mk)]||mk;
+        var monthCrossBadge=md.crossGroup ? csCrossBadge_((md.groups||[]).join(' / ')) : '';
         out.push('<div class="sla-month-card">');
         out.push('<div class="sla-row-month'+(hasWeeks?' has-kids':'')+'"'+(hasWeeks?' onclick="csToggleSlaRow_(\''+monthId.replace(/'/g,"\\'")+'\')"':'')+'>'+
-          '<div style="padding-left:26px">'+marrow+csEsc(monthLbl)+'</div><div></div><div></div><div></div>'+
+          '<div style="padding-left:26px">'+marrow+csEsc(monthLbl)+monthCrossBadge+'</div><div></div><div></div><div></div>'+
           '<div>'+fmtInt(md.chats)+'</div><div>'+csMv_(md.frt,'frt')+'</div><div>'+csMv_(md.mrt,'mrt')+'</div><div>'+csMv_(md.aht,'aht')+'</div>'+
           '<div>'+csCsatTxt_(md.csat)+'</div><div>'+csSlaStatusBadge_(md.frt,md.mrt,md.aht)+'</div></div>');
         if(mExpanded && hasWeeks){
@@ -1827,6 +1967,29 @@ function csResolveGroupCurrencies_(group, cfg){
   if(seed.length) return seed;
   return [];
 }
+// Resolves an agent's currencies as the UNION of resolving each of its
+// distinct RAW group values independently, instead of running detection on
+// the merged/concatenated `group` display string (e.g. "TEAM A, JW, JB,
+// ..., S10 PKR Aff team"). This matters because of the cross-team merge in
+// csParseSLA above: joining two groups' text together can accidentally
+// spell one currency code out literally ("PKR", from "S10 PKR Aff team")
+// while the OTHER real group ("TEAM A...") only resolves to its currency
+// (BDT) via the seed-rule fallback — csResolveGroupCurrencies_ returns as
+// soon as it finds an explicit code, so on the merged blob it would find
+// PKR, stop right there, and never even check the seed rule for "team a".
+// Net effect: an agent who's 95% BDT work with one stray PKR chat would
+// vanish from the BDT view entirely and only show up under PKR — the
+// wrong currency for most of their real work. Resolving per-original-group
+// and unioning keeps the agent correctly visible under every currency they
+// actually worked in that period.
+function csResolveAgentCurrencies_(a, cfg){
+  var groups=(a && a.groups && a.groups.length) ? a.groups : [(a&&a.group)||''];
+  var out=[], seen={};
+  groups.forEach(function(g){
+    csResolveGroupCurrencies_(g, cfg).forEach(function(c){ if(!seen[c]){ seen[c]=true; out.push(c); } });
+  });
+  return out;
+}
 // Automation's brand columns are checked against the Sales pages' own BRANDS_BY_CURRENCY
 // list first (exact, case-insensitive name match) — reliable whenever the Daily Chat
 // Report's brand headers are literal brand names. Falls back to a manual map
@@ -1860,8 +2023,8 @@ function getCsSlaParsed(){
   if(eInt.status==='loading' || (eOut && eOut.status==='loading')) return {status:'loading'};
   if(eInt.status==='error') return {status:'error', error:eInt.error};
   if(eOut && eOut.status==='error') return {status:'error', error:eOut.error};
-  var parsedInt=csParseSLA(eInt.rawRows,'A');
-  var parsed = eOut ? csMergeSLA(parsedInt, csParseSLA(eOut.rawRows,'B')) : parsedInt;
+  var parsedInt=csParseSLA(eInt.rawRows,'A',cfg);
+  var parsed = eOut ? csMergeSLA(parsedInt, csParseSLA(eOut.rawRows,'B',cfg)) : parsedInt;
   // Annotate every agent (in every month) with which currency/currencies its group resolves
   // to. Two lists come out of this: unresolvedGroups (truly nothing matched — these agents
   // are invisible from every currency view until mapped, drives the warning banner) and
@@ -1872,9 +2035,17 @@ function getCsSlaParsed(){
   Object.keys(parsed.months).forEach(function(m){
     Object.keys(parsed.months[m].agents).forEach(function(k){
       var a=parsed.months[m].agents[k];
-      a.currencies=csResolveGroupCurrencies_(a.group||'', cfg);
-      if(!a.currencies.length && a.group) unresolved[a.group]=true;
-      if(a.group && !csDetectCurrencyFromText_(a.group).length) review[a.group]=true;
+      a.currencies=csResolveAgentCurrencies_(a, cfg);
+      // Unresolved/review tracking runs per distinct RAW group (not the
+      // merged blob) so a cross-team-merged agent's two groups are each
+      // checked — and each show up individually in the CS Sheet Settings
+      // checklist — on their own merits, same as if they'd never been merged.
+      var rawGroups_=(a.groups&&a.groups.length)?a.groups:[a.group||''];
+      rawGroups_.forEach(function(g){
+        if(!g) return;
+        if(!csResolveGroupCurrencies_(g,cfg).length) unresolved[g]=true;
+        if(!csDetectCurrencyFromText_(g).length) review[g]=true;
+      });
     });
   });
   csLastUnresolvedGroups_=Object.keys(unresolved).sort();
@@ -1929,7 +2100,7 @@ function renderSlaPage(){
 
   var parsed=res.data;
   var cfg=csCfg_();
-  function inCurrentCurrency_(a){ return csResolveGroupCurrencies_(a.group||'', cfg).indexOf(currentCurrency)>=0; }
+  function inCurrentCurrency_(a){ return csResolveAgentCurrencies_(a, cfg).indexOf(currentCurrency)>=0; }
 
   // Agent <select> — union of agent names across every month, filtered to whichever currency
   // is currently selected in the sidebar, rebuilt only when the set actually changes (avoids
@@ -1962,7 +2133,7 @@ function renderSlaPage(){
   }
 
   var agents=csGetAgentsForSelection(parsed, slaMonth, slaWeek);
-  agents.forEach(function(a){ a.currencies=csResolveGroupCurrencies_(a.group||'', cfg); });
+  agents.forEach(function(a){ a.currencies=csResolveAgentCurrencies_(a, cfg); });
   agents=agents.filter(function(a){ return a.currencies.indexOf(currentCurrency)>=0; });
   if(slaGroup!=='all') agents=agents.filter(function(a){return a.group===slaGroup;});
   if(slaAgent!=='all') agents=agents.filter(function(a){return a.name===slaAgent;});
@@ -2022,7 +2193,7 @@ function renderSlaPage(){
   // the flat KPIs/chart would've shown for that agent — expanding it just reveals the
   // month-by-month (then week-by-week) numbers behind that total.
   var slaTree=csBuildSlaTree_(parsed, slaMonth, slaWeek);
-  slaTree.forEach(function(a){ a.currencies=csResolveGroupCurrencies_(a.group||'', cfg); });
+  slaTree.forEach(function(a){ a.currencies=csResolveAgentCurrencies_(a, cfg); });
   slaTree=slaTree.filter(function(a){ return a.currencies.indexOf(currentCurrency)>=0; });
   if(slaGroup!=='all') slaTree=slaTree.filter(function(a){return a.group===slaGroup;});
   if(slaAgent!=='all') slaTree=slaTree.filter(function(a){return a.name===slaAgent;});
