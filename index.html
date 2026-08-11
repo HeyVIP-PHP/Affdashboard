@@ -274,39 +274,56 @@ table.dt tbody tr:hover td{background:var(--ov-03)}
 .pv-pill.average{background:var(--gold-d);color:var(--gold)}
 .pv-pill.bad{background:var(--red-d);color:var(--red)}
 
-/* ═══════════ SLA TABLE — Agent → Month → Week hierarchy + metric pills ═══════════
-   Goal: the eye should be able to scan a column (all FRT values, say) without
-   reading text, and immediately tell which row-level (agent/month/week) a
-   row belongs to without reading the indentation. Two devices do that:
-     1. A colored left-edge bar per row level (purple=agent, gold=month,
-        muted=week) — same trick used elsewhere in this dashboard (peak-rank
-        dots, ki-icon colors) so it stays visually consistent with the rest
-        of the app rather than introducing a new pattern.
-     2. Fixed per-column pill colors for FRT/MRT (green — these are the
-        "fast is good" latency metrics) vs AHT (red/pink — handle time,
-        the metric that's naturally biggest and worth flagging visually)
-        vs CSAT (plain colored text, not a pill, since it's a % not a
-        duration). This is a column identity color, independent of the
-        Status badge's pass/fail color — a row can be "GOOD" overall while
-        its AHT pill still reads red, by design, so slow-handle-time is
-        never visually buried even in an otherwise healthy row.
+/* ═══════════ SLA TREE — Agent → Month(card) → Week(card) hierarchy ═══════════
+   Rebuilt from a plain <table> to a CSS Grid "div table" specifically so
+   months and weeks can render as separate rounded CARDS with real gaps
+   between them (a native <table>'s <tr> can't have its own margin/radius —
+   that's what was making the flat-table version feel dense/monotonous no
+   matter how the row backgrounds were shaded). All four row kinds
+   (header/agent/month/week) share the exact same column track list via
+   --sla-cols so every level still lines up in the same columns; only the
+   wrapping DOM (cards vs. plain rows) differs.
+   Layout, top to bottom:
+     .sla-ghead                — sticky column header (PSD-ID..Status)
+     .sla-agent-card           — one per agent, own bottom margin (the gap
+                                  between different agents)
+       .sla-row-agent          — agent totals row
+       .sla-months             — only rendered when the agent is expanded
+         .sla-month-card        — one per month, own bottom margin (the gap
+                                   between Feb/March/April etc. — this is
+                                   the main fix for the "everything mushed
+                                   together" complaint)
+           .sla-row-month        — month totals row
+           .sla-row-weekhead      — sub-header (WEEK/CHATS/FRT/MRT/AHT/CSAT/
+                                   STATUS), only shown when the month is
+                                   expanded, so the reader never has to
+                                   scroll back up to the main header to
+                                   remember which column is which
+           .sla-row-week           — one per real week (Week 5 phantom-total
+                                   row already excluded upstream in the
+                                   parser, not just hidden here)
 */
-#sla-tbl tr:first-child th{position:sticky;top:0;background:var(--panel);z-index:6}
-/* Left-edge bars were previously color-coded per level (purple/gold) as a
-   hierarchy cue, but that reads as a status/meaning signal it isn't — and
-   competes with the metric pills' own color coding. Divider color is now
-   neutral (var(--border2)/var(--border)) at every level; hierarchy is
-   carried instead by background shade + indentation + font-weight, and text
-   is upgraded from --muted (low contrast, was hard to read on Week rows) to
-   --text so every level stays clearly legible, not just the top one. */
-.sla-row-agent td{background:var(--panel);font-weight:800;color:var(--text);border-left:3px solid var(--border2);border-bottom:1px solid var(--border2)}
-.sla-row-agent td:first-child{border-top-left-radius:8px;border-bottom-left-radius:8px}
-.sla-row-agent:hover td{background:var(--ov-05)}
-.sla-row-month td{background:var(--card);border-left:3px solid var(--border2);border-bottom:1px solid var(--border);font-weight:700;color:var(--text)}
-.sla-row-month td:first-child{border-top-left-radius:6px;border-bottom-left-radius:6px}
-.sla-row-month:hover td{background:var(--ov-04)}
-.sla-row-week td{background:transparent;border-left:3px solid var(--border);border-bottom:1px solid var(--border);font-weight:600;color:var(--text)}
-.sla-row-week:hover td{background:var(--ov-03)}
+:root{ --sla-cols: 100px 150px 120px minmax(170px,1fr) 100px 90px 90px 90px 78px 108px; }
+#sla-tbl{font-size:11px}
+.sla-ghead{display:grid;grid-template-columns:var(--sla-cols);position:sticky;top:0;background:var(--panel);z-index:6;border-bottom:1px solid var(--border);padding:0 2px}
+.sla-ghead>div{padding:8px 10px;color:var(--muted);font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sla-agent-card{margin-bottom:10px}
+.sla-agent-card:last-child{margin-bottom:0}
+.sla-row-agent{display:grid;grid-template-columns:var(--sla-cols);background:var(--panel);border:1px solid var(--border2);border-radius:8px;font-weight:800;color:var(--text)}
+.sla-row-agent.has-kids{cursor:pointer}
+.sla-row-agent.expanded{border-bottom-left-radius:0;border-bottom-right-radius:0}
+.sla-row-agent:hover{background:var(--ov-05)}
+.sla-months{border:1px solid var(--border2);border-top:none;border-radius:0 0 8px 8px;padding:10px;display:flex;flex-direction:column;gap:8px;background:var(--bg)}
+.sla-month-card{border:1px solid var(--border);border-radius:7px;overflow:hidden}
+.sla-row-month{display:grid;grid-template-columns:var(--sla-cols);background:var(--card);font-weight:700;color:var(--text)}
+.sla-row-month.has-kids{cursor:pointer}
+.sla-row-month:hover{background:var(--ov-04)}
+.sla-row-weekhead{display:grid;grid-template-columns:var(--sla-cols);background:var(--teal-d);border-top:1px solid var(--border)}
+.sla-row-weekhead>.sla-wh-label{grid-column:1 / 5;padding:7px 10px;color:var(--teal);font-weight:800;font-size:9px;text-transform:uppercase;letter-spacing:.06em}
+.sla-row-weekhead>div:not(.sla-wh-label){padding:7px 10px;color:var(--teal);font-weight:800;font-size:9px;text-transform:uppercase;letter-spacing:.06em}
+.sla-row-week{display:grid;grid-template-columns:var(--sla-cols);background:var(--panel);border-top:1px solid var(--border);font-weight:600;color:var(--text)}
+.sla-row-week:hover{background:var(--ov-03)}
+.sla-row-agent>div,.sla-row-month>div,.sla-row-week>div{padding:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center}
 .sla-mv{display:inline-block;font-size:10px;font-weight:700;padding:3px 9px;border-radius:5px;font-family:var(--mono);white-space:nowrap;min-width:38px;text-align:center}
 .sla-mv.frt,.sla-mv.mrt{background:var(--green-d);color:var(--green)}
 .sla-mv.aht{background:var(--red-d);color:var(--red)}
@@ -736,7 +753,7 @@ table.dt td.pv-brand{font-weight:800}
         </div>
         <div class="panel">
           <div class="ph"><span class="ph-t">👤 Agent SLA Performance</span><span style="font-size:9px;color:var(--muted);margin-left:8px;font-weight:600">▸ click a row to expand months, then weeks</span><span class="ph-tag" id="sla-tbl-tag">—</span></div>
-          <div class="pb" style="overflow-x:auto"><table class="dt" id="sla-tbl" style="table-layout:auto"></table></div>
+          <div class="pb" style="overflow-x:auto"><div id="sla-tbl"></div></div>
         </div>
       </div>
 
@@ -1426,6 +1443,26 @@ function csParseSLA(rows, source){
         var cm=curColMap[wi]||{frt:ws+1,mrt:ws+2,aht:ws+3,csat:ws+4};
         return {week:wi+1, label:curWeekLabels[wi]||('Week '+(wi+1)), chats:csPi(row[ws]), frt:csPfDur_(row[cm.frt]), mrt:csPfDur_(row[cm.mrt]), aht:csPfDur_(row[cm.aht]), csat:csPf(row[cm.csat])};
       });
+      // Structural safety net, independent of what the header cell text says:
+      // a real Sheet's Monthly Total column sums the exact same rows the
+      // week columns represent, so if the LAST week-like column's chat
+      // count exactly equals the sum of every week before it, that column
+      // IS the Monthly Total, not a genuine extra week — no real week's own
+      // chat count coincides exactly with the sum of all weeks before it.
+      // This catches Sheets where the summary column's header text doesn't
+      // cleanly say "Total" (e.g. it's labeled the same as the week
+      // columns, or worded in a way the header-text matching above didn't
+      // anticipate) by using the DATA itself as the signal instead of
+      // trusting the header wording. Looped (not a single check) in case a
+      // Sheet ever has more than one trailing summary column.
+      while(agentWeeks.length>=2){
+        var lastW_=agentWeeks[agentWeeks.length-1];
+        var restSum_=0;
+        for(var wi2=0; wi2<agentWeeks.length-1; wi2++) restSum_+=agentWeeks[wi2].chats;
+        if(lastW_.chats>0 && restSum_>0 && lastW_.chats===restSum_){
+          agentWeeks=agentWeeks.slice(0,-1); // drop the trailing Monthly Total column masquerading as a week
+        } else break;
+      }
       var totalChats=agentWeeks.reduce(function(s,w){return s+w.chats;},0);
       var frtVals=agentWeeks.filter(function(w){return w.frt>0;}).map(function(w){return w.frt;});
       var mrtVals=agentWeeks.filter(function(w){return w.mrt>0;}).map(function(w){return w.mrt;});
@@ -1563,31 +1600,45 @@ function csSlaTreeRowsHtml_(list){
     var expanded=!!slaExpanded_[agentId];
     var hasChildren=a.monthKeys.length>0;
     var arrow=hasChildren ? '<i class="fa-solid fa-chevron-'+(expanded?'down':'right')+'" style="width:9px;font-size:8px;display:inline-block;margin-right:6px;color:var(--muted)"></i>' : '<span style="display:inline-block;width:15px"></span>';
-    out.push('<tr class="sla-row-agent"'+(hasChildren?' onclick="csToggleSlaRow_(\''+agentId.replace(/'/g,"\\'")+'\')" style="cursor:pointer"':'')+'>'+
-      '<td>'+arrow+csEsc(a.psdId)+'</td><td>'+csEsc(a.name)+'</td><td>'+csEsc(a.csName||'')+'</td><td>'+csEsc(a.group||'')+'</td>'+
-      '<td>'+fmtInt(a.chats)+'</td><td>'+csMv_(a.frt,'frt')+'</td><td>'+csMv_(a.mrt,'mrt')+'</td><td>'+csMv_(a.aht,'aht')+'</td>'+
-      '<td>'+csCsatTxt_(a.csat)+'</td><td>'+csSlaStatusBadge_(a.frt,a.mrt,a.aht)+'</td></tr>');
-    if(!expanded) return;
-    a.monthKeys.forEach(function(mk){
-      var md=a.months[mk];
-      var monthId=agentId+'|'+mk;
-      var mExpanded=!!slaExpanded_[monthId];
-      var weeks=md.weeks||[];
-      var hasWeeks=weeks.length>0;
-      var marrow=hasWeeks ? '<i class="fa-solid fa-chevron-'+(mExpanded?'down':'right')+'" style="width:9px;font-size:8px;display:inline-block;margin-right:6px;color:var(--muted)"></i>' : '<span style="display:inline-block;width:15px"></span>';
-      var monthLbl=CS_MONTHS_FULL[CS_MONTHS.indexOf(mk)]||mk;
-      out.push('<tr class="sla-row-month"'+(hasWeeks?' onclick="csToggleSlaRow_(\''+monthId.replace(/'/g,"\\'")+'\')" style="cursor:pointer"':'')+'>'+
-        '<td style="padding-left:26px">'+marrow+csEsc(monthLbl)+'</td><td></td><td></td><td></td>'+
-        '<td>'+fmtInt(md.chats)+'</td><td>'+csMv_(md.frt,'frt')+'</td><td>'+csMv_(md.mrt,'mrt')+'</td><td>'+csMv_(md.aht,'aht')+'</td>'+
-        '<td>'+csCsatTxt_(md.csat)+'</td><td>'+csSlaStatusBadge_(md.frt,md.mrt,md.aht)+'</td></tr>');
-      if(!mExpanded) return;
-      weeks.forEach(function(w){
-        out.push('<tr class="sla-row-week">'+
-          '<td style="padding-left:46px">'+csEsc(w.label||('Week '+w.week))+'</td><td></td><td></td><td></td>'+
-          '<td>'+fmtInt(w.chats)+'</td><td>'+csMv_(w.frt,'frt')+'</td><td>'+csMv_(w.mrt,'mrt')+'</td><td>'+csMv_(w.aht,'aht')+'</td>'+
-          '<td>'+csCsatTxt_(w.csat)+'</td><td>'+csSlaStatusBadge_(w.frt,w.mrt,w.aht)+'</td></tr>');
+    out.push('<div class="sla-agent-card">');
+    out.push('<div class="sla-row-agent'+(hasChildren?' has-kids'+(expanded?' expanded':''):'')+'"'+(hasChildren?' onclick="csToggleSlaRow_(\''+agentId.replace(/'/g,"\\'")+'\')"':'')+'>'+
+      '<div>'+arrow+csEsc(a.psdId)+'</div><div>'+csEsc(a.name)+'</div><div>'+csEsc(a.csName||'')+'</div><div>'+csEsc(a.group||'')+'</div>'+
+      '<div>'+fmtInt(a.chats)+'</div><div>'+csMv_(a.frt,'frt')+'</div><div>'+csMv_(a.mrt,'mrt')+'</div><div>'+csMv_(a.aht,'aht')+'</div>'+
+      '<div>'+csCsatTxt_(a.csat)+'</div><div>'+csSlaStatusBadge_(a.frt,a.mrt,a.aht)+'</div></div>');
+    if(expanded){
+      out.push('<div class="sla-months">');
+      a.monthKeys.forEach(function(mk){
+        var md=a.months[mk];
+        var monthId=agentId+'|'+mk;
+        var mExpanded=!!slaExpanded_[monthId];
+        var weeks=md.weeks||[];
+        var hasWeeks=weeks.length>0;
+        var marrow=hasWeeks ? '<i class="fa-solid fa-chevron-'+(mExpanded?'down':'right')+'" style="width:9px;font-size:8px;display:inline-block;margin-right:6px;color:var(--muted)"></i>' : '<span style="display:inline-block;width:15px"></span>';
+        var monthLbl=CS_MONTHS_FULL[CS_MONTHS.indexOf(mk)]||mk;
+        out.push('<div class="sla-month-card">');
+        out.push('<div class="sla-row-month'+(hasWeeks?' has-kids':'')+'"'+(hasWeeks?' onclick="csToggleSlaRow_(\''+monthId.replace(/'/g,"\\'")+'\')"':'')+'>'+
+          '<div style="padding-left:26px">'+marrow+csEsc(monthLbl)+'</div><div></div><div></div><div></div>'+
+          '<div>'+fmtInt(md.chats)+'</div><div>'+csMv_(md.frt,'frt')+'</div><div>'+csMv_(md.mrt,'mrt')+'</div><div>'+csMv_(md.aht,'aht')+'</div>'+
+          '<div>'+csCsatTxt_(md.csat)+'</div><div>'+csSlaStatusBadge_(md.frt,md.mrt,md.aht)+'</div></div>');
+        if(mExpanded && hasWeeks){
+          // Sub-header, only shown once a month is actually expanded — repeats
+          // the column names right where the weeks start so the reader never
+          // has to scroll back up to the main header to remember which
+          // column is which. The label cell spans the 4 identity columns
+          // (PSD-ID/Staff/Cs Name/Group are blank on week rows anyway).
+          out.push('<div class="sla-row-weekhead"><div class="sla-wh-label">Week</div><div>Chats</div><div>FRT</div><div>MRT</div><div>AHT</div><div>CSAT</div><div>Status</div></div>');
+          weeks.forEach(function(w){
+            out.push('<div class="sla-row-week">'+
+              '<div style="padding-left:46px">'+csEsc(w.label||('Week '+w.week))+'</div><div></div><div></div><div></div>'+
+              '<div>'+fmtInt(w.chats)+'</div><div>'+csMv_(w.frt,'frt')+'</div><div>'+csMv_(w.mrt,'mrt')+'</div><div>'+csMv_(w.aht,'aht')+'</div>'+
+              '<div>'+csCsatTxt_(w.csat)+'</div><div>'+csSlaStatusBadge_(w.frt,w.mrt,w.aht)+'</div></div>');
+          });
+        }
+        out.push('</div>'); // .sla-month-card
       });
-    });
+      out.push('</div>'); // .sla-months
+    }
+    out.push('</div>'); // .sla-agent-card
   });
   return out.join('');
 }
@@ -1979,8 +2030,8 @@ function renderSlaPage(){
   document.getElementById('sla-tbl-tag').textContent=slaTree.length+' AGENTS';
   var treeRowsHtml=csSlaTreeRowsHtml_(slaTree);
   document.getElementById('sla-tbl').innerHTML=
-    '<tr><th>PSD-ID</th><th>Staff Name</th><th>Cs Name</th><th>Group</th><th>Total Chat</th><th>FRT</th><th>MRT</th><th>AHT</th><th>CSAT</th><th>Status</th></tr>'+
-    (treeRowsHtml || '<tr><td colspan="10" style="color:var(--muted);text-align:center;padding:16px">No matching agents for this selection</td></tr>');
+    '<div class="sla-ghead"><div>PSD-ID</div><div>Staff Name</div><div>Cs Name</div><div>Group</div><div>Total Chat</div><div>FRT</div><div>MRT</div><div>AHT</div><div>CSAT</div><div>Status</div></div>'+
+    (treeRowsHtml || '<div style="color:var(--muted);text-align:center;padding:16px">No matching agents for this selection</div>');
 }
 
 /* ---------- Automation page ---------- */
