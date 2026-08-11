@@ -690,7 +690,7 @@ table.dt td.pv-brand{font-weight:800}
           <div class="panel at"><div class="ph"><span class="ph-t">📊 FRT / MRT by Agent</span><span class="ph-tag">SECONDS</span></div><div class="cw"><canvas id="sla-chart"></canvas></div></div>
         </div>
         <div class="panel">
-          <div class="ph"><span class="ph-t">👤 Agent SLA Performance</span><span class="ph-tag" id="sla-tbl-tag">—</span></div>
+          <div class="ph"><span class="ph-t">👤 Agent SLA Performance</span><span style="font-size:9px;color:var(--muted);margin-left:8px;font-weight:600">▸ click a row to expand months, then weeks</span><span class="ph-tag" id="sla-tbl-tag">—</span></div>
           <div class="pb" style="overflow-x:auto"><table class="dt" id="sla-tbl" style="table-layout:auto"></table></div>
         </div>
       </div>
@@ -1260,7 +1260,7 @@ function csBarRow(label,pct,color){
 function csParseSLA(rows, source){
   source = source || 'A';
   if(!rows || rows.length<3) return {months:{}, monthList:[]};
-  var months={}, curMonth=null, curWS=[], curWeekLabels=[];
+  var months={}, curMonth=null, curWS=[], curWeekLabels=[], curColMap=[];
   // Rows we never want to treat as a real agent — subtotal/blank-total rows
   // that show up at the bottom of every month's block (e.g. "Team total").
   var SKIP_ROW_RE=/^(team\s*total|grand\s*total|total)$/i;
@@ -1291,7 +1291,7 @@ function csParseSLA(rows, source){
     if(moFound){
       curMonth=moFound;
       if(!months[curMonth]) months[curMonth]={agents:{}, weekLabels:[]};
-      curWS=[]; curWeekLabels=[];
+      curWS=[]; curWeekLabels=[]; curColMap=[];
       continue;
     }
 
@@ -1307,6 +1307,28 @@ function csParseSLA(rows, source){
     if(wsRow.length){
       curWS=wsRow;
       curWeekLabels=curWS.map(function(_,i){return 'Week '+(i+1);});
+      // For each week block, look at the header cells right after its "Total
+      // Chat"/"Total" column and match them BY NAME (frt/mrt/aht/csat) up to
+      // where the next week block starts. Real Sheets don't always lay these
+      // out as a clean total,frt,mrt,aht,csat run — there can be an extra
+      // spacer column, a re-ordered metric, or a "SLA"/"Status" column mixed
+      // in — so trusting the header text here is far more robust than
+      // assuming fixed +1/+2/+3/+4 offsets from the total column. Falls back
+      // to those offsets only for whichever metric isn't found by name, so a
+      // Sheet with plain unlabeled columns still parses the same as before.
+      curColMap=curWS.map(function(startIdx,i){
+        var endIdx=(i+1<curWS.length)?curWS[i+1]:row.length;
+        var map={frt:startIdx+1, mrt:startIdx+2, aht:startIdx+3, csat:startIdx+4};
+        var found={};
+        for(var ci2=startIdx+1; ci2<endIdx; ci2++){
+          var h=String(row[ci2]||'').trim().toLowerCase().replace(/[^a-z]/g,'');
+          if(h==='frt'){ map.frt=ci2; found.frt=true; }
+          else if(h==='mrt'){ map.mrt=ci2; found.mrt=true; }
+          else if(h==='aht'){ map.aht=ci2; found.aht=true; }
+          else if(h==='csat'){ map.csat=ci2; found.csat=true; }
+        }
+        return map;
+      });
       if(curMonth && months[curMonth]) months[curMonth].weekLabels=curWeekLabels;
       continue; // next row is the first agent row — do not skip it
     }
@@ -1318,7 +1340,8 @@ function csParseSLA(rows, source){
     if(curMonth && (f||f2||f3) && curWS.length){
       var psId=f, staffName=f2, csName=f3, group=f4;
       var agentWeeks=curWS.map(function(ws,wi){
-        return {week:wi+1, label:curWeekLabels[wi]||('Week '+(wi+1)), chats:csPi(row[ws]), frt:csPf(row[ws+1]), mrt:csPf(row[ws+2]), aht:csPf(row[ws+3]), csat:csPf(row[ws+4])};
+        var cm=curColMap[wi]||{frt:ws+1,mrt:ws+2,aht:ws+3,csat:ws+4};
+        return {week:wi+1, label:curWeekLabels[wi]||('Week '+(wi+1)), chats:csPi(row[ws]), frt:csPf(row[cm.frt]), mrt:csPf(row[cm.mrt]), aht:csPf(row[cm.aht]), csat:csPf(row[cm.csat])};
       });
       var totalChats=agentWeeks.reduce(function(s,w){return s+w.chats;},0);
       var frtVals=agentWeeks.filter(function(w){return w.frt>0;}).map(function(w){return w.frt;});
@@ -1372,9 +1395,103 @@ function csGetAgentsForSelection(parsed, monthSel, weekSel){
     });
   });
   return Object.values(byKey).map(function(b){
-    return {name:b.name, csName:b.csName, group:b.group, source:b.source, psdId:b.psdId, chats:b.chats,
+    return {key:b.name+'::'+(b.psdId||''), name:b.name, csName:b.csName, group:b.group, source:b.source, psdId:b.psdId, chats:b.chats,
       frt:Math.round(csAv(b.frtArr)), mrt:Math.round(csAv(b.mrtArr)), aht:Math.round(csAv(b.ahtArr)), csat:csAv(b.csatArr)};
   }).filter(function(a){ return a.chats>0 || a.frt>0 || a.mrt>0; }); // drop rows with genuinely nothing in them (empty week/blank row)
+}
+
+/* SLA status badge — shared by the flat table and every level (agent/month/week) of the
+   expandable tree below, so "Good/Normal/Average/Bad" always means the same thing everywhere. */
+function csSlaStatusBadge_(frt,mrt,aht){
+  var frtOk=frt>0 && frt<=CS_SLA_TARGETS.frt;
+  var mrtOk=mrt>0 && mrt<=CS_SLA_TARGETS.mrt;
+  var ahtOk=aht>0 && aht<=CS_SLA_TARGETS.aht;
+  var overCount=(frtOk?0:1)+(mrtOk?0:1)+(ahtOk?0:1);
+  return overCount===0 ? '<span class="pv-pill good">✓ GOOD</span>'
+       : overCount===1 ? '<span class="pv-pill warn">NORMAL</span>'
+       : '<span class="pv-pill bad">'+(overCount===3?'BAD':'AVERAGE')+'</span>';
+}
+
+/* Builds the Agent → Month → Week tree for the expandable "Agent SLA Performance" table.
+   Same month/week selection semantics as csGetAgentsForSelection (monthSel 'all'/'H1'/'H2'/a
+   single month, weekSel 'all' or a week number) — whichever months/weeks are in scope are
+   what shows up as expandable children, and the agent-level row is their re-averaged total. */
+function csBuildSlaTree_(parsed, monthSel, weekSel){
+  var monthsArr=csExpandMonths(monthSel);
+  var targets = monthsArr===null ? parsed.monthList : parsed.monthList.filter(function(m){return monthsArr.indexOf(m)>=0;});
+  var byKey={};
+  targets.forEach(function(m){
+    var md=parsed.months[m]; if(!md) return;
+    Object.keys(md.agents).forEach(function(k){
+      var a=md.agents[k];
+      var weeksForMonth = weekSel==='all' ? (a.weeks||[]) : ((a.weeks && a.weeks[parseInt(weekSel,10)-1]) ? [a.weeks[parseInt(weekSel,10)-1]] : []);
+      var mChats=0, mFrtArr=[], mMrtArr=[], mAhtArr=[], mCsatArr=[];
+      weeksForMonth.forEach(function(w){
+        mChats+=w.chats||0;
+        if(w.frt>0) mFrtArr.push(w.frt);
+        if(w.mrt>0) mMrtArr.push(w.mrt);
+        if(w.aht>0) mAhtArr.push(w.aht);
+        if(w.csat>0) mCsatArr.push(w.csat);
+      });
+      if(mChats<=0 && !mFrtArr.length && !mMrtArr.length) return; // nothing for this agent this month within the current selection
+      if(!byKey[k]) byKey[k]={name:a.name, csName:a.csName, group:a.group, source:a.source, psdId:a.psdId, chats:0, frtArr:[], mrtArr:[], ahtArr:[], csatArr:[], months:{}};
+      var b=byKey[k];
+      b.months[m]={chats:mChats, frt:Math.round(csAv(mFrtArr)), mrt:Math.round(csAv(mMrtArr)), aht:Math.round(csAv(mAhtArr)), csat:csAv(mCsatArr),
+        weeks:weeksForMonth.filter(function(w){return w.chats>0 || w.frt>0 || w.mrt>0;})};
+      b.chats+=mChats;
+      b.frtArr=b.frtArr.concat(mFrtArr); b.mrtArr=b.mrtArr.concat(mMrtArr); b.ahtArr=b.ahtArr.concat(mAhtArr); b.csatArr=b.csatArr.concat(mCsatArr);
+    });
+  });
+  return Object.keys(byKey).map(function(k){
+    var b=byKey[k];
+    var monthKeys=Object.keys(b.months).sort(function(x,y){return CS_MONTHS.indexOf(x)-CS_MONTHS.indexOf(y);});
+    return {key:k, name:b.name, csName:b.csName, group:b.group, source:b.source, psdId:b.psdId, chats:b.chats,
+      frt:Math.round(csAv(b.frtArr)), mrt:Math.round(csAv(b.mrtArr)), aht:Math.round(csAv(b.ahtArr)), csat:csAv(b.csatArr),
+      months:b.months, monthKeys:monthKeys};
+  }).filter(function(a){ return a.chats>0 || a.frt>0 || a.mrt>0; });
+}
+
+/* Which agent/month rows are currently expanded — keyed by 'ag::<agentKey>' and
+   'ag::<agentKey>|<month>'. Kept outside renderSlaPage so re-rendering (new data, a filter
+   change) doesn't collapse rows the person already opened. */
+var slaExpanded_={};
+function csToggleSlaRow_(id){ slaExpanded_[id]=!slaExpanded_[id]; renderSlaPage(); }
+
+/* Renders the Agent → Month → Week rows for the expandable SLA table. */
+function csSlaTreeRowsHtml_(list){
+  var out=[];
+  list.slice().sort(function(a,b){return b.chats-a.chats;}).forEach(function(a){
+    var agentId='ag::'+a.key;
+    var expanded=!!slaExpanded_[agentId];
+    var hasChildren=a.monthKeys.length>0;
+    var arrow=hasChildren ? '<i class="fa-solid fa-chevron-'+(expanded?'down':'right')+'" style="width:9px;font-size:8px;display:inline-block;margin-right:6px;color:var(--muted)"></i>' : '<span style="display:inline-block;width:15px"></span>';
+    out.push('<tr class="sla-row-agent"'+(hasChildren?' onclick="csToggleSlaRow_(\''+agentId.replace(/'/g,"\\'")+'\')" style="cursor:pointer"':'')+'>'+
+      '<td>'+arrow+csEsc(a.psdId)+'</td><td>'+csEsc(a.name)+'</td><td>'+csEsc(a.csName||'')+'</td><td>'+csEsc(a.group||'')+'</td>'+
+      '<td>'+fmtInt(a.chats)+'</td><td>'+csFt(a.frt)+'</td><td>'+csFt(a.mrt)+'</td><td>'+csFt(a.aht)+'</td>'+
+      '<td>'+(a.csat?Math.round(a.csat*100)+'%':'—')+'</td><td>'+csSlaStatusBadge_(a.frt,a.mrt,a.aht)+'</td></tr>');
+    if(!expanded) return;
+    a.monthKeys.forEach(function(mk){
+      var md=a.months[mk];
+      var monthId=agentId+'|'+mk;
+      var mExpanded=!!slaExpanded_[monthId];
+      var weeks=md.weeks||[];
+      var hasWeeks=weeks.length>0;
+      var marrow=hasWeeks ? '<i class="fa-solid fa-chevron-'+(mExpanded?'down':'right')+'" style="width:9px;font-size:8px;display:inline-block;margin-right:6px;color:var(--muted)"></i>' : '<span style="display:inline-block;width:15px"></span>';
+      var monthLbl=CS_MONTHS_FULL[CS_MONTHS.indexOf(mk)]||mk;
+      out.push('<tr class="sla-row-month"'+(hasWeeks?' onclick="csToggleSlaRow_(\''+monthId.replace(/'/g,"\\'")+'\')" style="cursor:pointer;background:var(--ov-03)"':' style="background:var(--ov-03)"')+'>'+
+        '<td style="padding-left:26px">'+marrow+csEsc(monthLbl)+'</td><td></td><td></td><td></td>'+
+        '<td>'+fmtInt(md.chats)+'</td><td>'+csFt(md.frt)+'</td><td>'+csFt(md.mrt)+'</td><td>'+csFt(md.aht)+'</td>'+
+        '<td>'+(md.csat?Math.round(md.csat*100)+'%':'—')+'</td><td>'+csSlaStatusBadge_(md.frt,md.mrt,md.aht)+'</td></tr>');
+      if(!mExpanded) return;
+      weeks.forEach(function(w){
+        out.push('<tr class="sla-row-week" style="background:var(--ov-04)">'+
+          '<td style="padding-left:46px;color:var(--muted)">'+csEsc(w.label||('Week '+w.week))+'</td><td></td><td></td><td></td>'+
+          '<td>'+fmtInt(w.chats)+'</td><td>'+csFt(w.frt)+'</td><td>'+csFt(w.mrt)+'</td><td>'+csFt(w.aht)+'</td>'+
+          '<td>'+(w.csat?Math.round(w.csat*100)+'%':'—')+'</td><td>'+csSlaStatusBadge_(w.frt,w.mrt,w.aht)+'</td></tr>');
+      });
+    });
+  });
+  return out.join('');
 }
 
 /* ---------- Daily chat report parser (Automation) ----------
@@ -1751,22 +1868,21 @@ function renderSlaPage(){
     });
   }
 
-  document.getElementById('sla-tbl-tag').textContent=agents.length+' AGENTS';
-  var rowsHtml=agents.slice().sort(function(a,b){return b.chats-a.chats;}).map(function(a){
-    var frtOk=a.frt>0 && a.frt<=CS_SLA_TARGETS.frt;
-    var mrtOk=a.mrt>0 && a.mrt<=CS_SLA_TARGETS.mrt;
-    var ahtOk=a.aht>0 && a.aht<=CS_SLA_TARGETS.aht;
-    var overCount=(frtOk?0:1)+(mrtOk?0:1)+(ahtOk?0:1);
-    var badge = overCount===0 ? '<span class="pv-pill good">✓ GOOD</span>'
-              : overCount===1 ? '<span class="pv-pill warn">NORMAL</span>'
-              : '<span class="pv-pill bad">'+(overCount===3?'BAD':'AVERAGE')+'</span>';
-    return '<tr><td>'+csEsc(a.psdId)+'</td><td>'+csEsc(a.name)+'</td><td>'+csEsc(a.csName||'')+'</td><td>'+csEsc(a.group||'')+'</td><td>'+fmtInt(a.chats)+'</td>'+
-      '<td>'+csFt(a.frt)+'</td><td>'+csFt(a.mrt)+'</td><td>'+csFt(a.aht)+'</td>'+
-      '<td>'+(a.csat?Math.round(a.csat*100)+'%':'—')+'</td><td>'+badge+'</td></tr>';
-  }).join('');
+  // Same Agent → Month → Week tree as the flat `agents` list above, filtered by the same
+  // currency/group/agent selections, so the totals row for each agent always matches what
+  // the flat KPIs/chart would've shown for that agent — expanding it just reveals the
+  // month-by-month (then week-by-week) numbers behind that total.
+  var slaTree=csBuildSlaTree_(parsed, slaMonth, slaWeek);
+  slaTree.forEach(function(a){ a.currencies=csResolveGroupCurrencies_(a.group||'', cfg); });
+  slaTree=slaTree.filter(function(a){ return a.currencies.indexOf(currentCurrency)>=0; });
+  if(slaGroup!=='all') slaTree=slaTree.filter(function(a){return a.group===slaGroup;});
+  if(slaAgent!=='all') slaTree=slaTree.filter(function(a){return a.name===slaAgent;});
+
+  document.getElementById('sla-tbl-tag').textContent=slaTree.length+' AGENTS';
+  var treeRowsHtml=csSlaTreeRowsHtml_(slaTree);
   document.getElementById('sla-tbl').innerHTML=
     '<tr><th>PSD-ID</th><th>Staff Name</th><th>Cs Name</th><th>Group</th><th>Total Chat</th><th>FRT</th><th>MRT</th><th>AHT</th><th>CSAT</th><th>Status</th></tr>'+
-    (rowsHtml || '<tr><td colspan="10" style="color:var(--muted);text-align:center;padding:16px">No matching agents for this selection</td></tr>');
+    (treeRowsHtml || '<tr><td colspan="10" style="color:var(--muted);text-align:center;padding:16px">No matching agents for this selection</td></tr>');
 }
 
 /* ---------- Automation page ---------- */
@@ -1777,6 +1893,13 @@ function applyAutoFilter(){
   auMonth=document.getElementById('au-f-month').value;
   auBrand=document.getElementById('au-f-brand').value;
   renderAutoPage();
+}
+
+/* Colors just the "(NN%)" part of the Automation table's Agent/Bot cells — green at ≥60%,
+   red below that (covers both the 40–59% and <40% cases the person asked for, since both
+   render red the same way). The number before it (fmtInt(...)) stays the default white. */
+function csPctSpan_(pct){
+  return '<span style="color:'+(pct>=60?'var(--green)':'var(--red)')+'">('+pct+'%)</span>';
 }
 
 function renderAutoPage(){
@@ -1858,9 +1981,10 @@ function renderAutoPage(){
   var tblRows=useRows.map(function(r,i){
     var tot=getVal(r), agV=getVal(agRows[i]), botV=getVal(btRows[i]);
     var rate=tot>0?Math.round(botV/tot*100):0;
+    var agRate=tot>0?Math.round(agV/tot*100):0;
     var pill = rate>=50 ? '<span class="pv-pill good">✓ GOOD</span>' : '<span class="pv-pill bad">LOW</span>';
-    return '<tr><td>'+r.month+'</td><td>'+fmtInt(tot)+'</td><td>'+fmtInt(agV)+' ('+(tot?Math.round(agV/tot*100):0)+'%)</td>'+
-      '<td>'+fmtInt(botV)+' ('+rate+'%)</td><td>'+pill+'</td></tr>';
+    return '<tr><td>'+r.month+'</td><td>'+fmtInt(tot)+'</td><td>'+fmtInt(agV)+' '+csPctSpan_(agRate)+'</td>'+
+      '<td>'+fmtInt(botV)+' '+csPctSpan_(rate)+'</td><td>'+pill+'</td></tr>';
   }).join('');
   document.getElementById('au-tbl').innerHTML=
     '<tr><th>Month</th><th>Total</th><th>Agent</th><th>Bot (Containment)</th><th>Status</th></tr>'+
