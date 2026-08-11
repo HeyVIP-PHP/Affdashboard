@@ -337,7 +337,7 @@ table.dt tbody tr:hover td{background:var(--ov-03)}
    mis-routed chats. Tooltip (native title attr) carries the actual detail
    (which teams, which months) so hovering answers "which team did this
    come from" without needing to click anything. */
-.sla-warn-badge{display:inline-flex;align-items:center;gap:4px;font-size:8px;font-weight:700;padding:2px 6px;border-radius:4px;background:var(--amber-d);color:var(--amber);margin-left:7px;cursor:help;white-space:nowrap;text-transform:uppercase;letter-spacing:.03em;flex-shrink:0}
+.sla-warn-badge{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;font-size:9px;border-radius:50%;background:var(--amber-d);color:var(--amber);margin-left:6px;cursor:help;flex-shrink:0}
 /* CS Performance (SLA/Automation) compliance bar rows — reuses the Peaks & Valleys bar-row visual language */
 .cs-bar-row{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--panel);border-radius:8px;border:1px solid var(--border);margin-bottom:8px}
 .cs-bar-row:last-child{margin-bottom:0}
@@ -1539,12 +1539,27 @@ function csParseSLA(rows, source, cfg){
         var seenG_={};
         var mergedGroup_=(String(existingAgent_.group||'')+','+String(group||'')).split(',')
           .map(function(s){return s.trim();}).filter(function(g){ if(!g||seenG_[g]) return false; seenG_[g]=true; return true; }).join(', ');
+        // Group text is the union of both rows' groups (deduped) so the
+        // merged agent still shows every team they actually worked under
+        // that month — purely for display, NOT a "something's wrong" flag.
+        // crossGroup is intentionally NOT set here: these two rows already
+        // resolved to the SAME currency bucket (that's why they share
+        // agentKey_ and are merging at all), so this is just normal
+        // multi-sub-team bookkeeping — two BDT rows for the same person,
+        // or the same team's brand list phrased slightly differently
+        // between rows/months. Flagging every minor text difference here
+        // (the old behavior) fired on nearly every month for agents whose
+        // Group text naturally drifts slightly (brands added/reworded over
+        // time), which is exactly the "warning fatigue" that makes a real
+        // signal invisible. The genuine signal — this person's data landing
+        // under a DIFFERENT currency — is handled by the separate
+        // cross-CURRENCY linking pass below, after the full parse.
         var mergedGroupsArr_=(existingAgent_.groups||[existingAgent_.group]).slice();
         if(mergedGroupsArr_.indexOf(group)<0) mergedGroupsArr_.push(group);
         agent={name:existingAgent_.name||agentName, csName:existingAgent_.csName||csName, group:mergedGroup_, source:source,
           psdId:agent.psdId||existingAgent_.psdId, chats:mChats_,
           frt:Math.round(csAv(mFrtVals_)), mrt:Math.round(csAv(mMrtVals_)), aht:Math.round(csAv(mAhtVals_)), csat:csAv(mCsatVals_), weeks:mergedWeeks_,
-          groups:mergedGroupsArr_, crossGroup:mergedGroupsArr_.length>1};
+          groups:mergedGroupsArr_, crossGroup:false};
       }
       months[curMonth].agents[agentKey_]=agent; // source-prefixed AND currency-bucket-prefixed key: same-currency duplicates merge above; different-currency duplicates stay separate, linked below
     }
@@ -1716,15 +1731,19 @@ function csBuildSlaTree_(parsed, monthSel, weekSel){
 var slaExpanded_={};
 function csToggleSlaRow_(id){ slaExpanded_[id]=!slaExpanded_[id]; renderSlaPage(); }
 
-// "⚠ Cross-team" badge — shown when an agent's chat data for a period came
-// from more than one Group/team row in the Sheet (see the merge logic in
-// csParseSLA above). This is usually a chat that got answered by an agent
-// outside their assigned team, so it's surfaced rather than silently
-// folded into the merged totals — the tooltip lists exactly which teams
-// and (at the agent level) which months, so it's actionable for whoever
-// reviews it, not just a vague warning icon.
+// "⚠" Cross-team icon — shown when an agent's chat data for a period came
+// from more than one CURRENCY (not just team) in the Sheet (see the
+// cross-currency linking pass in csParseSLA above). This is usually a chat
+// that got answered by an agent outside their assigned currency/team, so
+// it's surfaced rather than silently hidden — the tooltip (native title
+// attribute, on hover) lists exactly which teams and months, so it's
+// actionable for whoever reviews it. Icon-only, no text label: the label
+// column on Month/Week rows is narrow and shares space with an indent +
+// chevron + month name already, so a text label was getting clipped by the
+// cell's overflow:hidden the moment more than one badge-worthy thing
+// existed in the same row — an icon can't truncate.
 function csCrossBadge_(tooltip){
-  return '<span class="sla-warn-badge" title="'+csEsc(tooltip)+'"><i class="fa-solid fa-triangle-exclamation" style="font-size:8px"></i> Cross-team</span>';
+  return '<span class="sla-warn-badge" title="'+csEsc(tooltip)+'"><i class="fa-solid fa-triangle-exclamation"></i></span>';
 }
 
 /* Renders the Agent → Month → Week rows for the expandable SLA table. */
