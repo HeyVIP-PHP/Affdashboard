@@ -798,16 +798,13 @@ table.dt td.pv-brand{font-weight:800}
 
 <!-- ═══════════ CS SHEET SETTINGS MODAL (SLA + Automation data source) ═══════════ -->
 <div class="modal-overlay" id="cs-settings-overlay" onclick="if(event.target===this) closeCsSettings()">
-  <div class="modal-box">
+  <div class="modal-box" style="max-width:640px">
     <div class="modal-head">
-      <div class="modal-title">🎧 CS Sheet — SLA + Automation data source</div>
+      <div class="modal-title">🎧 CS Sheet</div>
       <button class="modal-close" onclick="closeCsSettings()"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="modal-body single">
       <div class="modal-detail" id="cs-settings-body"></div>
-    </div>
-    <div class="modal-foot">
-      This is a separate Google Sheet from the per-currency Sales sheets — it's Aff CS's own chat handling data (SLA + Bot/Agent volume), not tied to any one brand or currency. Same rules apply: share it with your service account email (Viewer access), tab names are case-sensitive.
     </div>
   </div>
 </div>
@@ -1140,6 +1137,11 @@ function extractSheetId_(input){
   if(/^[a-zA-Z0-9-_]{20,}$/.test(s)) return s; // pasted raw ID instead of full URL
   return '';
 }
+// Paste a full Sheet URL, tab away — the box swaps to just the ID so it's obvious the link was understood.
+function csAutoId_(input){
+  var id=extractSheetId_(input.value);
+  if(id) input.value=id;
+}
 
 // sheetId+tab -> {status:'loading'|'ready'|'error', rawRows, error}
 var sheetTabCache={};
@@ -1355,54 +1357,89 @@ function csGetAgentsForSelection(parsed, monthSel, weekSel){
   }).filter(function(a){ return a.chats>0 || a.frt>0 || a.mrt>0; }); // drop rows with genuinely nothing in them (empty week/blank row)
 }
 
-/* ---------- Daily chat report parser (Automation): month-block + dual brand-header-block scan ---------- */
-function csScanBrandHeaderBlocks_(row){
-  var blocks=[], cur=null;
-  for(var j=0;j<row.length;j++){
-    var h=String(row[j]||'').trim().toUpperCase();
-    if(!h) continue;
-    if(h==='HEY VIP'||h==='DATE'){ if(cur) blocks.push(cur); cur={startCol:j, cols:{}}; continue; }
-    if(cur) cur.cols[h]=j; // brand key = the header cell's own text, uppercased — no canonicalization table since Aff CS's brand names aren't known ahead of time
-  }
-  if(cur) blocks.push(cur);
-  return blocks;
-}
+/* ---------- Daily chat report parser (Automation) ----------
+   Matches the real "Affiliate Daily Chats Report" layout:
+     [Month title row]   "JANUARY 2026" (year suffix, not just "January")
+     [Section-label row]  "Chat Assigned to Agent" / "Chat Not Assigned to Agent (Only by Bot)"
+                           — these can land anywhere in the row (not necessarily column A),
+                           so the whole row is scanned rather than just its first cell.
+     [Header row]         "Date" in column A, then brand names for the agent block, then
+                           "Total Agent", then the same brand names repeat for the bot block,
+                           then "Total"/"Total Bot" — no "HEY VIP" marker in this Sheet, so the
+                           section-label row's column positions are what split agent vs bot.
+     [Daily data rows]    "01-Jan", "02-Jan", ...
+     [Total row]          "Total" + sums
+*/
 function csZeroBrandObj_(brands){ var o={}; brands.forEach(function(b){o[b]=0;}); return o; }
+
+// Month titles in this Sheet include the year ("JANUARY 2026"), so this checks whether the
+// cell STARTS WITH a full month name rather than requiring an exact match.
+function csMatchMonthTitle_(c0){
+  var u=String(c0||'').trim().toUpperCase();
+  for(var i=0;i<CS_MONTHS_FULL.length;i++){
+    if(u.indexOf(CS_MONTHS_FULL[i].toUpperCase())===0) return CS_MONTHS[i];
+  }
+  return null;
+}
 
 function csParseDailySheet(rows){
   if(!rows || !rows.length) return {months:{}, brands:[]};
-  var months={}, curMo=null, agentCols=null, botCols=null, section='none', detectedBrands=[];
+  var months={}, curMo=null;
+  var agentColStart=null, botColStart=null; // captured from the section-label row
+  var agentCols=null, botCols=null, detectedBrands=[];
+
   for(var i=0;i<rows.length;i++){
     var row=rows[i]||[];
     var c0=String(row[0]||'').trim();
-    var moKey=CS_MO_MAP[c0.toUpperCase()]||null;
-    if(moKey){ curMo=moKey; section='none'; agentCols=null; botCols=null; if(!months[curMo]) months[curMo]={days:[], totAg:null, totBot:null}; continue; }
+
+    var moKey=csMatchMonthTitle_(c0);
+    if(moKey){ curMo=moKey; agentColStart=null; botColStart=null; agentCols=null; botCols=null; if(!months[curMo]) months[curMo]={days:[], totAg:null, totBot:null}; continue; }
     if(!curMo) continue;
-    var lc=c0.toLowerCase();
-    if(lc.indexOf('not assigned')>=0 || lc.indexOf('only by bot')>=0){ section='bot-label'; continue; }
-    if(lc.indexOf('chat assigned')>=0){ section='agent-label'; continue; }
-    if(c0.toUpperCase()==='HEY VIP'){
-      var blocks=csScanBrandHeaderBlocks_(row);
-      if(blocks.length>=2){ if(!agentCols) agentCols=blocks[0].cols; if(!botCols) botCols=blocks[1].cols; }
-      else if(blocks.length===1){ if(section==='bot-label' && !botCols) botCols=blocks[0].cols; else if(!agentCols) agentCols=blocks[0].cols; }
-      if(agentCols && !detectedBrands.length) Object.keys(agentCols).forEach(function(b){ if(detectedBrands.indexOf(b)<0) detectedBrands.push(b); });
+
+    // Section-label row — scan every cell (not just column A) for "Chat Assigned to Agent" /
+    // "...Not Assigned/Only by Bot" and record which column each one starts at.
+    var foundLabel=false;
+    for(var ci=0; ci<row.length; ci++){
+      var cell=String(row[ci]||'').trim().toLowerCase();
+      if(!cell) continue;
+      if(cell.indexOf('chat assigned')>=0){ agentColStart=ci; foundLabel=true; }
+      else if(cell.indexOf('not assigned')>=0 || cell.indexOf('only by bot')>=0){ botColStart=ci; foundLabel=true; }
+    }
+    if(foundLabel) continue;
+
+    // Header row: "Date" in column A. Everything from column 1 up to botColStart is an agent
+    // brand column, everything from botColStart onward is a bot brand column — "Total
+    // Agent"/"Total"/"Total Bot" cells are skipped, they're not brands.
+    if(c0.toUpperCase()==='DATE'){
+      agentCols={}; botCols={}; detectedBrands=[];
+      for(var cj=1; cj<row.length; cj++){
+        var raw=String(row[cj]||'').trim();
+        if(!raw) continue;
+        if(raw.toUpperCase().indexOf('TOTAL')>=0) continue;
+        if(botColStart!==null && cj>=botColStart){ botCols[raw]=cj; }
+        else { agentCols[raw]=cj; if(detectedBrands.indexOf(raw)<0) detectedBrands.push(raw); }
+      }
       continue;
     }
-    if(!c0 || lc==='date') continue;
+    if(!c0) continue;
+
+    var lc=c0.toLowerCase();
     if(lc==='total'){
+      if(!agentCols) continue;
       if(!months[curMo].totAg) months[curMo].totAg=csZeroBrandObj_(detectedBrands);
       if(!months[curMo].totBot) months[curMo].totBot=csZeroBrandObj_(detectedBrands);
       detectedBrands.forEach(function(b){
-        if(agentCols && agentCols[b]!==undefined) months[curMo].totAg[b]=csPi(row[agentCols[b]]);
-        if(botCols && botCols[b]!==undefined) months[curMo].totBot[b]=csPi(row[botCols[b]]);
+        if(agentCols[b]!==undefined) months[curMo].totAg[b]=csPi(row[agentCols[b]]);
+        if(botCols[b]!==undefined) months[curMo].totBot[b]=csPi(row[botCols[b]]);
       });
       continue;
     }
+
     if(!agentCols) continue;
     var day={date:c0}, rowHasData=false;
     detectedBrands.forEach(function(b){
       var ag=agentCols[b]!==undefined?csPi(row[agentCols[b]]):0;
-      var bt=botCols&&botCols[b]!==undefined?csPi(row[botCols[b]]):0;
+      var bt=botCols[b]!==undefined?csPi(row[botCols[b]]):0;
       day['ag_'+b]=ag; day['bt_'+b]=bt;
       if(ag||bt) rowHasData=true;
     });
@@ -1439,6 +1476,7 @@ function csDeriveAuto(dailyRows){
   });
   return {use:use, ag:ag, bt:bt, brands:brands, months:use.map(function(r){return r.month;})};
 }
+
 
 /* ---------- Fetch + cache wrappers, reusing this app's existing getSheetTabData()/SHEET_LINKS plumbing ---------- */
 /* ---------- Currency auto-detection ---------- */
@@ -1543,16 +1581,16 @@ function getCsSlaParsed(){
   return {status:'ready', data:parsed, unresolvedGroups:csLastUnresolvedGroups_};
 }
 
+// Each currency has its own Sheet + tab (fully independent, not shared) — whichever
+// currency is selected in the sidebar decides which one gets read.
 function getCsDailyParsed(){
   var cfg=csCfg_();
-  if(!cfg.dailySheetId || !cfg.dailyTab) return {status:'none'};
-  var e=getSheetTabData(cfg.dailySheetId, cfg.dailyTab);
+  var d=(cfg.dailyByCurrency && cfg.dailyByCurrency[currentCurrency]) || {};
+  if(!d.sheetId || !d.tab) return {status:'none'};
+  var e=getSheetTabData(d.sheetId, d.tab);
   if(e.status==='loading') return {status:'loading'};
   if(e.status==='error') return {status:'error', error:e.error};
-  var data=csDeriveAuto(e.rawRows);
-  csLastUnresolvedBrands_=data.brands.filter(function(b){ return csResolveBrandCurrencies_(b,cfg).length===0; });
-  csLastReviewBrands_=data.brands.filter(function(b){ return csCurrencyList_().every(function(cur){ return (BRANDS_BY_CURRENCY[cur]||[]).every(function(bb){return bb.toLowerCase()!==String(b).toLowerCase();}); }); });
-  return {status:'ready', data:data, unresolvedBrands:csLastUnresolvedBrands_};
+  return {status:'ready', data:csDeriveAuto(e.rawRows)};
 }
 
 /* ---------- SLA Metrics page ---------- */
@@ -1720,22 +1758,14 @@ function renderAutoPage(){
   }
 
   var d=res.data;
-  var cfg=csCfg_();
 
-  // Only brands that resolve to the currently selected currency (sidebar) are in play here —
-  // this is the "automatically split by currency" behavior: switching the sidebar currency
-  // re-filters this whole page to just that currency's brands, no extra selector needed.
-  var curBrands=d.brands.filter(function(b){ return csResolveBrandCurrencies_(b,cfg).indexOf(currentCurrency)>=0; });
+  // No brand-level currency filtering needed here — d already came from the tab matching
+  // currentCurrency (getCsDailyParsed picks the tab), so every brand in it already belongs
+  // to this currency by construction.
+  var curBrands=d.brands;
+  document.getElementById('auto-currency-warn').style.display='none';
 
-  var warnEl=document.getElementById('auto-currency-warn');
-  if(res.unresolvedBrands && res.unresolvedBrands.length){
-    warnEl.style.display='';
-    warnEl.querySelector('.pb').innerHTML='⚠️ '+res.unresolvedBrands.length+' brand column(s) in the Daily Chat Report aren\'t assigned to a currency yet ('+res.unresolvedBrands.map(csEsc).join(', ')+') — click <b onclick="openCsSettings()" style="cursor:pointer;text-decoration:underline">CS Sheet</b> to assign.';
-  } else {
-    warnEl.style.display='none';
-  }
-
-  // Brand <select> — only brands under the currently selected currency
+  // Brand <select> — every brand in this currency's tab
   var brandSel=document.getElementById('au-f-brand');
   var brandsKey=currentCurrency+'|'+curBrands.join('|');
   if(brandSel.dataset.built!==brandsKey){
@@ -1750,12 +1780,7 @@ function renderAutoPage(){
   var agRows=monthsArr===null?d.ag:d.ag.filter(function(r){return monthsArr.indexOf(r.month)>=0;});
   var btRows=monthsArr===null?d.bt:d.bt.filter(function(r){return monthsArr.indexOf(r.month)>=0;});
 
-  // getVal sums only over curBrands (this currency's brands) rather than row.rowTotal,
-  // since rowTotal was computed across every brand regardless of currency.
-  function getVal(row){
-    if(auBrand==='all') return curBrands.reduce(function(s,b){return s+(row[b]||0);},0);
-    return curBrands.indexOf(auBrand)>=0 ? (row[auBrand]||0) : 0;
-  }
+  function getVal(row){ return auBrand==='all' ? row.rowTotal : (row[auBrand]||0); }
   var totAll=useRows.reduce(function(s,r){return s+getVal(r);},0);
   var agAll=agRows.reduce(function(s,r){return s+getVal(r);},0);
   var btAll=btRows.reduce(function(s,r){return s+getVal(r);},0);
@@ -1815,28 +1840,49 @@ function openCsSettings(){
 function closeCsSettings(){
   document.getElementById('cs-settings-overlay').classList.remove('open');
 }
+var csDailyEditCur_=null;
+function csSelectDailyCur_(cur){ csDailyEditCur_=cur; renderCsSettings(); }
+
 function renderCsSettings(){
   var cfg=csCfg_();
-  var slaStatus = cfg.slaSheetId ? '<div class="md-status on">✓ Saved — Sheet ID: '+csEsc(cfg.slaSheetId)+'</div>' : '<div class="md-status off">Not configured — SLA Metrics page shows no data yet</div>';
-  var dailyStatus = cfg.dailySheetId ? '<div class="md-status on">✓ Saved — Sheet ID: '+csEsc(cfg.dailySheetId)+'</div>' : '<div class="md-status off">Not configured — Automation page shows no data yet</div>';
+  if(!csDailyEditCur_) csDailyEditCur_=currentCurrency;
+  var slaStatus = cfg.slaSheetId ? '<div class="md-status on">✓ Saved</div>' : '<div class="md-status off">Not set</div>';
+
+  var byCur=cfg.dailyByCurrency||{};
+  var curs=csCurrencyList_();
+  var editCur=csDailyEditCur_;
+  var editVal=byCur[editCur]||{};
+  var dailyStatus = editVal.sheetId ? '<div class="md-status on">✓ Saved</div>' : '<div class="md-status off">Not set</div>';
+
+  var curListHtml=curs.map(function(c){
+    var set=byCur[c] && byCur[c].sheetId;
+    return '<button class="md-btn'+(c===editCur?' primary':'')+'" style="width:100%;text-align:left;position:relative" onclick="csSelectDailyCur_(\''+c+'\')">'+c+
+      (set?' <span style="float:right;color:var(--teal)">●</span>':'')+'</button>';
+  }).join('');
+
   document.getElementById('cs-settings-body').innerHTML=
-    '<div class="md-label" style="margin-bottom:8px">SLA Metrics Sheet</div>'+
-    '<div class="md-field"><span class="md-label">Google Sheet link</span>'+
-      '<input class="md-input" id="cs-set-sla-url" placeholder="https://docs.google.com/spreadsheets/d/…/edit" value="'+csEsc(cfg.slaRawUrl||'')+'"></div>'+
-    '<div class="md-field"><span class="md-label">Tab name (e.g. the "2026 Affiliate Skill Report" tab)</span>'+
-      '<input class="md-input" id="cs-set-sla-int" placeholder="e.g. 2026 Affiliate Skill Report" value="'+csEsc(cfg.slaTabInternal||'')+'"></div>'+
-    '<div class="md-field"><span class="md-label">Second tab name (optional — only if this data is split across two tabs)</span>'+
-      '<input class="md-input" id="cs-set-sla-out" placeholder="leave blank if everything is on one tab" value="'+csEsc(cfg.slaTabOutsource||'')+'"></div>'+
-    slaStatus+
-    '<div class="md-actions"><button class="md-btn primary" onclick="saveCsSla_()">Save SLA Sheet</button><button class="md-btn danger" onclick="clearCsSla_()">Clear</button></div>'+
-    '<div style="height:1px;background:var(--border);margin:20px 0"></div>'+
-    '<div class="md-label" style="margin-bottom:8px">Automation Sheet (Daily Chat Report — Bot vs Agent)</div>'+
-    '<div class="md-field"><span class="md-label">Google Sheet link</span>'+
-      '<input class="md-input" id="cs-set-daily-url" placeholder="https://docs.google.com/spreadsheets/d/…/edit" value="'+csEsc(cfg.dailyRawUrl||'')+'"></div>'+
+    '<div class="md-label" style="margin-bottom:8px">SLA Sheet</div>'+
+    '<div class="md-field">'+
+      '<input class="md-input" id="cs-set-sla-url" placeholder="Sheet URL e.g. https://docs.google.com/sprea…" value="'+csEsc(cfg.slaRawUrl||'')+'" onblur="csAutoId_(this)"></div>'+
     '<div class="md-field"><span class="md-label">Tab name</span>'+
-      '<input class="md-input" id="cs-set-daily-tab" placeholder="e.g. Daily Chat Report" value="'+csEsc(cfg.dailyTab||'')+'"></div>'+
-    dailyStatus+
-    '<div class="md-actions"><button class="md-btn primary" onclick="saveCsDaily_()">Save Automation Sheet</button><button class="md-btn danger" onclick="clearCsDaily_()">Clear</button></div>'+
+      '<input class="md-input" id="cs-set-sla-int" placeholder="e.g. 2026 Affiliate Skill Report" value="'+csEsc(cfg.slaTabInternal||'')+'"></div>'+
+    '<div class="md-field"><span class="md-label">2nd tab (optional)</span>'+
+      '<input class="md-input" id="cs-set-sla-out" placeholder="leave blank if none" value="'+csEsc(cfg.slaTabOutsource||'')+'"></div>'+
+    slaStatus+
+    '<div class="md-actions"><button class="md-btn primary" onclick="saveCsSla_()">Save</button><button class="md-btn danger" onclick="clearCsSla_()">Clear</button></div>'+
+    '<div style="height:1px;background:var(--border);margin:20px 0"></div>'+
+    '<div class="md-label" style="margin-bottom:8px">Automation Sheet — each currency separate</div>'+
+    '<div style="display:flex;gap:10px">'+
+      '<div style="width:100px;flex-shrink:0;display:flex;flex-direction:column;gap:4px">'+curListHtml+'</div>'+
+      '<div style="flex:1;min-width:0">'+
+        '<div class="md-field">'+
+          '<input class="md-input" id="cs-set-daily-url" placeholder="Sheet URL e.g. https://docs.google.com/sprea…" value="'+csEsc(editVal.rawUrl||'')+'" onblur="csAutoId_(this)"></div>'+
+        '<div class="md-field"><span class="md-label">Tab name</span>'+
+          '<input class="md-input" id="cs-set-daily-tab" placeholder="e.g. '+editCur+'" value="'+csEsc(editVal.tab||'')+'"></div>'+
+        dailyStatus+
+        '<div class="md-actions"><button class="md-btn primary" onclick="saveCsDailyOne_()">Save</button><button class="md-btn danger" onclick="clearCsDailyOne_()">Clear</button></div>'+
+      '</div>'+
+    '</div>'+
     csCurrencyMappingHtml_(cfg);
 }
 
@@ -1930,24 +1976,28 @@ function clearCsSla_(){
   renderCsSettings();
   renderAll();
 }
-function saveCsDaily_(){
+function saveCsDailyOne_(){
+  var cur=csDailyEditCur_;
   var url=document.getElementById('cs-set-daily-url').value.trim();
   var sheetId=extractSheetId_(url);
-  if(!sheetId){ document.getElementById('cs-settings-body').insertAdjacentHTML('beforeend','<div class="md-status error" style="margin-top:8px">✕ Could not identify a Sheet ID from this link</div>'); return; }
+  if(!sheetId){ document.getElementById('cs-settings-body').insertAdjacentHTML('beforeend','<div class="md-status error" style="margin-top:8px">✕ Bad link</div>'); return; }
+  var tab=document.getElementById('cs-set-daily-tab').value.trim();
   var cfg=SHEET_LINKS.__CS__||{};
-  if(cfg.dailySheetId && cfg.dailyTab && cfg.dailySheetId!==sheetId) delete sheetTabCache[sheetTabKey_(cfg.dailySheetId,cfg.dailyTab)];
-  cfg.dailySheetId=sheetId;
-  cfg.dailyRawUrl=url;
-  cfg.dailyTab=document.getElementById('cs-set-daily-tab').value.trim();
+  if(!cfg.dailyByCurrency) cfg.dailyByCurrency={};
+  var old=cfg.dailyByCurrency[cur];
+  if(old && old.sheetId && old.tab && (old.sheetId!==sheetId || old.tab!==tab)) delete sheetTabCache[sheetTabKey_(old.sheetId,old.tab)];
+  cfg.dailyByCurrency[cur]={sheetId:sheetId, rawUrl:url, tab:tab};
   SHEET_LINKS.__CS__=cfg;
   persistSheetLinks();
   renderCsSettings();
   renderAll();
 }
-function clearCsDaily_(){
+function clearCsDailyOne_(){
+  var cur=csDailyEditCur_;
   var cfg=SHEET_LINKS.__CS__||{};
-  if(cfg.dailySheetId && cfg.dailyTab) delete sheetTabCache[sheetTabKey_(cfg.dailySheetId,cfg.dailyTab)];
-  delete cfg.dailySheetId; delete cfg.dailyRawUrl; delete cfg.dailyTab;
+  var old=cfg.dailyByCurrency && cfg.dailyByCurrency[cur];
+  if(old && old.sheetId && old.tab) delete sheetTabCache[sheetTabKey_(old.sheetId,old.tab)];
+  if(cfg.dailyByCurrency) delete cfg.dailyByCurrency[cur];
   SHEET_LINKS.__CS__=cfg;
   persistSheetLinks();
   renderCsSettings();
