@@ -1275,26 +1275,46 @@ function csParseSLA(rows, source){
     var f2=String(row[1]||'').trim();  // STAFF NAME (real name) — blank in the 2-column layout
     var f3=String(row[2]||'').trim();  // Cs Name (chat handle/nickname)
     var f4=String(row[3]||'').trim();  // Currency / brand-group tag — informational, not Internal/Outsource
-    var mIdx=CS_MONTHS_FULL.indexOf(f); if(mIdx<0) mIdx=CS_MONTHS.indexOf(f);
-    if(mIdx>=0){
-      curMonth=CS_MONTHS[mIdx];
+
+    // Month title's merged cell doesn't always start at column A — in the real
+    // "Skill Report" Sheet it only spans the metrics block (starting around
+    // column E), leaving A–D blank on that row since the identity headers
+    // (PSD-ID/STAFF NAME/Cs Name/Currency) repeat on the row below instead.
+    // Scan every cell rather than assuming column A.
+    var moFound=null;
+    for(var mi=0; mi<row.length; mi++){
+      var cellTxt=String(row[mi]||'').trim();
+      if(!cellTxt) continue;
+      var idx=CS_MONTHS_FULL.indexOf(cellTxt); if(idx<0) idx=CS_MONTHS.indexOf(cellTxt);
+      if(idx>=0){ moFound=CS_MONTHS[idx]; break; }
+    }
+    if(moFound){
+      curMonth=moFound;
       if(!months[curMonth]) months[curMonth]={agents:{}, weekLabels:[]};
       curWS=[]; curWeekLabels=[];
       continue;
     }
-    if(f==='PSD-ID' || f2==='STAFF NAME' || f2==='Cs Name' || f3==='Cs Name'){
-      curWS=[]; curWeekLabels=[];
-      for(var ci=0; ci<row.length; ci++){
-        var nh=String(row[ci]||'').trim().toLowerCase();
-        if(nh==='total chat'||nh==='total') curWS.push(ci);
-      }
+
+    // "Total Chat" sub-header row — the real Sheet splits this onto its OWN row
+    // below the PSD-ID/STAFF NAME/Cs Name row rather than sharing it, so this is
+    // detected independently: any row containing "total chat"/"total" cells
+    // defines that block's week-start columns, whichever row it lands on.
+    var wsRow=[];
+    for(var ci=0; ci<row.length; ci++){
+      var nh=String(row[ci]||'').trim().toLowerCase();
+      if(nh==='total chat'||nh==='total') wsRow.push(ci);
+    }
+    if(wsRow.length){
+      curWS=wsRow;
       curWeekLabels=curWS.map(function(_,i){return 'Week '+(i+1);});
       if(curMonth && months[curMonth]) months[curMonth].weekLabels=curWeekLabels;
       continue; // next row is the first agent row — do not skip it
     }
+    // Identity header row (PSD-ID / STAFF NAME / Cs Name) on its own — just
+    // marks a header block boundary, no week columns to record from it.
+    if(f==='PSD-ID' || f2==='STAFF NAME' || f2==='Cs Name' || f3==='Cs Name') continue;
     if(!f && !f2 && !f3) continue;
     if(SKIP_ROW_RE.test(f)||SKIP_ROW_RE.test(f2)||SKIP_ROW_RE.test(f3)||SKIP_ROW_RE.test(f4)) continue; // "Team total" row — not an agent
-    if(f==='PSD-ID'||f2==='STAFF NAME'||f3==='Cs Name') continue;
     if(curMonth && (f||f2||f3) && curWS.length){
       var psId=f, staffName=f2, csName=f3, group=f4;
       var agentWeeks=curWS.map(function(ws,wi){
@@ -1387,13 +1407,27 @@ function csParseDailySheet(rows){
   var months={}, curMo=null;
   var agentColStart=null, botColStart=null; // captured from the section-label row
   var agentCols=null, botCols=null, detectedBrands=[];
+  // True right after the section-label row: the header row's own "Date" cell
+  // can come back blank in the raw values if it's part of a vertical merge
+  // (e.g. Date merged across all 3 header rows) whose value lives on an
+  // earlier row — so the row structurally following the section-label row is
+  // treated as the header row even when its column A text doesn't say "Date".
+  var awaitingHeaderRow=false;
 
   for(var i=0;i<rows.length;i++){
     var row=rows[i]||[];
     var c0=String(row[0]||'').trim();
 
-    var moKey=csMatchMonthTitle_(c0);
-    if(moKey){ curMo=moKey; agentColStart=null; botColStart=null; agentCols=null; botCols=null; if(!months[curMo]) months[curMo]={days:[], totAg:null, totBot:null}; continue; }
+    // Month title's merged cell doesn't always start at column A — "Date" is
+    // itself vertically merged across the 3 header rows and sits in column A,
+    // which pushes the real "JANUARY 2026" title into column B (or later) on
+    // that same row. Scan every cell rather than assuming column A.
+    var moKey=null;
+    for(var mci=0; mci<row.length; mci++){
+      var mm=csMatchMonthTitle_(row[mci]);
+      if(mm){ moKey=mm; break; }
+    }
+    if(moKey){ curMo=moKey; agentColStart=null; botColStart=null; agentCols=null; botCols=null; awaitingHeaderRow=false; if(!months[curMo]) months[curMo]={days:[], totAg:null, totBot:null}; continue; }
     if(!curMo) continue;
 
     // Section-label row — scan every cell (not just column A) for "Chat Assigned to Agent" /
@@ -1405,12 +1439,13 @@ function csParseDailySheet(rows){
       if(cell.indexOf('chat assigned')>=0){ agentColStart=ci; foundLabel=true; }
       else if(cell.indexOf('not assigned')>=0 || cell.indexOf('only by bot')>=0){ botColStart=ci; foundLabel=true; }
     }
-    if(foundLabel) continue;
+    if(foundLabel){ awaitingHeaderRow=true; continue; }
 
     // Header row: "Date" in column A. Everything from column 1 up to botColStart is an agent
     // brand column, everything from botColStart onward is a bot brand column — "Total
     // Agent"/"Total"/"Total Bot" cells are skipped, they're not brands.
-    if(c0.toUpperCase()==='DATE'){
+    if(c0.toUpperCase()==='DATE' || awaitingHeaderRow){
+      awaitingHeaderRow=false;
       agentCols={}; botCols={}; detectedBrands=[];
       for(var cj=1; cj<row.length; cj++){
         var raw=String(row[cj]||'').trim();
