@@ -265,6 +265,16 @@ table.dt tbody tr:hover td{background:var(--ov-03)}
 .pv-pill{display:inline-block;font-size:9px;font-weight:700;padding:3px 8px;border-radius:5px;font-family:var(--mono);white-space:nowrap}
 .pv-pill.peak{background:var(--teal-d);color:var(--teal)}
 .pv-pill.valley{background:var(--red-d);color:var(--red)}
+.pv-pill.good{background:var(--green-d);color:var(--green)}
+.pv-pill.warn{background:var(--amber-d);color:var(--amber)}
+.pv-pill.bad{background:var(--red-d);color:var(--red)}
+/* CS Performance (SLA/Automation) compliance bar rows — reuses the Peaks & Valleys bar-row visual language */
+.cs-bar-row{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--panel);border-radius:8px;border:1px solid var(--border);margin-bottom:8px}
+.cs-bar-row:last-child{margin-bottom:0}
+.cs-bar-lbl{flex:0 0 140px;font-size:10px;font-family:var(--mono);color:var(--text)}
+.cs-bar-wrap{flex:1;height:7px;background:var(--ov-06);border-radius:4px;overflow:hidden}
+.cs-bar-fill{height:100%;border-radius:4px}
+.cs-bar-val{flex:0 0 auto;font-size:11px;font-family:var(--mono);font-weight:800;min-width:44px;text-align:right}
 table.dt td.pv-brand{font-weight:800}
 
 @media (max-width:900px){
@@ -373,6 +383,10 @@ table.dt td.pv-brand{font-weight:800}
     <div class="nav-item" onclick="showPage('summary',this)"><div class="nav-dot" style="background:#00e5b4"></div>Summary</div>
     <div class="nav-item" onclick="showPage('brandcomp',this)"><div class="nav-dot" style="background:#9b7ff4"></div>Brand Comparison</div>
 
+    <div class="nav-sec">CS Performance</div>
+    <div class="nav-item" onclick="showPage('sla',this)"><div class="nav-dot" style="background:#ff9100"></div>SLA Metrics</div>
+    <div class="nav-item" onclick="showPage('auto',this)"><div class="nav-dot" style="background:#00e676"></div>Automation</div>
+
     <div class="sb-footer">
       <div class="conn-box" id="conn-box">
         <div><span class="conn-dot" id="conn-dot"></span><span class="conn-lbl" id="conn-lbl">NOT CONNECTED</span></div>
@@ -380,6 +394,7 @@ table.dt td.pv-brand{font-weight:800}
       </div>
       <button class="conn-gear" onclick="openSettings()"><i class="fa-solid fa-gear"></i> Sheet Links</button>
       <button class="conn-gear" onclick="openRawInspector()" style="margin-top:6px"><i class="fa-solid fa-magnifying-glass"></i> Raw Data</button>
+      <button class="conn-gear" onclick="openCsSettings()" style="margin-top:6px"><i class="fa-solid fa-headset"></i> CS Sheet</button>
     </div>
   </div>
 
@@ -628,6 +643,101 @@ table.dt td.pv-brand{font-weight:800}
         </div>
       </div>
 
+      <!-- SLA METRICS (Aff CS) -->
+      <div class="page" id="page-sla">
+        <div class="filter-bar">
+          <span class="filter-lbl">Month</span>
+          <select class="fsel" id="sla-f-month" onchange="switchSlaFilter()">
+            <option value="all">All Months</option>
+            <option value="H1">H1 Jan–Jun</option>
+            <option value="H2">H2 Jul–Dec</option>
+            <option value="Jan">January</option><option value="Feb">February</option><option value="Mar">March</option>
+            <option value="Apr">April</option><option value="May">May</option><option value="Jun">June</option>
+            <option value="Jul">July</option><option value="Aug">August</option><option value="Sep">September</option>
+            <option value="Oct">October</option><option value="Nov">November</option><option value="Dec">December</option>
+          </select>
+          <span class="filter-lbl" style="margin-left:10px">Week</span>
+          <select class="fsel" id="sla-f-week" onchange="switchSlaFilter()">
+            <option value="all">All Weeks</option>
+            <option value="1">Week 1</option><option value="2">Week 2</option><option value="3">Week 3</option><option value="4">Week 4</option>
+          </select>
+          <span class="filter-lbl" style="margin-left:10px">Group</span>
+          <select class="fsel" id="sla-f-team" onchange="switchSlaFilter()">
+            <option value="all">All Groups</option>
+          </select>
+          <span class="filter-lbl" style="margin-left:10px">Agent</span>
+          <select class="fsel" id="sla-f-agent" onchange="switchSlaFilter()">
+            <option value="all">All Agents</option>
+          </select>
+          <span style="margin-left:auto;font-size:9px;color:var(--muted);font-family:var(--mono)" id="sla-filter-info">All Months · All Weeks</span>
+        </div>
+
+        <div class="panel" id="sla-config-warn" style="display:none">
+          <div class="pb" style="color:var(--muted);font-size:11px">⚠️ No SLA Sheet configured yet — click <b>CS Sheet</b> in the sidebar to connect it.</div>
+        </div>
+        <div class="panel" id="sla-currency-warn" style="display:none;border-left:3px solid var(--amber)">
+          <div class="pb" style="font-size:11px"></div>
+        </div>
+
+        <div class="kpi-grid g4">
+          <div class="kpi c-amber"><div class="kpi-lbl">Avg FRT</div><div class="kpi-val" id="sla-frt">—</div><div class="kpi-d">Target ≤ 2m</div></div>
+          <div class="kpi c-teal"><div class="kpi-lbl">Avg MRT</div><div class="kpi-val" id="sla-mrt">—</div><div class="kpi-d">Target ≤ 3m</div></div>
+          <div class="kpi c-purple"><div class="kpi-lbl">Avg AHT</div><div class="kpi-val" id="sla-aht">—</div><div class="kpi-d">Target ≤ 10m</div></div>
+          <div class="kpi c-green"><div class="kpi-lbl">Avg CSAT</div><div class="kpi-val" id="sla-csat">—</div><div class="kpi-d">—</div></div>
+        </div>
+        <div class="row2 c66">
+          <div class="panel ap"><div class="ph"><span class="ph-t">🎯 SLA Compliance</span><span class="ph-tag">% AGENTS MET</span></div><div class="pb" id="sla-comp"></div></div>
+          <div class="panel at"><div class="ph"><span class="ph-t">📊 FRT / MRT by Agent</span><span class="ph-tag">SECONDS</span></div><div class="cw"><canvas id="sla-chart"></canvas></div></div>
+        </div>
+        <div class="panel">
+          <div class="ph"><span class="ph-t">👤 Agent SLA Performance</span><span class="ph-tag" id="sla-tbl-tag">—</span></div>
+          <div class="pb" style="overflow-x:auto"><table class="dt" id="sla-tbl" style="table-layout:auto"></table></div>
+        </div>
+      </div>
+
+      <!-- AUTOMATION (Aff CS — Bot vs Agent) -->
+      <div class="page" id="page-auto">
+        <div class="filter-bar">
+          <span class="filter-lbl">Month</span>
+          <select class="fsel" id="au-f-month" onchange="applyAutoFilter()">
+            <option value="all">All Months</option>
+            <option value="H1">H1 Jan–Jun</option>
+            <option value="H2">H2 Jul–Dec</option>
+            <option value="Jan">January</option><option value="Feb">February</option><option value="Mar">March</option>
+            <option value="Apr">April</option><option value="May">May</option><option value="Jun">June</option>
+            <option value="Jul">July</option><option value="Aug">August</option><option value="Sep">September</option>
+            <option value="Oct">October</option><option value="Nov">November</option><option value="Dec">December</option>
+          </select>
+          <span class="filter-lbl" style="margin-left:10px">Brand</span>
+          <select class="fsel" id="au-f-brand" onchange="applyAutoFilter()">
+            <option value="all">All Brands</option>
+          </select>
+          <span style="margin-left:auto;font-size:9px;color:var(--muted);font-family:var(--mono)" id="au-filter-info">All Months · All Brands</span>
+        </div>
+
+        <div class="panel" id="auto-config-warn" style="display:none">
+          <div class="pb" style="color:var(--muted);font-size:11px">⚠️ No Daily Chat Report Sheet configured yet — click <b>CS Sheet</b> in the sidebar to connect it.</div>
+        </div>
+        <div class="panel" id="auto-currency-warn" style="display:none;border-left:3px solid var(--amber)">
+          <div class="pb" style="font-size:11px"></div>
+        </div>
+
+        <div class="kpi-grid g4">
+          <div class="kpi c-green"><div class="kpi-lbl">Containment Rate</div><div class="kpi-val" id="au-rate">—</div><div class="kpi-d" id="au-rate-d">Target ≥ 55%</div></div>
+          <div class="kpi c-purple"><div class="kpi-lbl">Bot Chats</div><div class="kpi-val" id="au-bot">—</div><div class="kpi-d">—</div></div>
+          <div class="kpi c-teal"><div class="kpi-lbl">Agent Chats</div><div class="kpi-val" id="au-ag">—</div><div class="kpi-d">—</div></div>
+          <div class="kpi c-amber"><div class="kpi-lbl">Total Chats</div><div class="kpi-val" id="au-tot">—</div><div class="kpi-d">Combined</div></div>
+        </div>
+        <div class="row2 c66">
+          <div class="panel ag"><div class="ph"><span class="ph-t">🤖 Bot vs Agent Monthly</span><span class="ph-tag" id="au-chart-tag">ALL MONTHS</span></div><div class="cw"><canvas id="au-chart"></canvas></div></div>
+          <div class="panel ap"><div class="ph"><span class="ph-t">📊 Containment by Month</span></div><div class="pb" id="au-bars"></div></div>
+        </div>
+        <div class="panel">
+          <div class="ph"><span class="ph-t">📋 Monthly Bot / Agent Breakdown</span></div>
+          <div class="pb" style="overflow-x:auto"><table class="dt" id="au-tbl" style="table-layout:auto"></table></div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -682,6 +792,22 @@ table.dt td.pv-brand{font-weight:800}
     <div class="modal-foot" id="modal-foot">
       The Sheet doesn't need to be public — just share it with your service account email (Viewer access). Changes apply immediately, no redeploy needed.
       Tab names must match the Sheet's tab labels exactly (case-sensitive).
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ CS SHEET SETTINGS MODAL (SLA + Automation data source) ═══════════ -->
+<div class="modal-overlay" id="cs-settings-overlay" onclick="if(event.target===this) closeCsSettings()">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="modal-title">🎧 CS Sheet — SLA + Automation data source</div>
+      <button class="modal-close" onclick="closeCsSettings()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body single">
+      <div class="modal-detail" id="cs-settings-body"></div>
+    </div>
+    <div class="modal-foot">
+      This is a separate Google Sheet from the per-currency Sales sheets — it's Aff CS's own chat handling data (SLA + Bot/Agent volume), not tied to any one brand or currency. Same rules apply: share it with your service account email (Viewer access), tab names are case-sensitive.
     </div>
   </div>
 </div>
@@ -1067,6 +1193,765 @@ function onSheetDataUpdated(){
   if(document.getElementById('settings-overlay').classList.contains('open')){
     renderSettings();
   }
+  if(document.getElementById('cs-settings-overlay').classList.contains('open')){
+    renderCsSettings();
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CS PERFORMANCE MODULE — SLA Metrics + Automation (Aff CS chat handling)
+   ──────────────────────────────────────────────────────────────────────────
+   Ported from the CS Intelligence Dashboard's parseSLA()/parseDailySheet()
+   "keyword-driven state machine" parsers — same design (scan for month-block
+   titles, dynamically locate each week's "Total Chat" column instead of
+   hardcoding column numbers, filter out all-zero rows). Two differences from
+   that original:
+     1. SLA thresholds are Aff CS's own — FRT≤2m / MRT≤3m / AHT≤10m — not the
+        original dashboard's 60s/120s/360s. See CS_SLA_TARGETS below.
+     2. Data comes from its own Sheet (not tied to currency/brand), configured
+        via the "CS Sheet" button — reuses this app's existing
+        getSheetTabData()/persistSheetLinks() plumbing, just stored under a
+        dedicated SHEET_LINKS.__CS__ key instead of a currency code.
+   Column layout assumption (same as the original CS dashboard, since Aff CS's
+   chat sheet is expected to follow the same convention):
+     SLA sheet:   month blocks → header row containing "PSD-ID"/"Cs Name" →
+                  per-week columns "Total Chat, FRT, MRT, AHT, CSAT" (5 wide,
+                  the week's start column auto-detected by scanning for
+                  "total chat"/"total" in the header row).
+     Daily sheet: month blocks → "Chat assigned to Agent" / "...Not
+                  assigned/Only by Bot" section labels → "HEY VIP"/brand
+                  header row (two blocks side by side: Agent cols, Bot cols) →
+                  daily rows → optional "Total" row.
+   If Aff CS's actual Sheet differs from this, the safest fix is usually to
+   adjust just the column-detection code below (csParseSLA / csParseDailySheet)
+   rather than the rendering — everything downstream works off whatever
+   {agents}/{days} structure comes out of these two functions.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+var CS_SLA_TARGETS={frt:120,mrt:180,aht:600}; // seconds — FRT ≤ 2m, MRT ≤ 3m, AHT ≤ 10m (Aff CS's own targets, different from the original CS dashboard's 60/120/360)
+var CS_AUTOMATION_TARGET_PCT=55; // containment rate target line — adjust here if Aff CS's target differs; kept as one constant so it can't drift out of sync between the KPI card and any other place it's referenced
+var CS_MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var CS_H1=['Jan','Feb','Mar','Apr','May','Jun'], CS_H2=['Jul','Aug','Sep','Oct','Nov','Dec'];
+var CS_MONTHS_FULL=['January','February','March','April','May','June','July','August','September','October','November','December'];
+var CS_MO_MAP=(function(){ var map={}; CS_MONTHS_FULL.forEach(function(f,i){ map[f.toUpperCase()]=CS_MONTHS[i]; }); return map; })();
+
+function csEsc(s){ return String(s===undefined||s===null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+function csPi(v){ if(!v||v==='-') return 0; var n=parseInt(String(v).replace(/[^0-9-]/g,''),10); return isNaN(n)?0:n; }
+function csPf(v){
+  if(!v||v==='-') return 0;
+  var s=String(v).trim();
+  var mm=s.match(/(\d+)m\s*(\d+)s/); if(mm) return parseInt(mm[1],10)*60+parseInt(mm[2],10);
+  var m1=s.match(/(\d+)m/); if(m1) return parseInt(m1[1],10)*60;
+  var f=parseFloat(s.replace('%','').replace(/,/g,'')); return isNaN(f)?0:f;
+}
+function csFt(sec){ if(!sec) return '—'; var m=Math.floor(sec/60), s=Math.round(sec%60); return m>0?(m+'m '+s+'s'):(s+'s'); }
+function csAv(arr){ var a=(arr||[]).filter(function(x){return x>0;}); return a.length ? a.reduce(function(s,x){return s+x;},0)/a.length : 0; }
+function csExpandMonths(val){ if(val==='H1') return CS_H1; if(val==='H2') return CS_H2; if(val==='all') return null; return [val]; }
+function csBarRow(label,pct,color){
+  var p=Math.max(2,Math.min(100,pct||0));
+  return '<div class="cs-bar-row"><div class="cs-bar-lbl">'+csEsc(label)+'</div>'+
+    '<div class="cs-bar-wrap"><div class="cs-bar-fill" style="width:'+p+'%;background:'+color+'"></div></div>'+
+    '<div class="cs-bar-val">'+Math.round(pct||0)+'%</div></div>';
+}
+
+/* ---------- SLA parser: month-block state machine + dynamic "Total Chat" column scan ---------- */
+function csParseSLA(rows, source){
+  source = source || 'A';
+  if(!rows || rows.length<3) return {months:{}, monthList:[]};
+  var months={}, curMonth=null, curWS=[], curWeekLabels=[];
+  // Rows we never want to treat as a real agent — subtotal/blank-total rows
+  // that show up at the bottom of every month's block (e.g. "Team total").
+  var SKIP_ROW_RE=/^(team\s*total|grand\s*total|total)$/i;
+  for(var ri=0; ri<rows.length; ri++){
+    var row=rows[ri]||[];
+    // Column layout: A=PSD-ID, B=STAFF NAME, C=Cs Name, D=Currency/Group,
+    // then week blocks starting at E. Some Sheets only have 2 identity
+    // columns (PSD-ID, Cs Name) instead of 3 — reading all three and letting
+    // whichever ones are actually populated win covers both layouts without
+    // needing to know in advance which one a given Sheet uses.
+    var f=String(row[0]||'').trim();   // PSD-ID
+    var f2=String(row[1]||'').trim();  // STAFF NAME (real name) — blank in the 2-column layout
+    var f3=String(row[2]||'').trim();  // Cs Name (chat handle/nickname)
+    var f4=String(row[3]||'').trim();  // Currency / brand-group tag — informational, not Internal/Outsource
+    var mIdx=CS_MONTHS_FULL.indexOf(f); if(mIdx<0) mIdx=CS_MONTHS.indexOf(f);
+    if(mIdx>=0){
+      curMonth=CS_MONTHS[mIdx];
+      if(!months[curMonth]) months[curMonth]={agents:{}, weekLabels:[]};
+      curWS=[]; curWeekLabels=[];
+      continue;
+    }
+    if(f==='PSD-ID' || f2==='STAFF NAME' || f2==='Cs Name' || f3==='Cs Name'){
+      curWS=[]; curWeekLabels=[];
+      for(var ci=0; ci<row.length; ci++){
+        var nh=String(row[ci]||'').trim().toLowerCase();
+        if(nh==='total chat'||nh==='total') curWS.push(ci);
+      }
+      curWeekLabels=curWS.map(function(_,i){return 'Week '+(i+1);});
+      if(curMonth && months[curMonth]) months[curMonth].weekLabels=curWeekLabels;
+      continue; // next row is the first agent row — do not skip it
+    }
+    if(!f && !f2 && !f3) continue;
+    if(SKIP_ROW_RE.test(f)||SKIP_ROW_RE.test(f2)||SKIP_ROW_RE.test(f3)||SKIP_ROW_RE.test(f4)) continue; // "Team total" row — not an agent
+    if(f==='PSD-ID'||f2==='STAFF NAME'||f3==='Cs Name') continue;
+    if(curMonth && (f||f2||f3) && curWS.length){
+      var psId=f, staffName=f2, csName=f3, group=f4;
+      var agentWeeks=curWS.map(function(ws,wi){
+        return {week:wi+1, label:curWeekLabels[wi]||('Week '+(wi+1)), chats:csPi(row[ws]), frt:csPf(row[ws+1]), mrt:csPf(row[ws+2]), aht:csPf(row[ws+3]), csat:csPf(row[ws+4])};
+      });
+      var totalChats=agentWeeks.reduce(function(s,w){return s+w.chats;},0);
+      var frtVals=agentWeeks.filter(function(w){return w.frt>0;}).map(function(w){return w.frt;});
+      var mrtVals=agentWeeks.filter(function(w){return w.mrt>0;}).map(function(w){return w.mrt;});
+      var ahtVals=agentWeeks.filter(function(w){return w.aht>0;}).map(function(w){return w.aht;});
+      var csatVals=agentWeeks.filter(function(w){return w.csat>0;}).map(function(w){return w.csat;});
+      // Prefer the real staff name for display, then the Cs Name/handle, then fall back to PSD-ID — whichever the row actually has filled in.
+      var agentName=staffName||csName||psId;
+      if(!agentName) continue;
+      var agent={name:agentName, csName:csName, group:group, source:source, psdId:psId||'', chats:totalChats,
+        frt:Math.round(csAv(frtVals)), mrt:Math.round(csAv(mrtVals)), aht:Math.round(csAv(ahtVals)), csat:csAv(csatVals), weeks:agentWeeks};
+      months[curMonth].agents[source+'::'+(agent.psdId||agent.name)]=agent; // source-prefixed key so a same-named agent in a second tab never collides
+    }
+  }
+  var monthList=CS_MONTHS.filter(function(m){return months[m] && Object.keys(months[m].agents).length>0;});
+  return {months:months, monthList:monthList};
+}
+
+/* merges two parsed tabs into one structure (e.g. a primary + a secondary Sheet/tab) — source-prefixed keys mean Object.assign never collides */
+function csMergeSLA(a,b){
+  var months={};
+  CS_MONTHS.forEach(function(m){
+    var am=(a.months&&a.months[m])||null, bm=(b.months&&b.months[m])||null;
+    if(!am && !bm) return;
+    months[m]={agents:Object.assign({}, (am&&am.agents)||{}, (bm&&bm.agents)||{}), weekLabels:(am&&am.weekLabels&&am.weekLabels.length)?am.weekLabels:((bm&&bm.weekLabels)||[])};
+  });
+  var monthList=CS_MONTHS.filter(function(m){return months[m] && Object.keys(months[m].agents).length>0;});
+  return {months:months, monthList:monthList};
+}
+
+/* Resolves a {month, week} selection into a flat agent list — 'all'/'H1'/'H2' months are combined
+   by re-averaging across whichever months+weeks match (0-values filtered out first, per csAv()). */
+function csGetAgentsForSelection(parsed, monthSel, weekSel){
+  var monthsArr=csExpandMonths(monthSel);
+  var targets = monthsArr===null ? parsed.monthList : parsed.monthList.filter(function(m){return monthsArr.indexOf(m)>=0;});
+  var byKey={};
+  targets.forEach(function(m){
+    var md=parsed.months[m]; if(!md) return;
+    Object.keys(md.agents).forEach(function(k){
+      var a=md.agents[k];
+      var wd = weekSel==='all' ? null : (a.weeks && a.weeks[parseInt(weekSel,10)-1]);
+      if(weekSel!=='all' && !wd) return;
+      if(!byKey[k]) byKey[k]={name:a.name, csName:a.csName, group:a.group, source:a.source, psdId:a.psdId, chats:0, frtArr:[], mrtArr:[], ahtArr:[], csatArr:[]};
+      var b=byKey[k];
+      var src = weekSel==='all' ? a : wd;
+      b.chats+=src.chats||0;
+      if(src.frt>0) b.frtArr.push(src.frt);
+      if(src.mrt>0) b.mrtArr.push(src.mrt);
+      if(src.aht>0) b.ahtArr.push(src.aht);
+      if(src.csat>0) b.csatArr.push(src.csat);
+    });
+  });
+  return Object.values(byKey).map(function(b){
+    return {name:b.name, csName:b.csName, group:b.group, source:b.source, psdId:b.psdId, chats:b.chats,
+      frt:Math.round(csAv(b.frtArr)), mrt:Math.round(csAv(b.mrtArr)), aht:Math.round(csAv(b.ahtArr)), csat:csAv(b.csatArr)};
+  }).filter(function(a){ return a.chats>0 || a.frt>0 || a.mrt>0; }); // drop rows with genuinely nothing in them (empty week/blank row)
+}
+
+/* ---------- Daily chat report parser (Automation): month-block + dual brand-header-block scan ---------- */
+function csScanBrandHeaderBlocks_(row){
+  var blocks=[], cur=null;
+  for(var j=0;j<row.length;j++){
+    var h=String(row[j]||'').trim().toUpperCase();
+    if(!h) continue;
+    if(h==='HEY VIP'||h==='DATE'){ if(cur) blocks.push(cur); cur={startCol:j, cols:{}}; continue; }
+    if(cur) cur.cols[h]=j; // brand key = the header cell's own text, uppercased — no canonicalization table since Aff CS's brand names aren't known ahead of time
+  }
+  if(cur) blocks.push(cur);
+  return blocks;
+}
+function csZeroBrandObj_(brands){ var o={}; brands.forEach(function(b){o[b]=0;}); return o; }
+
+function csParseDailySheet(rows){
+  if(!rows || !rows.length) return {months:{}, brands:[]};
+  var months={}, curMo=null, agentCols=null, botCols=null, section='none', detectedBrands=[];
+  for(var i=0;i<rows.length;i++){
+    var row=rows[i]||[];
+    var c0=String(row[0]||'').trim();
+    var moKey=CS_MO_MAP[c0.toUpperCase()]||null;
+    if(moKey){ curMo=moKey; section='none'; agentCols=null; botCols=null; if(!months[curMo]) months[curMo]={days:[], totAg:null, totBot:null}; continue; }
+    if(!curMo) continue;
+    var lc=c0.toLowerCase();
+    if(lc.indexOf('not assigned')>=0 || lc.indexOf('only by bot')>=0){ section='bot-label'; continue; }
+    if(lc.indexOf('chat assigned')>=0){ section='agent-label'; continue; }
+    if(c0.toUpperCase()==='HEY VIP'){
+      var blocks=csScanBrandHeaderBlocks_(row);
+      if(blocks.length>=2){ if(!agentCols) agentCols=blocks[0].cols; if(!botCols) botCols=blocks[1].cols; }
+      else if(blocks.length===1){ if(section==='bot-label' && !botCols) botCols=blocks[0].cols; else if(!agentCols) agentCols=blocks[0].cols; }
+      if(agentCols && !detectedBrands.length) Object.keys(agentCols).forEach(function(b){ if(detectedBrands.indexOf(b)<0) detectedBrands.push(b); });
+      continue;
+    }
+    if(!c0 || lc==='date') continue;
+    if(lc==='total'){
+      if(!months[curMo].totAg) months[curMo].totAg=csZeroBrandObj_(detectedBrands);
+      if(!months[curMo].totBot) months[curMo].totBot=csZeroBrandObj_(detectedBrands);
+      detectedBrands.forEach(function(b){
+        if(agentCols && agentCols[b]!==undefined) months[curMo].totAg[b]=csPi(row[agentCols[b]]);
+        if(botCols && botCols[b]!==undefined) months[curMo].totBot[b]=csPi(row[botCols[b]]);
+      });
+      continue;
+    }
+    if(!agentCols) continue;
+    var day={date:c0}, rowHasData=false;
+    detectedBrands.forEach(function(b){
+      var ag=agentCols[b]!==undefined?csPi(row[agentCols[b]]):0;
+      var bt=botCols&&botCols[b]!==undefined?csPi(row[botCols[b]]):0;
+      day['ag_'+b]=ag; day['bt_'+b]=bt;
+      if(ag||bt) rowHasData=true;
+    });
+    if(!rowHasData) continue;
+    months[curMo].days.push(day);
+  }
+  var brandsFinal=detectedBrands.slice();
+  Object.keys(months).forEach(function(mo){
+    var m=months[mo];
+    if(!m.totAg) m.totAg=csZeroBrandObj_(brandsFinal);
+    if(!m.totBot) m.totBot=csZeroBrandObj_(brandsFinal);
+    if(brandsFinal.length && brandsFinal.every(function(b){return m.totAg[b]===0 && m.totBot[b]===0;})){
+      m.days.forEach(function(d){ brandsFinal.forEach(function(b){ m.totAg[b]+=d['ag_'+b]||0; m.totBot[b]+=d['bt_'+b]||0; }); });
+    }
+  });
+  return {months:months, brands:brandsFinal};
+}
+
+/* Aggregates the daily parse into the {use, ag, bt} monthly rows the Automation page renders from */
+function csDeriveAuto(dailyRows){
+  var dp=csParseDailySheet(dailyRows);
+  var brands=dp.brands;
+  var ag=[], bt=[], use=[];
+  CS_MONTHS.forEach(function(m){
+    if(!dp.months[m]) return;
+    var a=dp.months[m].totAg, b=dp.months[m].totBot;
+    var aRow={month:m}; brands.forEach(function(br){aRow[br]=a[br]||0;});
+    aRow.rowTotal=brands.reduce(function(s,br){return s+aRow[br];},0);
+    var bRow={month:m}; brands.forEach(function(br){bRow[br]=b[br]||0;});
+    bRow.rowTotal=brands.reduce(function(s,br){return s+bRow[br];},0);
+    var tRow={month:m}; brands.forEach(function(br){tRow[br]=aRow[br]+bRow[br];});
+    tRow.rowTotal=aRow.rowTotal+bRow.rowTotal;
+    if(tRow.rowTotal>0){ ag.push(aRow); bt.push(bRow); use.push(tRow); }
+  });
+  return {use:use, ag:ag, bt:bt, brands:brands, months:use.map(function(r){return r.month;})};
+}
+
+/* ---------- Fetch + cache wrappers, reusing this app's existing getSheetTabData()/SHEET_LINKS plumbing ---------- */
+/* ---------- Currency auto-detection ---------- */
+// Reuses the same 4 currencies already defined for the Sales pages (BRANDS_BY_CURRENCY,
+// declared further down in this file) — read lazily via a function rather than a
+// top-level var, since BRANDS_BY_CURRENCY isn't assigned yet at the point this module
+// is parsed (only by the time these functions actually get called, which is fine).
+function csCurrencyList_(){ return Object.keys(BRANDS_BY_CURRENCY); }
+
+// Highest-confidence path: the Sheet's own "Currency"/group text sometimes spells the
+// currency out directly ("INR&PKR Aff team", "PHP Affiliate Team") — a whole-word match
+// against BDT/INR/PKR/PHP catches those with no ambiguity and no manual setup needed.
+function csDetectCurrencyFromText_(text){
+  var t=String(text||'').toUpperCase();
+  var found=[];
+  csCurrencyList_().forEach(function(c){
+    if(new RegExp('\\b'+c+'\\b').test(t)) found.push(c);
+  });
+  return found;
+}
+// Confirmed group→currency rules (told to me directly, not guessed): Team A and Team B are
+// BDT, Team C is PKR+INR. These apply automatically with no manual checkbox needed. If a new
+// "Team X" group shows up that isn't listed here, it just falls through to the manual
+// Currency Mapping checklist in CS Sheet settings like anything else unrecognized.
+var CS_GROUP_SEED_RULES_=[
+  {test:/\bteam\s*a\b/i, currencies:['BDT']},
+  {test:/\bteam\s*b\b/i, currencies:['BDT']},
+  {test:/\bteam\s*c\b/i, currencies:['PKR','INR']}
+];
+function csSeedGroupCurrencies_(text){
+  var t=String(text||'');
+  for(var i=0;i<CS_GROUP_SEED_RULES_.length;i++){ if(CS_GROUP_SEED_RULES_[i].test.test(t)) return CS_GROUP_SEED_RULES_[i].currencies; }
+  return [];
+}
+// Falls back, in order, to: (2) a manual override in CS Sheet settings — respected even if the
+// person explicitly cleared it to nothing, which is why this checks for the key's presence
+// rather than truthiness — then (3) the confirmed CS_GROUP_SEED_RULES_ above, then finally
+// "unresolved" (needs mapping). Deliberately NOT guessed via brand-abbreviation heuristics
+// beyond the confirmed rules: a wrong guess here silently misfiles an agent's SLA numbers
+// under the wrong currency, which is worse than surfacing it as "needs mapping" once.
+function csResolveGroupCurrencies_(group, cfg){
+  var auto=csDetectCurrencyFromText_(group);
+  if(auto.length) return auto;
+  var map=cfg.groupCurrencyMap||{};
+  if(Object.prototype.hasOwnProperty.call(map,group)) return map[group];
+  var seed=csSeedGroupCurrencies_(group);
+  if(seed.length) return seed;
+  return [];
+}
+// Automation's brand columns are checked against the Sales pages' own BRANDS_BY_CURRENCY
+// list first (exact, case-insensitive name match) — reliable whenever the Daily Chat
+// Report's brand headers are literal brand names. Falls back to a manual map
+// (cfg.brandCurrencyMap) for any brand header that doesn't match anything, same reasoning
+// as csResolveGroupCurrencies_ above.
+function csResolveBrandCurrencies_(brand, cfg){
+  var out=[];
+  csCurrencyList_().forEach(function(cur){
+    if((BRANDS_BY_CURRENCY[cur]||[]).some(function(b){return b.toLowerCase()===String(brand).toLowerCase();})) out.push(cur);
+  });
+  if(out.length) return out;
+  var map=cfg.brandCurrencyMap||{};
+  if(Object.prototype.hasOwnProperty.call(map,brand)) return map[brand];
+  return [];
+}
+// Tracks whichever groups/brands most recently came back with no resolvable currency at all
+// (unresolvedGroups/Brands — drives the "hidden until mapped" warning banner), and separately
+// whichever ones weren't spelled out directly in their own text — resolved by a seed rule or
+// manual map, or not resolved at all (reviewGroups/Brands — drives the editable checklist in
+// CS Sheet settings, so seed-resolved groups like Team A/B/C stay visible/overridable there).
+var csLastUnresolvedGroups_=[], csLastUnresolvedBrands_=[];
+var csLastReviewGroups_=[], csLastReviewBrands_=[];
+
+function csCfg_(){ return SHEET_LINKS.__CS__||{}; }
+
+function getCsSlaParsed(){
+  var cfg=csCfg_();
+  if(!cfg.slaSheetId || !cfg.slaTabInternal) return {status:'none'};
+  var eInt=getSheetTabData(cfg.slaSheetId, cfg.slaTabInternal);
+  var eOut = cfg.slaTabOutsource ? getSheetTabData(cfg.slaSheetId, cfg.slaTabOutsource) : null;
+  if(eInt.status==='loading' || (eOut && eOut.status==='loading')) return {status:'loading'};
+  if(eInt.status==='error') return {status:'error', error:eInt.error};
+  if(eOut && eOut.status==='error') return {status:'error', error:eOut.error};
+  var parsedInt=csParseSLA(eInt.rawRows,'A');
+  var parsed = eOut ? csMergeSLA(parsedInt, csParseSLA(eOut.rawRows,'B')) : parsedInt;
+  // Annotate every agent (in every month) with which currency/currencies its group resolves
+  // to. Two lists come out of this: unresolvedGroups (truly nothing matched — these agents
+  // are invisible from every currency view until mapped, drives the warning banner) and
+  // csLastReviewGroups_ (didn't spell out a currency in its own text, whether or not a seed
+  // rule or manual map resolved it — drives the editable checklist in CS Sheet settings, so
+  // e.g. "Team A" stays visible/overridable there even though it auto-resolves to BDT).
+  var unresolved={}, review={};
+  Object.keys(parsed.months).forEach(function(m){
+    Object.keys(parsed.months[m].agents).forEach(function(k){
+      var a=parsed.months[m].agents[k];
+      a.currencies=csResolveGroupCurrencies_(a.group||'', cfg);
+      if(!a.currencies.length && a.group) unresolved[a.group]=true;
+      if(a.group && !csDetectCurrencyFromText_(a.group).length) review[a.group]=true;
+    });
+  });
+  csLastUnresolvedGroups_=Object.keys(unresolved).sort();
+  csLastReviewGroups_=Object.keys(review).sort();
+  return {status:'ready', data:parsed, unresolvedGroups:csLastUnresolvedGroups_};
+}
+
+function getCsDailyParsed(){
+  var cfg=csCfg_();
+  if(!cfg.dailySheetId || !cfg.dailyTab) return {status:'none'};
+  var e=getSheetTabData(cfg.dailySheetId, cfg.dailyTab);
+  if(e.status==='loading') return {status:'loading'};
+  if(e.status==='error') return {status:'error', error:e.error};
+  var data=csDeriveAuto(e.rawRows);
+  csLastUnresolvedBrands_=data.brands.filter(function(b){ return csResolveBrandCurrencies_(b,cfg).length===0; });
+  csLastReviewBrands_=data.brands.filter(function(b){ return csCurrencyList_().every(function(cur){ return (BRANDS_BY_CURRENCY[cur]||[]).every(function(bb){return bb.toLowerCase()!==String(b).toLowerCase();}); }); });
+  return {status:'ready', data:data, unresolvedBrands:csLastUnresolvedBrands_};
+}
+
+/* ---------- SLA Metrics page ---------- */
+var slaMonth='all', slaWeek='all', slaGroup='all', slaAgent='all';
+var slaChart_=null;
+
+function switchSlaFilter(){
+  slaMonth=document.getElementById('sla-f-month').value;
+  slaWeek=document.getElementById('sla-f-week').value;
+  slaGroup=document.getElementById('sla-f-team').value;
+  slaAgent=document.getElementById('sla-f-agent').value;
+  renderSlaPage();
+}
+
+function csSetStatusChrome_(status,error,label){
+  document.getElementById('pg-title').textContent=label;
+  var subEl=document.getElementById('pg-sub');
+  if(status==='none') subEl.textContent='No CS Sheet configured yet';
+  else if(status==='loading') subEl.textContent='Syncing…';
+  else if(status==='error') subEl.textContent='Sync error: '+error;
+}
+
+function renderSlaPage(){
+  var res=getCsSlaParsed();
+  csSetStatusChrome_(res.status, res.error, '🎧 SLA Metrics — Aff CS');
+  document.getElementById('sla-config-warn').style.display = res.status==='none' ? '' : 'none';
+
+  if(res.status!=='ready'){
+    ['sla-frt','sla-mrt','sla-aht','sla-csat'].forEach(function(id){ document.getElementById(id).textContent='—'; });
+    document.getElementById('sla-comp').innerHTML='';
+    document.getElementById('sla-tbl').innerHTML='';
+    if(slaChart_){ slaChart_.destroy(); slaChart_=null; }
+    return;
+  }
+
+  var parsed=res.data;
+  var cfg=csCfg_();
+  function inCurrentCurrency_(a){ return csResolveGroupCurrencies_(a.group||'', cfg).indexOf(currentCurrency)>=0; }
+
+  // Agent <select> — union of agent names across every month, filtered to whichever currency
+  // is currently selected in the sidebar, rebuilt only when the set actually changes (avoids
+  // resetting the dropdown's open state on every render).
+  var agentSel=document.getElementById('sla-f-agent');
+  var nameSet={};
+  parsed.monthList.forEach(function(m){ Object.keys(parsed.months[m].agents).forEach(function(k){ var a=parsed.months[m].agents[k]; if(inCurrentCurrency_(a)) nameSet[a.name]=1; }); });
+  var names=Object.keys(nameSet).sort();
+  var namesKey=currentCurrency+'|'+names.join('|');
+  if(agentSel.dataset.built!==namesKey){
+    agentSel.innerHTML='<option value="all">All Agents</option>'+names.map(function(n){return '<option value="'+csEsc(n)+'">'+csEsc(n)+'</option>';}).join('');
+    agentSel.value=names.indexOf(slaAgent)>=0?slaAgent:'all';
+    slaAgent=agentSel.value;
+    agentSel.dataset.built=namesKey;
+  }
+
+  // Group <select> — the Sheet's own "Currency"/brand-group tag column (e.g. "PHP Affiliate Team",
+  // "TEAM A, JW, JB, SBJ, KV8, HB") rather than a fixed Internal/Outsource split, since Aff CS's
+  // Sheet doesn't have that split — also filtered to the currently selected currency.
+  var groupSel=document.getElementById('sla-f-team');
+  var groupSet={};
+  parsed.monthList.forEach(function(m){ Object.keys(parsed.months[m].agents).forEach(function(k){ var a=parsed.months[m].agents[k]; if(a.group && inCurrentCurrency_(a)) groupSet[a.group]=1; }); });
+  var groups=Object.keys(groupSet).sort();
+  var groupsKey=currentCurrency+'|'+groups.join('|');
+  if(groupSel.dataset.built!==groupsKey){
+    groupSel.innerHTML='<option value="all">All Groups</option>'+groups.map(function(g){return '<option value="'+csEsc(g)+'">'+csEsc(g)+'</option>';}).join('');
+    groupSel.value=groups.indexOf(slaGroup)>=0?slaGroup:'all';
+    slaGroup=groupSel.value;
+    groupSel.dataset.built=groupsKey;
+  }
+
+  var agents=csGetAgentsForSelection(parsed, slaMonth, slaWeek);
+  agents.forEach(function(a){ a.currencies=csResolveGroupCurrencies_(a.group||'', cfg); });
+  agents=agents.filter(function(a){ return a.currencies.indexOf(currentCurrency)>=0; });
+  if(slaGroup!=='all') agents=agents.filter(function(a){return a.group===slaGroup;});
+  if(slaAgent!=='all') agents=agents.filter(function(a){return a.name===slaAgent;});
+
+  var warnEl2=document.getElementById('sla-currency-warn');
+  if(res.unresolvedGroups && res.unresolvedGroups.length){
+    warnEl2.style.display='';
+    warnEl2.querySelector('.pb').innerHTML='⚠️ '+res.unresolvedGroups.length+' group(s) in this Sheet aren\'t assigned to a currency yet, so their agents are hidden from every currency view until you assign them — click <b onclick="openCsSettings()" style="cursor:pointer;text-decoration:underline">CS Sheet</b> to assign.';
+  } else {
+    warnEl2.style.display='none';
+  }
+
+  var monthLbl = slaMonth==='all'?'All Months':(slaMonth==='H1'?'H1 Jan–Jun':(slaMonth==='H2'?'H2 Jul–Dec':slaMonth));
+  document.getElementById('pg-sub').textContent=agents.length+' agent(s) · '+currentCurrency+' · '+monthLbl+' · '+(slaWeek==='all'?'All Weeks':'Week '+slaWeek);
+  document.getElementById('sla-filter-info').textContent=monthLbl+' · '+(slaWeek==='all'?'All Weeks':'Week '+slaWeek);
+
+  var frtVals=agents.filter(function(a){return a.frt>0;}).map(function(a){return a.frt;});
+  var mrtVals=agents.filter(function(a){return a.mrt>0;}).map(function(a){return a.mrt;});
+  var ahtVals=agents.filter(function(a){return a.aht>0;}).map(function(a){return a.aht;});
+  var csatVals=agents.filter(function(a){return a.csat>0;}).map(function(a){return a.csat;});
+  document.getElementById('sla-frt').textContent=csFt(Math.round(csAv(frtVals)));
+  document.getElementById('sla-mrt').textContent=csFt(Math.round(csAv(mrtVals)));
+  document.getElementById('sla-aht').textContent=csFt(Math.round(csAv(ahtVals)));
+  // CSAT is assumed to be stored as a 0–1 fraction (same convention as the Sales pages' rate figures) — if Aff CS's Sheet stores CSAT as a raw 0–100 number instead, drop the *100 below
+  var csatAvg=csAv(csatVals);
+  document.getElementById('sla-csat').textContent = csatAvg ? Math.round(csatAvg*100)+'%' : '—';
+
+  var tot=agents.length||1;
+  var fm=agents.filter(function(a){return a.frt>0 && a.frt<=CS_SLA_TARGETS.frt;}).length;
+  var mm=agents.filter(function(a){return a.mrt>0 && a.mrt<=CS_SLA_TARGETS.mrt;}).length;
+  var am=agents.filter(function(a){return a.aht>0 && a.aht<=CS_SLA_TARGETS.aht;}).length;
+  document.getElementById('sla-comp').innerHTML=
+    csBarRow('FRT ≤ '+csFt(CS_SLA_TARGETS.frt), Math.round(fm/tot*100), 'var(--amber)')+
+    csBarRow('MRT ≤ '+csFt(CS_SLA_TARGETS.mrt), Math.round(mm/tot*100), 'var(--teal)')+
+    csBarRow('AHT ≤ '+csFt(CS_SLA_TARGETS.aht), Math.round(am/tot*100), 'var(--purple)');
+
+  if(slaChart_) slaChart_.destroy();
+  var top=agents.slice().sort(function(a,b){return b.chats-a.chats;}).slice(0,15);
+  var ctx=document.getElementById('sla-chart');
+  if(ctx && typeof Chart!=='undefined'){
+    slaChart_=new Chart(ctx,{
+      type:'bar',
+      data:{ labels: top.map(function(a){return a.name.split(' ')[0];}), datasets:[
+        {label:'FRT (s)', data:top.map(function(a){return a.frt||0;}), backgroundColor:'rgba(255,145,0,0.7)'},
+        {label:'MRT (s)', data:top.map(function(a){return a.mrt||0;}), backgroundColor:'rgba(0,176,255,0.7)'}
+      ]},
+      options:{ responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{ display:true, labels:{ color:chartTextColor_() } } },
+        scales:{ x:{ grid:{color:chartGridColor_()}, ticks:{color:chartTextColor_(), maxRotation:60, minRotation:60, font:{size:9}} },
+                 y:{ grid:{color:chartGridColor_()}, ticks:{color:chartTextColor_()} } }
+      }
+    });
+  }
+
+  document.getElementById('sla-tbl-tag').textContent=agents.length+' AGENTS';
+  var rowsHtml=agents.slice().sort(function(a,b){return b.chats-a.chats;}).map(function(a){
+    var frtOk=a.frt>0 && a.frt<=CS_SLA_TARGETS.frt;
+    var mrtOk=a.mrt>0 && a.mrt<=CS_SLA_TARGETS.mrt;
+    var ahtOk=a.aht>0 && a.aht<=CS_SLA_TARGETS.aht;
+    var overCount=(frtOk?0:1)+(mrtOk?0:1)+(ahtOk?0:1);
+    var badge = overCount===0 ? '<span class="pv-pill good">✓ GOOD</span>'
+              : overCount===1 ? '<span class="pv-pill warn">NORMAL</span>'
+              : '<span class="pv-pill bad">'+(overCount===3?'BAD':'AVERAGE')+'</span>';
+    return '<tr><td>'+csEsc(a.psdId)+'</td><td>'+csEsc(a.name)+'</td><td>'+csEsc(a.csName||'')+'</td><td>'+csEsc(a.group||'')+'</td><td>'+fmtInt(a.chats)+'</td>'+
+      '<td>'+csFt(a.frt)+'</td><td>'+csFt(a.mrt)+'</td><td>'+csFt(a.aht)+'</td>'+
+      '<td>'+(a.csat?Math.round(a.csat*100)+'%':'—')+'</td><td>'+badge+'</td></tr>';
+  }).join('');
+  document.getElementById('sla-tbl').innerHTML=
+    '<tr><th>PSD-ID</th><th>Staff Name</th><th>Cs Name</th><th>Group</th><th>Total Chat</th><th>FRT</th><th>MRT</th><th>AHT</th><th>CSAT</th><th>Status</th></tr>'+
+    (rowsHtml || '<tr><td colspan="10" style="color:var(--muted);text-align:center;padding:16px">No matching agents for this selection</td></tr>');
+}
+
+/* ---------- Automation page ---------- */
+var auMonth='all', auBrand='all';
+var auChart_=null;
+
+function applyAutoFilter(){
+  auMonth=document.getElementById('au-f-month').value;
+  auBrand=document.getElementById('au-f-brand').value;
+  renderAutoPage();
+}
+
+function renderAutoPage(){
+  var res=getCsDailyParsed();
+  csSetStatusChrome_(res.status, res.error, '🤖 Automation — Aff CS Bot vs Agent');
+  document.getElementById('auto-config-warn').style.display = res.status==='none' ? '' : 'none';
+
+  if(res.status!=='ready'){
+    ['au-rate','au-bot','au-ag','au-tot'].forEach(function(id){ document.getElementById(id).textContent='—'; });
+    document.getElementById('au-bars').innerHTML='';
+    document.getElementById('au-tbl').innerHTML='';
+    if(auChart_){ auChart_.destroy(); auChart_=null; }
+    return;
+  }
+
+  var d=res.data;
+  var cfg=csCfg_();
+
+  // Only brands that resolve to the currently selected currency (sidebar) are in play here —
+  // this is the "automatically split by currency" behavior: switching the sidebar currency
+  // re-filters this whole page to just that currency's brands, no extra selector needed.
+  var curBrands=d.brands.filter(function(b){ return csResolveBrandCurrencies_(b,cfg).indexOf(currentCurrency)>=0; });
+
+  var warnEl=document.getElementById('auto-currency-warn');
+  if(res.unresolvedBrands && res.unresolvedBrands.length){
+    warnEl.style.display='';
+    warnEl.querySelector('.pb').innerHTML='⚠️ '+res.unresolvedBrands.length+' brand column(s) in the Daily Chat Report aren\'t assigned to a currency yet ('+res.unresolvedBrands.map(csEsc).join(', ')+') — click <b onclick="openCsSettings()" style="cursor:pointer;text-decoration:underline">CS Sheet</b> to assign.';
+  } else {
+    warnEl.style.display='none';
+  }
+
+  // Brand <select> — only brands under the currently selected currency
+  var brandSel=document.getElementById('au-f-brand');
+  var brandsKey=currentCurrency+'|'+curBrands.join('|');
+  if(brandSel.dataset.built!==brandsKey){
+    brandSel.innerHTML='<option value="all">All Brands</option>'+curBrands.map(function(b){return '<option value="'+csEsc(b)+'">'+csEsc(b)+'</option>';}).join('');
+    brandSel.value=curBrands.indexOf(auBrand)>=0?auBrand:'all';
+    auBrand=brandSel.value;
+    brandSel.dataset.built=brandsKey;
+  }
+
+  var monthsArr=csExpandMonths(auMonth);
+  var useRows=monthsArr===null?d.use:d.use.filter(function(r){return monthsArr.indexOf(r.month)>=0;});
+  var agRows=monthsArr===null?d.ag:d.ag.filter(function(r){return monthsArr.indexOf(r.month)>=0;});
+  var btRows=monthsArr===null?d.bt:d.bt.filter(function(r){return monthsArr.indexOf(r.month)>=0;});
+
+  // getVal sums only over curBrands (this currency's brands) rather than row.rowTotal,
+  // since rowTotal was computed across every brand regardless of currency.
+  function getVal(row){
+    if(auBrand==='all') return curBrands.reduce(function(s,b){return s+(row[b]||0);},0);
+    return curBrands.indexOf(auBrand)>=0 ? (row[auBrand]||0) : 0;
+  }
+  var totAll=useRows.reduce(function(s,r){return s+getVal(r);},0);
+  var agAll=agRows.reduce(function(s,r){return s+getVal(r);},0);
+  var btAll=btRows.reduce(function(s,r){return s+getVal(r);},0);
+  var containmentRate = totAll>0 ? Math.round(btAll/totAll*100) : 0;
+
+  var monthLbl = auMonth==='all'?'All Months':(auMonth==='H1'?'H1 Jan–Jun':(auMonth==='H2'?'H2 Jul–Dec':auMonth));
+  document.getElementById('pg-sub').textContent=currentCurrency+' · '+monthLbl+' · '+(auBrand==='all'?'All Brands':auBrand);
+  document.getElementById('au-filter-info').textContent=currentCurrency+' · '+monthLbl+' · '+(auBrand==='all'?'All Brands':auBrand);
+
+  document.getElementById('au-rate').textContent=containmentRate+'%';
+  document.getElementById('au-rate-d').textContent='Target ≥ '+CS_AUTOMATION_TARGET_PCT+'%'+(containmentRate>=CS_AUTOMATION_TARGET_PCT?' · ✓ Above target':' · ⚠ Below target');
+  document.getElementById('au-bot').textContent=fmtInt(btAll);
+  document.getElementById('au-ag').textContent=fmtInt(agAll);
+  document.getElementById('au-tot').textContent=fmtInt(totAll);
+
+  if(auChart_) auChart_.destroy();
+  var chartMonths=useRows.map(function(r){return r.month;});
+  var ctx=document.getElementById('au-chart');
+  document.getElementById('au-chart-tag').textContent=currentCurrency+' · '+monthLbl.toUpperCase();
+  if(ctx && typeof Chart!=='undefined'){
+    auChart_=new Chart(ctx,{
+      type:'bar',
+      data:{ labels:chartMonths, datasets:[
+        {label:'Agent', data:agRows.map(getVal), backgroundColor:'rgba(0,176,255,0.7)'},
+        {label:'Bot', data:btRows.map(getVal), backgroundColor:'rgba(155,127,244,0.7)'}
+      ]},
+      options:{ responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{ display:true, labels:{ color:chartTextColor_() } } },
+        scales:{ x:{ grid:{color:chartGridColor_()}, ticks:{color:chartTextColor_()} }, y:{ grid:{color:chartGridColor_()}, ticks:{color:chartTextColor_()} } }
+      }
+    });
+  }
+
+  document.getElementById('au-bars').innerHTML = useRows.map(function(r,i){
+    var tot=getVal(r), botV=getVal(btRows[i]);
+    var rate=tot>0?Math.round(botV/tot*100):0;
+    return csBarRow(r.month+' · '+rate+'%', rate, rate>=50?'var(--green)':'var(--red)');
+  }).join('') || '<div style="color:var(--muted);font-size:11px;padding:6px 2px">No data for this selection</div>';
+
+  var tblRows=useRows.map(function(r,i){
+    var tot=getVal(r), agV=getVal(agRows[i]), botV=getVal(btRows[i]);
+    var rate=tot>0?Math.round(botV/tot*100):0;
+    var pill = rate>=50 ? '<span class="pv-pill good">✓ GOOD</span>' : '<span class="pv-pill bad">LOW</span>';
+    return '<tr><td>'+r.month+'</td><td>'+fmtInt(tot)+'</td><td>'+fmtInt(agV)+' ('+(tot?Math.round(agV/tot*100):0)+'%)</td>'+
+      '<td>'+fmtInt(botV)+' ('+rate+'%)</td><td>'+pill+'</td></tr>';
+  }).join('');
+  document.getElementById('au-tbl').innerHTML=
+    '<tr><th>Month</th><th>Total</th><th>Agent</th><th>Bot (Containment)</th><th>Status</th></tr>'+
+    (tblRows || '<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:16px">No data for this selection</td></tr>');
+}
+
+/* ---------- CS Sheet settings modal ---------- */
+function openCsSettings(){
+  document.getElementById('cs-settings-overlay').classList.add('open');
+  renderCsSettings();
+}
+function closeCsSettings(){
+  document.getElementById('cs-settings-overlay').classList.remove('open');
+}
+function renderCsSettings(){
+  var cfg=csCfg_();
+  var slaStatus = cfg.slaSheetId ? '<div class="md-status on">✓ Saved — Sheet ID: '+csEsc(cfg.slaSheetId)+'</div>' : '<div class="md-status off">Not configured — SLA Metrics page shows no data yet</div>';
+  var dailyStatus = cfg.dailySheetId ? '<div class="md-status on">✓ Saved — Sheet ID: '+csEsc(cfg.dailySheetId)+'</div>' : '<div class="md-status off">Not configured — Automation page shows no data yet</div>';
+  document.getElementById('cs-settings-body').innerHTML=
+    '<div class="md-label" style="margin-bottom:8px">SLA Metrics Sheet</div>'+
+    '<div class="md-field"><span class="md-label">Google Sheet link</span>'+
+      '<input class="md-input" id="cs-set-sla-url" placeholder="https://docs.google.com/spreadsheets/d/…/edit" value="'+csEsc(cfg.slaRawUrl||'')+'"></div>'+
+    '<div class="md-field"><span class="md-label">Tab name (e.g. the "2026 Affiliate Skill Report" tab)</span>'+
+      '<input class="md-input" id="cs-set-sla-int" placeholder="e.g. 2026 Affiliate Skill Report" value="'+csEsc(cfg.slaTabInternal||'')+'"></div>'+
+    '<div class="md-field"><span class="md-label">Second tab name (optional — only if this data is split across two tabs)</span>'+
+      '<input class="md-input" id="cs-set-sla-out" placeholder="leave blank if everything is on one tab" value="'+csEsc(cfg.slaTabOutsource||'')+'"></div>'+
+    slaStatus+
+    '<div class="md-actions"><button class="md-btn primary" onclick="saveCsSla_()">Save SLA Sheet</button><button class="md-btn danger" onclick="clearCsSla_()">Clear</button></div>'+
+    '<div style="height:1px;background:var(--border);margin:20px 0"></div>'+
+    '<div class="md-label" style="margin-bottom:8px">Automation Sheet (Daily Chat Report — Bot vs Agent)</div>'+
+    '<div class="md-field"><span class="md-label">Google Sheet link</span>'+
+      '<input class="md-input" id="cs-set-daily-url" placeholder="https://docs.google.com/spreadsheets/d/…/edit" value="'+csEsc(cfg.dailyRawUrl||'')+'"></div>'+
+    '<div class="md-field"><span class="md-label">Tab name</span>'+
+      '<input class="md-input" id="cs-set-daily-tab" placeholder="e.g. Daily Chat Report" value="'+csEsc(cfg.dailyTab||'')+'"></div>'+
+    dailyStatus+
+    '<div class="md-actions"><button class="md-btn primary" onclick="saveCsDaily_()">Save Automation Sheet</button><button class="md-btn danger" onclick="clearCsDaily_()">Clear</button></div>'+
+    csCurrencyMappingHtml_(cfg);
+}
+
+// Groups/brands whose text doesn't spell out a currency directly (e.g. "TEAM A, JW, JB,
+// SBJ, KV8, HB" has no currency word in it) need a one-time manual assignment — this
+// renders that checklist. Built from whichever groups/brands most recently came back
+// unresolved (csLastUnresolvedGroups_/csLastUnresolvedBrands_, refreshed every time the SLA/
+// Automation pages load data) UNIONED with anything already saved in the map, so previously
+// -assigned entries stay visible and editable even if they briefly don't appear in the data.
+function csCurrencyMappingHtml_(cfg){
+  var groupMap=cfg.groupCurrencyMap||{};
+  var brandMap=cfg.brandCurrencyMap||{};
+  var groupKeys=Object.keys(groupMap).concat(csLastReviewGroups_).filter(function(v,i,a){return a.indexOf(v)===i;}).sort();
+  var brandKeys=Object.keys(brandMap).concat(csLastReviewBrands_).filter(function(v,i,a){return a.indexOf(v)===i;}).sort();
+  var curs=csCurrencyList_();
+  function row(kind,key,map,resolveFn){
+    var resolved=resolveFn(key,cfg); // reflects the actual value in effect right now — seed rule, manual override, or neither
+    var manuallyTouched=Object.prototype.hasOwnProperty.call(map,key);
+    var tag = resolved.length && !manuallyTouched ? ' <span style="color:var(--teal)">· auto</span>'
+            : !resolved.length ? ' <span style="color:var(--red)">· needs mapping</span>' : '';
+    var boxes=curs.map(function(c){
+      var checked=resolved.indexOf(c)>=0?'checked':'';
+      var attr=kind==='group'?'data-group':'data-brand';
+      var fn=kind==='group'?'csToggleGroupCurrency_(this)':'csToggleBrandCurrency_(this)';
+      return '<label style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;font-size:10px;font-family:var(--mono);color:var(--muted)">'+
+        '<input type="checkbox" '+attr+'="'+csEsc(key)+'" data-cur="'+c+'" '+checked+' onchange="'+fn+'">'+c+'</label>';
+    }).join('');
+    return '<div style="padding:8px 0;border-bottom:1px solid var(--border)"><div style="font-size:11px;margin-bottom:5px">'+csEsc(key)+tag+'</div>'+boxes+'</div>';
+  }
+  if(!groupKeys.length && !brandKeys.length) return '';
+  var html='<div style="height:1px;background:var(--border);margin:20px 0"></div>'+
+    '<div class="md-label" style="margin-bottom:4px">Currency Mapping</div>'+
+    '<div class="md-hint" style="margin-bottom:8px">These group/brand labels didn\'t spell out a currency (BDT/INR/PKR/PHP) directly in their own text. "auto" ones are already handled by a confirmed rule (e.g. Team A/B → BDT, Team C → PKR+INR) — tick/untick to override any of them. Saved once, applies to every future load.</div>';
+  if(groupKeys.length){
+    html+='<div class="md-label" style="margin:12px 0 4px;font-size:9px">SLA "Currency"/group column</div>'+groupKeys.map(function(k){return row('group',k,groupMap,csResolveGroupCurrencies_);}).join('');
+  }
+  if(brandKeys.length){
+    html+='<div class="md-label" style="margin:16px 0 4px;font-size:9px">Automation brand columns</div>'+brandKeys.map(function(k){return row('brand',k,brandMap,csResolveBrandCurrencies_);}).join('');
+  }
+  return html;
+}
+function csToggleGroupCurrency_(checkbox){
+  var group=checkbox.getAttribute('data-group'), cur=checkbox.getAttribute('data-cur');
+  var cfg=SHEET_LINKS.__CS__||{};
+  if(!cfg.groupCurrencyMap) cfg.groupCurrencyMap={};
+  var arr=cfg.groupCurrencyMap[group]||[];
+  arr = checkbox.checked ? (arr.indexOf(cur)<0?arr.concat([cur]):arr) : arr.filter(function(c){return c!==cur;});
+  cfg.groupCurrencyMap[group]=arr;
+  SHEET_LINKS.__CS__=cfg;
+  persistSheetLinks();
+  renderAll();
+}
+function csToggleBrandCurrency_(checkbox){
+  var brand=checkbox.getAttribute('data-brand'), cur=checkbox.getAttribute('data-cur');
+  var cfg=SHEET_LINKS.__CS__||{};
+  if(!cfg.brandCurrencyMap) cfg.brandCurrencyMap={};
+  var arr=cfg.brandCurrencyMap[brand]||[];
+  arr = checkbox.checked ? (arr.indexOf(cur)<0?arr.concat([cur]):arr) : arr.filter(function(c){return c!==cur;});
+  cfg.brandCurrencyMap[brand]=arr;
+  SHEET_LINKS.__CS__=cfg;
+  persistSheetLinks();
+  renderAll();
+}
+function saveCsSla_(){
+  var url=document.getElementById('cs-set-sla-url').value.trim();
+  var sheetId=extractSheetId_(url);
+  if(!sheetId){ document.getElementById('cs-settings-body').insertAdjacentHTML('beforeend','<div class="md-status error" style="margin-top:8px">✕ Could not identify a Sheet ID from this link</div>'); return; }
+  var cfg=SHEET_LINKS.__CS__||{};
+  if(cfg.slaSheetId && cfg.slaSheetId!==sheetId){
+    if(cfg.slaTabInternal) delete sheetTabCache[sheetTabKey_(cfg.slaSheetId,cfg.slaTabInternal)];
+    if(cfg.slaTabOutsource) delete sheetTabCache[sheetTabKey_(cfg.slaSheetId,cfg.slaTabOutsource)];
+  }
+  cfg.slaSheetId=sheetId;
+  cfg.slaRawUrl=url;
+  cfg.slaTabInternal=document.getElementById('cs-set-sla-int').value.trim();
+  cfg.slaTabOutsource=document.getElementById('cs-set-sla-out').value.trim();
+  SHEET_LINKS.__CS__=cfg;
+  persistSheetLinks();
+  renderCsSettings();
+  renderAll();
+}
+function clearCsSla_(){
+  var cfg=SHEET_LINKS.__CS__||{};
+  if(cfg.slaSheetId){
+    if(cfg.slaTabInternal) delete sheetTabCache[sheetTabKey_(cfg.slaSheetId,cfg.slaTabInternal)];
+    if(cfg.slaTabOutsource) delete sheetTabCache[sheetTabKey_(cfg.slaSheetId,cfg.slaTabOutsource)];
+  }
+  delete cfg.slaSheetId; delete cfg.slaRawUrl; delete cfg.slaTabInternal; delete cfg.slaTabOutsource;
+  SHEET_LINKS.__CS__=cfg;
+  persistSheetLinks();
+  renderCsSettings();
+  renderAll();
+}
+function saveCsDaily_(){
+  var url=document.getElementById('cs-set-daily-url').value.trim();
+  var sheetId=extractSheetId_(url);
+  if(!sheetId){ document.getElementById('cs-settings-body').insertAdjacentHTML('beforeend','<div class="md-status error" style="margin-top:8px">✕ Could not identify a Sheet ID from this link</div>'); return; }
+  var cfg=SHEET_LINKS.__CS__||{};
+  if(cfg.dailySheetId && cfg.dailyTab && cfg.dailySheetId!==sheetId) delete sheetTabCache[sheetTabKey_(cfg.dailySheetId,cfg.dailyTab)];
+  cfg.dailySheetId=sheetId;
+  cfg.dailyRawUrl=url;
+  cfg.dailyTab=document.getElementById('cs-set-daily-tab').value.trim();
+  SHEET_LINKS.__CS__=cfg;
+  persistSheetLinks();
+  renderCsSettings();
+  renderAll();
+}
+function clearCsDaily_(){
+  var cfg=SHEET_LINKS.__CS__||{};
+  if(cfg.dailySheetId && cfg.dailyTab) delete sheetTabCache[sheetTabKey_(cfg.dailySheetId,cfg.dailyTab)];
+  delete cfg.dailySheetId; delete cfg.dailyRawUrl; delete cfg.dailyTab;
+  SHEET_LINKS.__CS__=cfg;
+  persistSheetLinks();
+  renderCsSettings();
+  renderAll();
 }
 
 // Tab name resolution: defaults to the brand name; if this currency has an
@@ -1472,7 +2357,9 @@ function showPage(id,el){
     dailyreport:'📋 Daily Report — '+brandLabel_(currentBrand),
     trends:'📈 Performance Peaks & Valleys — '+brandLabel_(currentBrand),
     summary:'📊 Summary — '+brandLabel_(currentBrand),
-    brandcomp:'🆚 Brand Comparison — '+brandLabel_(currentBrand)
+    brandcomp:'🆚 Brand Comparison — '+brandLabel_(currentBrand),
+    sla:'🎧 SLA Metrics — Aff CS',
+    auto:'🤖 Automation — Aff CS Bot vs Agent'
   };
   document.getElementById('pg-title').textContent=titles[id];
   var showGran=(id==='dailyreport');
@@ -1480,10 +2367,16 @@ function showPage(id,el){
   document.getElementById('dr-gran').style.display=showGran?'':'none';
   // Overview always shows the latest month with live data — no manual month
   // picker there (see renderAll's use of latestLiveMonth_). Every other page
-  // still uses the shared Month dropdown as before.
-  var showMonthPicker=(id!=='overview');
+  // still uses the shared Month dropdown as before. SLA Metrics/Automation are
+  // CS chat data, not tied to currency/brand/month at all — they have their
+  // own filter-bar inside the page — so the shared top filter bar (currency
+  // brand + month, which only makes sense for the Sales pages) is hidden there.
+  var isCsPage=(id==='sla'||id==='auto');
+  var showMonthPicker=(id!=='overview' && !isCsPage);
   document.getElementById('month-lbl').style.display=showMonthPicker?'':'none';
   document.getElementById('month-select').style.display=showMonthPicker?'':'none';
+  var topFilterBar=document.querySelector('.top-filter-bar');
+  if(topFilterBar) topFilterBar.style.display=isCsPage?'none':'';
   requestAnimationFrame(syncGlobalStickyOffsets_);
   renderAll(); // refreshes shared chrome (pg-sub, chart-tag, KPIs) *and* dispatches
                // to whichever page just became active — replaces the four
@@ -2894,7 +3787,7 @@ function renderAll(){
     ? (overviewMonth?monthNames[overviewMonth]:'No data yet')
     : (isAllMonths?'Full Year (Jan–Dec)':monthNames[currentMonth]);
   var activePageId='overview';
-  ['dailyreport','trends','summary','brandcomp'].forEach(function(p){
+  ['dailyreport','trends','summary','brandcomp','sla','auto'].forEach(function(p){
     if(document.getElementById('page-'+p).classList.contains('active')) activePageId=p;
   });
   var pgTitles={
@@ -2902,8 +3795,18 @@ function renderAll(){
     dailyreport:'📋 Daily Report — '+brandLabel_(currentBrand),
     trends:'📈 Performance Peaks & Valleys — '+brandLabel_(currentBrand),
     summary:'📊 Summary — '+brandLabel_(currentBrand),
-    brandcomp:'🆚 Brand Comparison — '+brandLabel_(currentBrand)
+    brandcomp:'🆚 Brand Comparison — '+brandLabel_(currentBrand),
+    sla:'🎧 SLA Metrics — Aff CS',
+    auto:'🤖 Automation — Aff CS Bot vs Agent'
   };
+  // SLA Metrics / Automation are CS chat data, entirely independent of the
+  // currency/brand/month state the rest of this function computes below —
+  // dispatch to them immediately and skip the Sales-specific chrome (KPIs,
+  // trend chart, pg-sub) that the rest of renderAll() builds, since it would
+  // just be overwritten a moment later by renderSlaPage()/renderAutoPage()
+  // setting their own pg-title/pg-sub anyway, and computing it is wasted work.
+  if(activePageId==='sla'){ renderSlaPage(); return; }
+  if(activePageId==='auto'){ renderAutoPage(); return; }
   document.getElementById('pg-title').textContent=pgTitles[activePageId];
   var dataLabel=res.status==='ready'?'Live data':res.status==='mixed'?('Mixed data — '+res.liveCount+'/'+res.brandCount+' live'):res.status==='loading'?'Syncing…':res.status==='error'?'Sync error':'No data';
   document.getElementById('pg-sub').textContent=dataLabel+' · '+monthLabel+' · '+currentCurrency+' sheet';
