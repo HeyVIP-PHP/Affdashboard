@@ -438,6 +438,32 @@ table.dt td.pv-brand{font-weight:800}
 .st-count{font-size:9px;font-family:var(--mono);color:var(--muted);letter-spacing:.04em}
 .st-sortable{cursor:pointer;user-select:none;white-space:nowrap}
 .st-sortable:hover{color:var(--text)}
+
+/* CHAT DAILY REPORT — per-brand cards, grand-total strip, month-separator table rows */
+.cd-kpi-grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.cd-brand-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;position:relative;overflow:hidden}
+.cd-brand-card::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:var(--bc)}
+.cd-brand-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}
+.cd-brand-name{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cd-brand-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;background:var(--bc)}
+.cd-brand-total-badge{flex-shrink:0;font-size:9px;font-family:var(--mono);color:var(--muted);background:var(--ov-04);padding:3px 7px;border-radius:5px;letter-spacing:.02em;white-space:nowrap}
+.cd-brand-stat{margin-bottom:9px}
+.cd-brand-stat:last-child{margin-bottom:0}
+.cd-brand-stat-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:3px}
+.cd-brand-stat-val{font-size:19px;font-weight:800;font-family:var(--mono);letter-spacing:-.03em;margin-bottom:5px}
+.cd-brand-bar-wrap{height:5px;background:var(--ov-06);border-radius:3px;overflow:hidden;margin-bottom:3px}
+.cd-brand-bar-fill{height:100%;border-radius:3px}
+.cd-brand-stat-pct{font-size:9px;color:var(--muted);font-family:var(--mono)}
+
+.cd-grand-strip{display:flex;background:linear-gradient(135deg,rgba(0,176,255,0.07),rgba(155,127,244,0.07));border:1px solid var(--border);border-radius:10px;padding:20px 0}
+.cd-grand-col{flex:1;text-align:center;position:relative}
+.cd-grand-col+.cd-grand-col::before{content:"";position:absolute;left:0;top:12%;bottom:12%;width:1px;background:var(--border2)}
+.cd-grand-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:8px}
+.cd-grand-val{font-size:32px;font-weight:800;font-family:var(--mono);letter-spacing:-.03em}
+.cd-grand-val.grad{background:linear-gradient(135deg,#00e676,#00b0ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.cd-grand-sub{font-size:10px;color:var(--muted);margin-top:6px;font-family:var(--mono)}
+
+tr.dt-month-sep td{background:var(--teal-d);color:var(--teal);font-weight:800;font-size:10px;letter-spacing:.06em;padding:7px 10px;text-transform:uppercase}
 .modal-foot{padding:10px 18px;border-top:1px solid var(--border);font-size:9px;color:var(--dim);line-height:1.6}
 .chart-zoom-box{max-width:min(1500px,96vw);width:100%}
 .chart-zoom-body{height:min(820px,85vh);padding:24px}
@@ -469,6 +495,7 @@ table.dt td.pv-brand{font-weight:800}
 
     <div class="nav-sec">Report</div>
     <div class="nav-item" onclick="showPage('dailyreport',this)"><div class="nav-dot" style="background:#00e676"></div>Daily Report</div>
+    <div class="nav-item" onclick="showPage('chatdaily',this)"><div class="nav-dot" style="background:#00b0ff"></div>Chat Daily Report</div>
     <div class="nav-item" onclick="showPage('trends',this)"><div class="nav-dot" style="background:#00b0ff"></div>Performance Peaks &amp; Valleys</div>
 
     <div class="nav-sec">Analysis</div>
@@ -478,7 +505,6 @@ table.dt td.pv-brand{font-weight:800}
 
     <div class="nav-sec">CS Performance</div>
     <div class="nav-item" onclick="showPage('sla',this)"><div class="nav-dot" style="background:#ff9100"></div>SLA Metrics</div>
-    <div class="nav-item" onclick="showPage('chatdaily',this)"><div class="nav-dot" style="background:#00b0ff"></div>Chat Daily Report</div>
 
     <div class="sb-footer">
       <div class="conn-box" id="conn-box">
@@ -831,7 +857,7 @@ table.dt td.pv-brand{font-weight:800}
         </div>
       </div>
 
-      <!-- CHAT DAILY REPORT (Aff CS — day-by-day, same Sheet Automation reads) -->
+      <!-- CHAT DAILY REPORT (Aff CS — day-by-day Agent vs Bot, same Sheet Automation reads) -->
       <div class="page" id="page-chatdaily">
         <div class="filter-bar">
           <span class="filter-lbl">Month</span>
@@ -855,16 +881,26 @@ table.dt td.pv-brand{font-weight:800}
           <div class="pb" style="color:var(--muted);font-size:11px">⚠️ No Daily Chat Report Sheet configured yet — click <b>CS Sheet</b> in the sidebar to connect it.</div>
         </div>
 
-        <div class="kpi-grid g4">
-          <div class="kpi c-green kpi-drill" ondblclick="cdOpenContainmentDrill_()"><span class="kpi-jump-hint">⤢</span><div class="kpi-lbl">Containment Rate</div><div class="kpi-val" id="cd-rate">—</div><div class="kpi-d" id="cd-rate-d" title="Target ≥ 55%">Target ≥ 55%</div></div>
-          <div class="kpi c-purple"><div class="kpi-lbl">Bot Chats</div><div class="kpi-val" id="cd-bot">—</div><div class="kpi-d">Bot resolved</div></div>
-          <div class="kpi c-teal"><div class="kpi-lbl">Agent Chats</div><div class="kpi-val" id="cd-ag">—</div><div class="kpi-d">Human handled</div></div>
-          <div class="kpi c-amber"><div class="kpi-lbl">Total Chats</div><div class="kpi-val" id="cd-tot">—</div><div class="kpi-d">Combined</div></div>
+        <!-- Per-brand cards — one per brand, Agent/Bot Only split with its own bar -->
+        <div class="cd-kpi-grid" id="cd-brand-kpis"></div>
+
+        <!-- Grand total strip — Total Agent / Total Bot / Grand Total -->
+        <div class="cd-grand-strip" id="cd-grand-total"></div>
+
+        <div class="row2 c66">
+          <div class="panel ag">
+            <div class="ph"><span class="ph-t">📊 Monthly Agent vs Bot</span><span class="ph-tag" id="cd-monthly-tag">ALL MONTHS</span></div>
+            <div class="cw" style="height:280px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="cd-monthly-chart"></canvas></div>
+          </div>
+          <div class="panel ap">
+            <div class="ph"><span class="ph-t">🍩 Agent vs Bot Split</span><span class="ph-tag">RATIO</span></div>
+            <div class="cw" style="height:280px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="cd-split-chart"></canvas></div>
+          </div>
         </div>
 
         <div class="panel">
-          <div class="ph"><span class="ph-t">💬 Chat Daily Report<span class="ph-daycount" id="cd-daycount"></span></span><span class="ph-tag" id="cd-tag">All Months</span></div>
-          <div class="pb dt-scroll" id="cd-table-wrap"></div>
+          <div class="ph"><span class="ph-t">📋 Daily Breakdown<span class="ph-daycount" id="cd-daycount"></span></span></div>
+          <div class="pb dt-scroll"><table class="dt" id="cd-table" style="table-layout:auto"></table></div>
         </div>
       </div>
 
@@ -1897,6 +1933,23 @@ function csZeroBrandObj_(brands){ var o={}; brands.forEach(function(b){o[b]=0;})
 
 // Month titles in this Sheet include the year ("JANUARY 2026"), so this checks whether the
 // cell STARTS WITH a full month name rather than requiring an exact match.
+// Google Sheets' API (with valueRenderOption=UNFORMATTED_VALUE — see sheet.js)
+// returns a real DATE-formatted cell as its raw serial number (days since
+// 1899-12-30), not the "01-Jan" text that's actually displayed in the Sheet —
+// e.g. 46023 is Jan 1, 2026. Most Sheets type their day column as plain text
+// ("01-Jan") and never hit this, but the Daily Chat Report Sheet's Date column
+// is apparently real dates, so raw day rows were showing "46023" instead of
+// "01-Jan" until this converts them back. Range-guarded (numbers below/above
+// this aren't plausible serial dates) so it only fires on the real thing.
+function csSerialToDayLabel_(v){
+  var n = typeof v==='number' ? v : (/^\d+(\.\d+)?$/.test(String(v==null?'':v).trim()) ? parseFloat(v) : NaN);
+  if(isNaN(n) || n<20000 || n>80000) return null; // ~1954–2119 — plausible Sheet date range
+  var MON3_=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var d=new Date(Date.UTC(1899,11,30) + Math.round(n)*86400000);
+  var day=String(d.getUTCDate()); if(day.length<2) day='0'+day;
+  return day+'-'+MON3_[d.getUTCMonth()];
+}
+
 function csMatchMonthTitle_(c0){
   var u=String(c0||'').trim().toUpperCase();
   for(var i=0;i<CS_MONTHS_FULL.length;i++){
@@ -1974,7 +2027,8 @@ function csParseDailySheet(rows){
     }
 
     if(!agentCols) continue;
-    var day={date:c0}, rowHasData=false;
+    var dayLabel_ = csSerialToDayLabel_(row[0]) || c0; // raw Sheet date serial → "01-Jan", falls back to the cell text as-is if it's already a plain label
+    var day={date:dayLabel_}, rowHasData=false;
     detectedBrands.forEach(function(b){
       var ag=agentCols[b]!==undefined?csPi(row[agentCols[b]]):0;
       var bt=botCols[b]!==undefined?csPi(row[botCols[b]]):0;
@@ -2476,13 +2530,18 @@ function auOpenContainmentDrill_(){
 }
 
 /* ---------- Chat Daily Report page ---------- *//* Day-by-day view of the same
-   Daily Chat Report Sheet Automation reads (see csDeriveChatDaily above) — one
-   row per calendar day, mirroring the Sales "Daily Report" page's shape/spirit
-   but for chat volume instead of sales figures. Its own Month/Brand filter bar,
-   same convention as SLA Metrics/Automation (independent of the Sales top filter
-   bar, which is hidden on all three CS pages — see isCsPage in showPage()). */
+   Daily Chat Report Sheet Automation reads (see csDeriveChatDaily above) —
+   redesigned to match a reference "Daily Report" layout: one card per brand
+   (Agent/Bot Only split + bar), a Total Agent/Total Bot/Grand Total strip,
+   a Monthly Agent-vs-Bot bar chart + Agent-vs-Bot donut, and a Daily Breakdown
+   table grouped by month (subtotal row per month, grand total at the end) —
+   same shape as renderYearBreakdownTable_ uses for the Sales Daily Report page,
+   just with per-brand Agent/Bot column groups instead of Sales' Performance/
+   Financials groups. Its own Month/Brand filter bar, same convention as SLA
+   Metrics/Automation (independent of the Sales top filter bar, which is hidden
+   on all CS pages — see isCsPage in showPage()). */
 var cdMonth='all', cdBrand='all';
-var cdLastRows_=[]; // day rows behind the currently-shown table/KPIs, read by cdOpenContainmentDrill_()
+var cdMonthlyChart_=null, cdSplitChart_=null;
 
 function applyChatDailyFilter(){
   cdMonth=document.getElementById('cd-f-month').value;
@@ -2490,92 +2549,183 @@ function applyChatDailyFilter(){
   renderChatDailyPage();
 }
 
+function cdEmptyRaw_(brands){ var o={}; brands.forEach(function(b){o['ag_'+b]=0;o['bt_'+b]=0;}); return o; }
+function cdAddRaw_(agg,raw,brands){ brands.forEach(function(b){ agg['ag_'+b]+=raw['ag_'+b]||0; agg['bt_'+b]+=raw['bt_'+b]||0; }); }
+
 function renderChatDailyPage(){
   var res=getCsChatDailyParsed();
   csSetStatusChrome_(res.status, res.error, '💬 Chat Daily Report — Aff CS');
   document.getElementById('cd-config-warn').style.display = res.status==='none' ? '' : 'none';
 
   if(res.status!=='ready'){
-    ['cd-rate','cd-bot','cd-ag','cd-tot'].forEach(function(id){ document.getElementById(id).textContent='—'; });
-    document.getElementById('cd-table-wrap').innerHTML='';
-    cdLastRows_=[];
+    document.getElementById('cd-brand-kpis').innerHTML='';
+    document.getElementById('cd-grand-total').innerHTML='';
+    document.getElementById('cd-table').innerHTML='';
+    document.getElementById('cd-daycount').textContent='';
+    if(cdMonthlyChart_){ cdMonthlyChart_.destroy(); cdMonthlyChart_=null; }
+    if(cdSplitChart_){ cdSplitChart_.destroy(); cdSplitChart_=null; }
     return;
   }
 
   var d=res.data;
-  var brands=d.brands;
+  var allBrands=d.brands;
 
   // Brand <select> — same "rebuild only when the option set actually changes"
   // pattern the Automation/SLA filter bars use, so the dropdown's open state
   // and scroll position don't reset on every render.
   var brandSel=document.getElementById('cd-f-brand');
-  var brandsKey=currentCurrency+'|'+brands.join('|');
+  var brandsKey=currentCurrency+'|'+allBrands.join('|');
   if(brandSel.dataset.built!==brandsKey){
-    brandSel.innerHTML='<option value="all">All Brands</option>'+brands.map(function(b){return '<option value="'+csEsc(b)+'">'+csEsc(b)+'</option>';}).join('');
-    brandSel.value=brands.indexOf(cdBrand)>=0?cdBrand:'all';
+    brandSel.innerHTML='<option value="all">All Brands</option>'+allBrands.map(function(b){return '<option value="'+csEsc(b)+'">'+csEsc(b)+'</option>';}).join('');
+    brandSel.value=allBrands.indexOf(cdBrand)>=0?cdBrand:'all';
     cdBrand=brandSel.value;
     brandSel.dataset.built=brandsKey;
   }
 
-  var monthsArr=csExpandMonths(cdMonth);
+  var monthsArr=csExpandMonths(cdMonth); // null = "all" (no filter)
   var days=monthsArr===null?d.days:d.days.filter(function(x){return monthsArr.indexOf(x.month)>=0;});
-
-  function agVal_(x){ return cdBrand==='all' ? brands.reduce(function(s,b){return s+(x.raw['ag_'+b]||0);},0) : (x.raw['ag_'+cdBrand]||0); }
-  function btVal_(x){ return cdBrand==='all' ? brands.reduce(function(s,b){return s+(x.raw['bt_'+b]||0);},0) : (x.raw['bt_'+cdBrand]||0); }
-
-  var agAll=0, btAll=0;
-  var tableRows=days.map(function(x){
-    var ag=agVal_(x), bt=btVal_(x), tot=ag+bt;
-    agAll+=ag; btAll+=bt;
-    return {month:x.month, date:x.date, ag:ag, bt:bt, tot:tot};
-  });
-  cdLastRows_=tableRows;
-  var totAll=agAll+btAll;
-  var containmentRate=totAll>0?Math.round(btAll/totAll*100):0;
+  var activeBrands = cdBrand==='all' ? allBrands : [cdBrand];
 
   var monthLbl=cdMonth==='all'?'All Months':(cdMonth==='H1'?'H1 Jan–Jun':(cdMonth==='H2'?'H2 Jul–Dec':cdMonth));
-  document.getElementById('pg-sub').textContent=currentCurrency+' · '+monthLbl+' · '+(cdBrand==='all'?'All Brands':cdBrand)+' · '+tableRows.length+' days';
+  document.getElementById('pg-sub').textContent=currentCurrency+' · '+monthLbl+' · '+(cdBrand==='all'?'All Brands':cdBrand)+' · '+days.length+' days';
   document.getElementById('cd-filter-info').textContent=currentCurrency+' · '+monthLbl+' · '+(cdBrand==='all'?'All Brands':cdBrand);
-  document.getElementById('cd-tag').textContent=monthLbl+' · '+brands.length+' brand(s)';
-  document.getElementById('cd-daycount').textContent='· '+tableRows.length+' days';
+  document.getElementById('cd-monthly-tag').textContent=monthLbl.toUpperCase();
+  document.getElementById('cd-daycount').textContent='· '+days.length+' days';
 
-  document.getElementById('cd-tot').textContent=fmtInt(totAll);
-  document.getElementById('cd-ag').textContent=fmtInt(agAll);
-  document.getElementById('cd-bot').textContent=fmtInt(btAll);
-  document.getElementById('cd-rate').textContent=containmentRate+'%';
-  var rateD=document.getElementById('cd-rate-d');
-  var aboveTarget=containmentRate>=CS_AUTOMATION_TARGET_PCT;
-  rateD.textContent=aboveTarget?'✓ Above Target':'⚠ Below Target';
-  rateD.style.color=aboveTarget?'var(--green)':'var(--red)';
-
-  // Searchable/sortable table (see mountSearchTable above) instead of a static
-  // render — with up to 365 day-rows across "All Months", being able to type a
-  // date fragment or sort by Containment % is a real usability win, not just
-  // decoration.
-  mountSearchTable('cd-table-wrap',[
-    {key:'date', label:'Date', sortValue:function(r){return CS_MONTHS.indexOf(r.month)+'-'+r.date;}, format:function(r){return r.date+' '+r.month;}},
-    {key:'ag', label:'Agent', sortValue:function(r){return r.ag;}, format:function(r){return fmtInt(r.ag);}},
-    {key:'bt', label:'Bot', sortValue:function(r){return r.bt;}, format:function(r){return fmtInt(r.bt);}},
-    {key:'tot', label:'Total', sortValue:function(r){return r.tot;}, format:function(r){return fmtInt(r.tot);}},
-    {key:'rate', label:'Containment', sortValue:function(r){return r.tot>0?r.bt/r.tot:0;}, format:function(r){return csPctSpan_(r.tot>0?Math.round(r.bt/r.tot*100):0);}}
-  ], tableRows, {defaultSortKey:'date', defaultSortDir:'asc'});
-}
-
-// Detail rows behind Chat Daily Report's Containment Rate KPI — every day in the
-// current filter selection, same formula the headline % is built from.
-function cdOpenContainmentDrill_(){
-  var totAg=cdLastRows_.reduce(function(s,r){return s+r.ag;},0);
-  var totBt=cdLastRows_.reduce(function(s,r){return s+r.bt;},0);
-  var totAll=totAg+totBt;
-  var rate=totAll>0?Math.round(totBt/totAll*100):0;
-  var formula='<div class="drill-formula">Containment Rate = Bot Chats ÷ (Bot Chats + Agent Chats)<br>'+
-    '= '+fmtInt(totBt)+' ÷ ('+fmtInt(totBt)+' + '+fmtInt(totAg)+') = <b>'+rate+'%</b></div>';
-  var headers=['Date','Agent','Bot','Total','Containment %'];
-  var rows=cdLastRows_.map(function(r){
-    var dRate=r.tot>0?Math.round(r.bt/r.tot*100):0;
-    return [r.date+' '+r.month, fmtInt(r.ag), fmtInt(r.bt), fmtInt(r.tot), csPctSpan_(dRate)];
+  // ---- Per-brand totals across the filtered days ----
+  var brandTotals={};
+  activeBrands.forEach(function(b){ brandTotals[b]={ag:0,bt:0}; });
+  days.forEach(function(x){
+    activeBrands.forEach(function(b){
+      brandTotals[b].ag+=x.raw['ag_'+b]||0;
+      brandTotals[b].bt+=x.raw['bt_'+b]||0;
+    });
   });
-  openDrillDown('Containment Rate — how it\'s calculated', formula, headers, rows);
+  var grandAg=0, grandBt=0;
+  activeBrands.forEach(function(b){ grandAg+=brandTotals[b].ag; grandBt+=brandTotals[b].bt; });
+  var grandTotal=grandAg+grandBt;
+
+  // ---- Per-brand cards ----
+  document.getElementById('cd-brand-kpis').innerHTML = activeBrands.map(function(b,i){
+    var t=brandTotals[b], tot=t.ag+t.bt;
+    var agPct = tot>0?Math.round(t.ag/tot*100):0;
+    var btPct = tot>0?Math.round(t.bt/tot*100):0;
+    var color=brandColor_(activeBrands,b);
+    return '<div class="cd-brand-card" style="--bc:'+color+'">'+
+      '<div class="cd-brand-head"><div class="cd-brand-name" style="color:'+color+'"><span class="cd-brand-dot"></span>'+csEsc(b)+'</div>'+
+      '<span class="cd-brand-total-badge">TOTAL '+fmtInt(tot)+'</span></div>'+
+      '<div class="cd-brand-stat"><div class="cd-brand-stat-lbl" style="color:var(--green)">● Agent</div>'+
+        '<div class="cd-brand-stat-val" style="color:var(--green)">'+fmtInt(t.ag)+'</div>'+
+        '<div class="cd-brand-bar-wrap"><div class="cd-brand-bar-fill" style="width:'+Math.max(2,agPct)+'%;background:var(--green)"></div></div>'+
+        '<div class="cd-brand-stat-pct">'+agPct+'% of total</div></div>'+
+      '<div class="cd-brand-stat"><div class="cd-brand-stat-lbl" style="color:var(--amber)">● Bot Only</div>'+
+        '<div class="cd-brand-stat-val" style="color:var(--amber)">'+fmtInt(t.bt)+'</div>'+
+        '<div class="cd-brand-bar-wrap"><div class="cd-brand-bar-fill" style="width:'+Math.max(2,btPct)+'%;background:var(--amber)"></div></div>'+
+        '<div class="cd-brand-stat-pct">'+btPct+'% of total</div></div>'+
+    '</div>';
+  }).join('') || '<div style="color:var(--muted);font-size:11px;padding:16px">No brands for this selection</div>';
+
+  // ---- Grand total strip ----
+  var agShare=grandTotal>0?Math.round(grandAg/grandTotal*100):0;
+  var btShare=grandTotal>0?Math.round(grandBt/grandTotal*100):0;
+  document.getElementById('cd-grand-total').innerHTML=
+    '<div class="cd-grand-col"><div class="cd-grand-lbl">Total Agent</div><div class="cd-grand-val" style="color:var(--green)">'+fmtInt(grandAg)+'</div><div class="cd-grand-sub">'+agShare+'%</div></div>'+
+    '<div class="cd-grand-col"><div class="cd-grand-lbl">Total Bot</div><div class="cd-grand-val" style="color:var(--amber)">'+fmtInt(grandBt)+'</div><div class="cd-grand-sub">'+btShare+'%</div></div>'+
+    '<div class="cd-grand-col"><div class="cd-grand-lbl">Grand Total</div><div class="cd-grand-val grad">'+fmtInt(grandTotal)+'</div><div class="cd-grand-sub">'+currentCurrency+' Combined</div></div>';
+
+  // ---- Monthly Agent vs Bot bar chart — full Jan–Dec (or the H1/H2/single-month
+  // range selected) so trailing not-yet-reported months show as empty bars,
+  // same convention the Sales trend charts use. ----
+  var chartMonthKeys = monthsArr===null ? CS_MONTHS.slice() : monthsArr;
+  var monthAgArr=[], monthBtArr=[];
+  chartMonthKeys.forEach(function(m){
+    var ag=0, bt=0;
+    days.forEach(function(x){
+      if(x.month!==m) return;
+      activeBrands.forEach(function(b){ ag+=x.raw['ag_'+b]||0; bt+=x.raw['bt_'+b]||0; });
+    });
+    monthAgArr.push(ag); monthBtArr.push(bt);
+  });
+  if(cdMonthlyChart_) cdMonthlyChart_.destroy();
+  var ctx1=document.getElementById('cd-monthly-chart');
+  if(ctx1 && typeof Chart!=='undefined'){
+    cdMonthlyChart_=new Chart(ctx1,{
+      type:'bar',
+      data:{labels:chartMonthKeys, datasets:[
+        {label:'Agent', data:monthAgArr, backgroundColor:'rgba(0,230,118,0.75)', borderRadius:3, maxBarThickness:22},
+        {label:'Bot Only', data:monthBtArr, backgroundColor:'rgba(255,145,0,0.75)', borderRadius:3, maxBarThickness:22}
+      ]},
+      options:{responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{display:true, labels:{color:chartTextColor_(), boxWidth:10, font:{size:10}}}},
+        scales:{ x:{grid:{display:false}, ticks:{color:chartTextColor_(), font:{size:9}}},
+                 y:{beginAtZero:true, grid:{color:chartGridColor_()}, ticks:{color:chartTextColor_(), font:{size:9}}} }
+      }
+    });
+  }
+  attachChartZoom_('cd-monthly-chart','Chat Daily Report — Monthly Agent vs Bot',function(){return cdMonthlyChart_;});
+
+  // ---- Agent vs Bot donut ----
+  if(cdSplitChart_) cdSplitChart_.destroy();
+  var ctx2=document.getElementById('cd-split-chart');
+  if(ctx2 && typeof Chart!=='undefined'){
+    cdSplitChart_=new Chart(ctx2,{
+      type:'doughnut',
+      data:{labels:['Agent','Bot Only'], datasets:[{data:[grandAg,grandBt], backgroundColor:['rgba(0,230,118,0.85)','rgba(255,145,0,0.85)'], borderWidth:0}]},
+      options:{responsive:true, maintainAspectRatio:false, cutout:'68%',
+        plugins:{legend:{display:true, position:'bottom', labels:{color:chartTextColor_(), boxWidth:10, font:{size:10}}}}
+      }
+    });
+  }
+  attachChartZoom_('cd-split-chart','Chat Daily Report — Agent vs Bot Split',function(){return cdSplitChart_;});
+
+  // ---- Daily Breakdown table — grouped by month (like renderYearBreakdownTable_)
+  // whenever more than one month is in view, flat otherwise. ----
+  function rowCells_(raw){
+    var html='';
+    activeBrands.forEach(function(b,i){
+      html+='<td'+(i===activeBrands.length-1?' class="grp-end"':'')+'>'+fmtInt(raw['ag_'+b]||0)+'</td>';
+    });
+    activeBrands.forEach(function(b){ html+='<td>'+fmtInt(raw['bt_'+b]||0)+'</td>'; });
+    return html;
+  }
+  var groupHeaderHtml='<th class="dt-grp" style="background:var(--bg);color:var(--green)" colspan="'+activeBrands.length+'">● Chat Assigned to Agent</th>'+
+    '<th class="dt-grp" style="background:var(--bg);color:var(--amber)" colspan="'+activeBrands.length+'">● Bot Only (Not Assigned to Agent)</th>';
+  var subHeaderHtml=activeBrands.map(function(b,i){
+    return '<th class="dt-sub" style="background:var(--bg);border-bottom:2px solid var(--green)'+(i===activeBrands.length-1?';border-right:2px solid var(--border2)':'')+'">'+csEsc(b)+'</th>';
+  }).join('')+activeBrands.map(function(b){
+    return '<th class="dt-sub" style="background:var(--bg);border-bottom:2px solid var(--amber)">'+csEsc(b)+'</th>';
+  }).join('');
+
+  var isGrouped = monthsArr===null || monthsArr.length>1;
+  var bodyHtml='';
+  var grandRaw=cdEmptyRaw_(activeBrands);
+  var colspan=1+activeBrands.length*2;
+  if(isGrouped){
+    var byMonth={};
+    days.forEach(function(x){ (byMonth[x.month]=byMonth[x.month]||[]).push(x); });
+    (monthsArr===null?CS_MONTHS:monthsArr).forEach(function(m){
+      var list=byMonth[m];
+      if(!list || !list.length) return;
+      bodyHtml+='<tr class="dt-month-sep"><td colspan="'+colspan+'">'+m.toUpperCase()+'</td></tr>';
+      var monthRaw=cdEmptyRaw_(activeBrands);
+      list.forEach(function(x){
+        bodyHtml+='<tr><td>'+x.date+'</td>'+rowCells_(x.raw)+'</tr>';
+        cdAddRaw_(monthRaw,x.raw,activeBrands);
+        cdAddRaw_(grandRaw,x.raw,activeBrands);
+      });
+      bodyHtml+='<tr class="dt-subtotal"><td>TOTAL</td>'+rowCells_(monthRaw)+'</tr>';
+    });
+  } else {
+    days.forEach(function(x){
+      bodyHtml+='<tr><td>'+x.date+'</td>'+rowCells_(x.raw)+'</tr>';
+      cdAddRaw_(grandRaw,x.raw,activeBrands);
+    });
+  }
+
+  document.getElementById('cd-table').innerHTML=
+    '<thead><tr><th class="dt-date-hd" rowspan="2">Date</th>'+groupHeaderHtml+'</tr><tr>'+subHeaderHtml+'</tr></thead><tbody>'+
+    (bodyHtml || '<tr><td colspan="'+colspan+'" style="text-align:center;color:var(--muted);padding:16px">No data for this selection</td></tr>')+
+    '<tr class="dt-total"><td>GRAND TOTAL</td>'+rowCells_(grandRaw)+'</tr></tbody>';
 }
 
 /* ---------- CS Sheet settings modal ---------- */
