@@ -218,6 +218,11 @@ table.dt td{padding:7px 10px;border-bottom:1px solid var(--border);font-family:v
    inside a fixed-max-height overflow:auto container (.dt-scroll, applied to
    #dr-table's wrapper below). This is the standard, well-tested combination. */
 #dr-table thead{position:sticky;top:0;z-index:10}
+/* Chat Daily Report's Daily Breakdown table — same technique, same reasoning
+   (sticky on <thead> as a whole, inside .dt-scroll's max-height+overflow:auto
+   wrapper) — with 200+ day-rows across "All Months" the header (and its Agent/
+   Bot brand column labels) needs to stay in view while scrolling. */
+#cd-table thead{position:sticky;top:0;z-index:10}
 tr.dt-total td{font-weight:800;background:var(--card);border-top:2px solid var(--border2);border-bottom:none;color:var(--green)}
 tr.dt-subtotal td{font-weight:700;background:var(--ov-03);border-top:1px solid var(--border2);color:var(--gold)}
 table.dt tbody tr:hover td{background:var(--ov-03)}
@@ -497,6 +502,7 @@ tr.dt-month-sep td{background:var(--teal-d);color:var(--teal);font-weight:800;fo
     <div class="nav-item" onclick="showPage('dailyreport',this)"><div class="nav-dot" style="background:#00e676"></div>Daily Report</div>
     <div class="nav-item" onclick="showPage('chatdaily',this)"><div class="nav-dot" style="background:#00b0ff"></div>Chat Daily Report</div>
     <div class="nav-item" onclick="showPage('trends',this)"><div class="nav-dot" style="background:#00b0ff"></div>Performance Peaks &amp; Valleys</div>
+    <div class="nav-item" onclick="showPage('chatpeaks',this)"><div class="nav-dot" style="background:#ff9100"></div>Chat Peaks &amp; Valleys</div>
 
     <div class="nav-sec">Analysis</div>
     <div class="nav-item" onclick="showPage('summary',this)"><div class="nav-dot" style="background:#00e5b4"></div>Summary</div>
@@ -699,6 +705,87 @@ tr.dt-month-sep td{background:var(--teal-d);color:var(--teal);font-weight:800;fo
         <div class="panel ag">
           <div class="ph"><span class="ph-t" id="perf-chart-title">📊 Monthly Trend</span><span class="ph-tag" id="perf-chart-tag">Jan – Mar</span></div>
           <div class="cw" style="height:260px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="perf-chart"></canvas></div>
+        </div>
+      </div>
+
+      </div>
+
+      <!-- CHAT PEAKS & VALLEYS — same layout/logic as Sales Performance Peaks &
+           Valleys above, re-pointed at Chat Daily Report data (Agent/Bot/Total
+           instead of Sign Up/FTD/Turnover/...). Own Month/Brand/Metric filter
+           bar, same CS-page convention as Chat Daily Report/Automation/SLA
+           (independent of the Sales top filter bar — see isCsPage in showPage()). -->
+      <div class="page" id="page-chatpeaks">
+
+      <div class="filter-bar">
+        <span class="filter-lbl">Metric</span>
+        <select class="fsel" id="cp-metric" onchange="applyChatPeaksFilter()">
+          <option value="tot">Total Chats</option>
+          <option value="ag">Agent</option>
+          <option value="bt">Bot Only</option>
+        </select>
+        <span class="filter-lbl" style="margin-left:10px">Month</span>
+        <select class="fsel" id="cp-f-month" onchange="applyChatPeaksFilter()">
+          <option value="ALL">All Months</option>
+          <option value="Jan">January</option><option value="Feb">February</option><option value="Mar">March</option>
+          <option value="Apr">April</option><option value="May">May</option><option value="Jun">June</option>
+          <option value="Jul">July</option><option value="Aug">August</option><option value="Sep">September</option>
+          <option value="Oct">October</option><option value="Nov">November</option><option value="Dec">December</option>
+        </select>
+        <span class="filter-lbl" style="margin-left:10px">Brand</span>
+        <select class="fsel" id="cp-f-brand" onchange="applyChatPeaksFilter()">
+          <option value="__ALL__">All Brands</option>
+        </select>
+        <span style="margin-left:auto;font-size:9px;color:var(--muted);font-family:var(--mono)" id="cp-filter-info">All Months · All Brands</span>
+      </div>
+
+      <div class="panel" id="cp-config-warn" style="display:none">
+        <div class="pb" style="color:var(--muted);font-size:11px">⚠️ No Daily Chat Report Sheet configured yet — click <b>CS Sheet</b> in the sidebar to connect it.</div>
+      </div>
+
+      <div id="cp-kpis" style="display:flex;flex-direction:column;gap:12px"></div>
+
+      <div class="row2 c66">
+        <div class="panel">
+          <div class="ph"><span>📊</span><span class="ph-t">Weekly Peaks &amp; Valleys by Brand</span><span class="ph-tag" id="cp-w-tag">Peak Week</span></div>
+          <div class="pb" style="overflow-x:auto"><table class="dt" id="cp-week-table"></table></div>
+        </div>
+        <div class="panel">
+          <div class="ph"><span>📅</span><span class="ph-t">Monthly Peaks &amp; Valleys by Brand</span><span class="ph-tag">Peak Month</span></div>
+          <div class="pb" style="overflow-x:auto"><table class="dt" id="cp-month-table"></table></div>
+        </div>
+      </div>
+
+      <div class="row2 c66" style="margin-top:16px">
+        <div class="panel">
+          <div class="ph"><span>🏔️</span><span class="ph-t">Top 3 Peak Weeks</span><span class="ph-tag" id="cp-topw-tag">all brands</span></div>
+          <div class="peak-list" id="cp-top-weeks"></div>
+        </div>
+        <div class="panel">
+          <div class="ph"><span>🏔️</span><span class="ph-t">Top 3 Peak Months</span><span class="ph-tag" id="cp-topm-tag">all brands</span></div>
+          <div class="peak-list" id="cp-top-months"></div>
+        </div>
+      </div>
+
+      <div class="row2 c66" style="margin-top:16px">
+        <div class="panel ag">
+          <div class="ph"><span>📊</span><span class="ph-t">Brand Weekly Split</span><span class="ph-tag" id="cp-wsplit-tag">by brand</span></div>
+          <div class="cw" style="height:300px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="cp-wsplit-chart"></canvas></div>
+        </div>
+        <div class="panel ag">
+          <div class="ph"><span>📊</span><span class="ph-t">Brand Monthly Split</span><span class="ph-tag">by brand</span></div>
+          <div class="cw" style="height:240px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="cp-msplit-chart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="row2 c66" style="margin-top:16px">
+        <div class="panel">
+          <div class="ph"><span>📈</span><span class="ph-t">Weekly Volume Trend</span><span class="ph-tag" id="cp-wtrend-tag">all brands</span></div>
+          <div class="cw" style="height:260px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="cp-wtrend-chart"></canvas></div>
+        </div>
+        <div class="panel ag">
+          <div class="ph"><span class="ph-t" id="cp-chart-title">📊 Monthly Trend</span><span class="ph-tag" id="cp-chart-tag">Jan – Mar</span></div>
+          <div class="cw" style="height:260px"><span class="chart-zoom-hint">⤢ Double-click to enlarge</span><canvas id="cp-chart"></canvas></div>
         </div>
       </div>
 
@@ -1933,21 +2020,31 @@ function csZeroBrandObj_(brands){ var o={}; brands.forEach(function(b){o[b]=0;})
 
 // Month titles in this Sheet include the year ("JANUARY 2026"), so this checks whether the
 // cell STARTS WITH a full month name rather than requiring an exact match.
-// Google Sheets' API (with valueRenderOption=UNFORMATTED_VALUE — see sheet.js)
-// returns a real DATE-formatted cell as its raw serial number (days since
-// 1899-12-30), not the "01-Jan" text that's actually displayed in the Sheet —
-// e.g. 46023 is Jan 1, 2026. Most Sheets type their day column as plain text
-// ("01-Jan") and never hit this, but the Daily Chat Report Sheet's Date column
-// is apparently real dates, so raw day rows were showing "46023" instead of
-// "01-Jan" until this converts them back. Range-guarded (numbers below/above
-// this aren't plausible serial dates) so it only fires on the real thing.
-function csSerialToDayLabel_(v){
+// Pulls just the DAY NUMBER out of a day-row's Date cell, regardless of how that
+// cell is formatted — trusting the day number is enough, since the surrounding
+// month block (curMo, passed in by the caller) already tells us the month, so
+// there's no need to also parse a month name back out of the cell text.
+// Two cases:
+//  - Google Sheets' API (with valueRenderOption=UNFORMATTED_VALUE — see sheet.js)
+//    returns a real DATE-formatted cell as its raw serial number (days since
+//    1899-12-30) instead of the "01-Jan" text actually shown in the Sheet — e.g.
+//    46023 is Jan 1, 2026. Range-guarded so it only fires on plausible dates.
+//  - A plain-text cell ("01-Jan", "1 Jan", "Jan-01", ...) — just grab the first
+//    number in it.
+// Formatted to match the Sales Daily Report's own day-label convention exactly
+// (emptyMonthRows_: month+'-'+i, e.g. "Mar-3", no leading zero) so both pages
+// show dates the same way.
+function csDayLabel_(v, monthKey){
   var n = typeof v==='number' ? v : (/^\d+(\.\d+)?$/.test(String(v==null?'':v).trim()) ? parseFloat(v) : NaN);
-  if(isNaN(n) || n<20000 || n>80000) return null; // ~1954–2119 — plausible Sheet date range
-  var MON3_=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  var d=new Date(Date.UTC(1899,11,30) + Math.round(n)*86400000);
-  var day=String(d.getUTCDate()); if(day.length<2) day='0'+day;
-  return day+'-'+MON3_[d.getUTCMonth()];
+  var dayNum=null;
+  if(!isNaN(n) && n>=20000 && n<=80000){ // ~1954–2119 — plausible Sheet date serial range
+    var d=new Date(Date.UTC(1899,11,30) + Math.round(n)*86400000);
+    dayNum=d.getUTCDate();
+  } else {
+    var m=String(v==null?'':v).match(/\d+/);
+    if(m) dayNum=parseInt(m[0],10);
+  }
+  return dayNum ? (monthKey+'-'+dayNum) : String(v||'').trim();
 }
 
 function csMatchMonthTitle_(c0){
@@ -2027,7 +2124,7 @@ function csParseDailySheet(rows){
     }
 
     if(!agentCols) continue;
-    var dayLabel_ = csSerialToDayLabel_(row[0]) || c0; // raw Sheet date serial → "01-Jan", falls back to the cell text as-is if it's already a plain label
+    var dayLabel_ = csDayLabel_(row[0], curMo); // "Mar-3" style — matches the Sales Daily Report's day-label convention
     var day={date:dayLabel_}, rowHasData=false;
     detectedBrands.forEach(function(b){
       var ag=agentCols[b]!==undefined?csPi(row[agentCols[b]]):0;
@@ -3429,7 +3526,8 @@ function showPage(id,el){
     brandcomp:'🆚 Brand Comparison — '+brandLabel_(currentBrand),
     sla:'🎧 SLA Metrics — Aff CS',
     auto:'🤖 Automation — Aff CS Bot vs Agent',
-    chatdaily:'💬 Chat Daily Report — Aff CS'
+    chatdaily:'💬 Chat Daily Report — Aff CS',
+    chatpeaks:'🏔️ Chat Peaks & Valleys — Aff CS'
   };
   document.getElementById('pg-title').textContent=titles[id];
   var showGran=(id==='dailyreport');
@@ -3438,11 +3536,11 @@ function showPage(id,el){
   // Overview always shows the latest month with live data — no manual month
   // picker there (see renderAll's use of latestLiveMonth_). Every other page
   // still uses the shared Month dropdown as before. SLA Metrics/Automation/Chat
-  // Daily Report are CS chat data, not tied to currency/brand/month at all —
-  // they have their own filter-bar inside the page — so the shared top filter
-  // bar (currency + brand + month, which only makes sense for the Sales pages)
-  // is hidden there.
-  var isCsPage=(id==='sla'||id==='auto'||id==='chatdaily');
+  // Daily Report/Chat Peaks & Valleys are CS chat data, not tied to currency/
+  // brand/month at all — they have their own filter-bar inside the page — so
+  // the shared top filter bar (currency + brand + month, which only makes
+  // sense for the Sales pages) is hidden there.
+  var isCsPage=(id==='sla'||id==='auto'||id==='chatdaily'||id==='chatpeaks');
   var showMonthPicker=(id!=='overview' && !isCsPage);
   document.getElementById('month-lbl').style.display=showMonthPicker?'':'none';
   document.getElementById('month-select').style.display=showMonthPicker?'':'none';
@@ -3833,6 +3931,299 @@ function renderPerformancePeaks(){
       scales:{x:{grid:{display:false},ticks:{color:chartTextColor_(),font:{size:9},autoSkip:false,maxRotation:90,minRotation:90}},y:{grid:{color:chartGridColor_()},ticks:{color:chartTextColor_(),font:{size:9}}}}}
   });
   attachChartZoom_('spv-wtrend-chart','Sales Peaks & Valleys — Weekly Volume Trend',function(){return spvWeekTrendChart;});
+}
+
+/* ═══════════ CHAT PEAKS & VALLEYS ═══════════
+   Same page as Performance Peaks & Valleys above — same weekly/monthly
+   peak-valley logic, same brand-split charts, same weekly/monthly trend —
+   just re-pointed at Chat Daily Report data (Agent/Bot Only/Total instead of
+   Sign Up/FTD/Turnover/...). Kept as its own function rather than sharing code
+   with renderPerformancePeaks(): the two data sources have different shapes
+   (getMonthRows() vs the Chat Sheet's flat day list) and different filter-bar
+   conventions (Sales' global top filter bar vs the CS pages' own embedded
+   Month/Brand bar), so threading one generic function through both would cost
+   more clarity than the ~150 lines of duplication saves. */
+var cpMonth='ALL', cpBrand=ALL_BRANDS, cpMetric='tot';
+var cpChart=null, cpWeekSplitChart=null, cpMonthSplitChart=null, cpWeekTrendChart=null;
+var CP_METRIC_LABEL={ag:'Agent',bt:'Bot Only',tot:'Total Chats'};
+
+function applyChatPeaksFilter(){
+  cpMetric=document.getElementById('cp-metric').value;
+  cpMonth=document.getElementById('cp-f-month').value;
+  cpBrand=document.getElementById('cp-f-brand').value;
+  renderChatPeaks();
+}
+
+// Same shape as getMonthRows()'s {rows:[...]} — one row per calendar day,
+// fixed to daysInMonth_(month) length with zeros for any day the Sheet is
+// missing (csParseDailySheet skips all-zero days entirely), so weekChunks_'s
+// fixed 0/7/14/21 boundaries land on the same calendar weeks Sales uses.
+function getChatMonthRows_(cdData,brand,month){
+  var brands=cdData.brands;
+  var byDay={};
+  cdData.days.forEach(function(x){
+    if(x.month!==month) return;
+    var dn=parseInt(String(x.date).split('-')[1],10);
+    if(dn) byDay[dn]=x;
+  });
+  var n=daysInMonth_(month);
+  var rows=[];
+  for(var i=1;i<=n;i++){
+    var x=byDay[i], ag=0, bt=0;
+    if(x){
+      ag = brand===ALL_BRANDS ? brands.reduce(function(s,b){return s+(x.raw['ag_'+b]||0);},0) : (x.raw['ag_'+brand]||0);
+      bt = brand===ALL_BRANDS ? brands.reduce(function(s,b){return s+(x.raw['bt_'+b]||0);},0) : (x.raw['bt_'+brand]||0);
+    }
+    rows.push({date:month+'-'+i, ag:ag, bt:bt, tot:ag+bt});
+  }
+  return rows;
+}
+
+function renderChatPeaks(){
+  var res=getCsChatDailyParsed();
+  csSetStatusChrome_(res.status, res.error, '🏔️ Chat Peaks & Valleys — Aff CS');
+  document.getElementById('cp-config-warn').style.display = res.status==='none' ? '' : 'none';
+
+  if(res.status!=='ready'){
+    document.getElementById('cp-kpis').innerHTML='';
+    document.getElementById('cp-week-table').innerHTML='';
+    document.getElementById('cp-month-table').innerHTML='';
+    document.getElementById('cp-top-weeks').innerHTML='';
+    document.getElementById('cp-top-months').innerHTML='';
+    [cpChart,cpWeekSplitChart,cpMonthSplitChart,cpWeekTrendChart].forEach(function(c){ if(c) c.destroy(); });
+    cpChart=cpWeekSplitChart=cpMonthSplitChart=cpWeekTrendChart=null;
+    return;
+  }
+
+  var cdData=res.data;
+  var allBrands=cdData.brands;
+
+  // Brand <select> — same "rebuild only when the option set actually changes" pattern.
+  var brandSel=document.getElementById('cp-f-brand');
+  var brandsKey=currentCurrency+'|'+allBrands.join('|');
+  if(brandSel.dataset.built!==brandsKey){
+    brandSel.innerHTML='<option value="'+ALL_BRANDS+'">All Brands</option>'+allBrands.map(function(b){return '<option value="'+csEsc(b)+'">'+csEsc(b)+'</option>';}).join('');
+    brandSel.value=(cpBrand===ALL_BRANDS||allBrands.indexOf(cpBrand)>=0)?cpBrand:ALL_BRANDS;
+    cpBrand=brandSel.value;
+    brandSel.dataset.built=brandsKey;
+  }
+
+  var metric=cpMetric;
+  var mv=function(r){ return r[metric]; };
+  var fmtVal=function(v){ return fmtInt(v); };
+  var brands = cpBrand===ALL_BRANDS ? allBrands : [cpBrand];
+  var months = cpMonth==='ALL' ? MO_ORDER.slice() : MO_ORDER.slice(0,MO_ORDER.indexOf(cpMonth)+1);
+  var selLabel = cpBrand===ALL_BRANDS ? 'all brands' : cpBrand;
+  ['cp-topw-tag','cp-topm-tag','cp-wtrend-tag'].forEach(function(id){ document.getElementById(id).textContent=selLabel; });
+
+  var monthLbl=cpMonth==='ALL'?'All Months':monthNames[cpMonth];
+  document.getElementById('pg-sub').textContent=currentCurrency+' · '+monthLbl+' · '+(cpBrand===ALL_BRANDS?'All Brands':cpBrand);
+  document.getElementById('cp-filter-info').textContent=currentCurrency+' · '+monthLbl+' · '+(cpBrand===ALL_BRANDS?'All Brands':cpBrand);
+
+  // Same "≥10 empty days ⇒ month not eligible to win Valley by default" guard
+  // Performance Peaks & Valleys uses, just checked against ag/bt instead of
+  // signup/ftd/turnover/etc.
+  var monthEligible_={};
+  MO_ORDER.forEach(function(m){
+    var days=daysInMonth_(m), emptyDays=0;
+    var rows=getChatMonthRows_(cdData,cpBrand,m);
+    for(var i=0;i<days;i++){
+      var r=rows[i];
+      if(!r || ((r.ag||0)<=0 && (r.bt||0)<=0)) emptyDays++;
+    }
+    monthEligible_[m]=emptyDays<=10;
+  });
+  function pickPeakValley_(list, monthOfFn){
+    var eligible=list.filter(function(x){ return monthEligible_[monthOfFn(x)]; });
+    var pool=eligible.length?eligible:list;
+    return {
+      peak:pool.reduce(function(a,x){return x.val>a.val?x:a;}),
+      valley:pool.reduce(function(a,x){return x.val<a.val?x:a;})
+    };
+  }
+  var brandMonthEligibleCache_={};
+  function brandMonthEligible_(brand){
+    if(brandMonthEligibleCache_[brand]) return brandMonthEligibleCache_[brand];
+    var elig={};
+    MO_ORDER.forEach(function(m){
+      var days=daysInMonth_(m), emptyDays=0;
+      var rows=getChatMonthRows_(cdData,brand,m);
+      for(var i=0;i<days;i++){
+        var r=rows[i];
+        if(!r || ((r.ag||0)<=0 && (r.bt||0)<=0)) emptyDays++;
+      }
+      elig[m]=emptyDays<=10;
+    });
+    brandMonthEligibleCache_[brand]=elig;
+    return elig;
+  }
+  function pickPeakValleyForBrand_(brand, list, monthOfFn){
+    var elig=brandMonthEligible_(brand);
+    var eligible=list.filter(function(x){ return elig[monthOfFn(x)]; });
+    var pool=eligible.length?eligible:list;
+    return {
+      peak:pool.reduce(function(a,x){return x.val>a.val?x:a;}),
+      valley:pool.reduce(function(a,x){return x.val<a.val?x:a;})
+    };
+  }
+
+  // ── per-brand weekly peak/valley ──
+  function brandWeeklyBuckets_(b){
+    if(cpMonth==='ALL'){
+      var allWeeks=[];
+      MO_ORDER.forEach(function(m){
+        var mrows=getChatMonthRows_(cdData,b,m);
+        weekChunks_(mrows).forEach(function(chunk,i){
+          var val=chunk.reduce(function(s,r){return s+mv(r);},0);
+          allWeeks.push({label:monthNames[m].slice(0,3)+' W'+(i+1),val:val,range:chunk[0].date+'–'+chunk[chunk.length-1].date,month:m});
+        });
+      });
+      return allWeeks;
+    }
+    var rows=getChatMonthRows_(cdData,b,cpMonth);
+    return weekChunks_(rows).map(function(chunk,i){
+      var val=chunk.reduce(function(s,r){return s+mv(r);},0);
+      return {label:'W'+(i+1),val:val,range:chunk[0].date+'–'+chunk[chunk.length-1].date,month:cpMonth};
+    });
+  }
+  var brandWeekData=brands.map(function(b){
+    var weeks=brandWeeklyBuckets_(b);
+    var pv=pickPeakValleyForBrand_(b, weeks, function(w){return w.month;});
+    return {brand:b,weeks:weeks,peak:pv.peak,valley:pv.valley};
+  });
+
+  document.getElementById('cp-week-table').innerHTML=
+    '<tr><th class="grp-end">Brand</th><th>▲ Peak Week</th><th class="grp-end">Volume</th><th>▼ Valley Week</th><th>Volume</th></tr>'+
+    brandWeekData.map(function(d){
+      return '<tr><td class="pv-brand grp-end" style="color:'+brandColor_(brands,d.brand)+'">'+d.brand+'</td>'+
+        '<td><span class="pv-pill peak">'+d.peak.label+'</span></td><td class="grp-end">'+fmtVal(d.peak.val)+'</td>'+
+        '<td><span class="pv-pill valley">'+d.valley.label+'</span></td><td>'+fmtVal(d.valley.val)+'</td></tr>';
+    }).join('');
+  document.getElementById('cp-w-tag').textContent=(cpMonth==='ALL'?'Jan–Dec (All Months) — week positions summed across the year':monthNames[cpMonth])+' · by '+CP_METRIC_LABEL[metric];
+
+  // ── per-brand monthly peak/valley ──
+  var brandMonthData=brands.map(function(b){
+    var monthly=months.map(function(m){
+      var rows=getChatMonthRows_(cdData,b,m);
+      return {label:monthNames[m],val:rows.reduce(function(s,r){return s+mv(r);},0),month:m};
+    });
+    var pv=pickPeakValleyForBrand_(b, monthly, function(mo){return mo.month;});
+    return {brand:b,monthly:monthly,peak:pv.peak,valley:pv.valley};
+  });
+
+  document.getElementById('cp-month-table').innerHTML=
+    '<tr><th class="grp-end">Brand</th><th>▲ Peak Month</th><th class="grp-end">Volume</th><th>▼ Valley Month</th><th>Volume</th></tr>'+
+    brandMonthData.map(function(d){
+      return '<tr><td class="pv-brand grp-end" style="color:'+brandColor_(brands,d.brand)+'">'+d.brand+'</td>'+
+        '<td><span class="pv-pill peak">'+d.peak.label+'</span></td><td class="grp-end">'+fmtVal(d.peak.val)+'</td>'+
+        '<td><span class="pv-pill valley">'+d.valley.label+'</span></td><td>'+fmtVal(d.valley.val)+'</td></tr>';
+    }).join('');
+
+  // ── Top 3 peak weeks / months, summed across every brand ──
+  var maxWeeks=0;
+  brandWeekData.forEach(function(d){ if(d.weeks.length>maxWeeks) maxWeeks=d.weeks.length; });
+  var weekTotals=[];
+  for(var w=0; w<maxWeeks; w++){
+    var sum=0, range='', label='W'+(w+1), wMonth=null;
+    brandWeekData.forEach(function(d){ if(d.weeks[w]){ sum+=d.weeks[w].val; range=d.weeks[w].range; label=d.weeks[w].label; wMonth=d.weeks[w].month; } });
+    weekTotals.push({label:label,range:range,val:sum,month:wMonth});
+  }
+  var topWeeks=weekTotals.slice().sort(function(a,b){return b.val-a.val;}).slice(0,3)
+    .map(function(w){ return {label:w.label+' ('+w.range+')', val:w.val}; });
+  renderPeakBarList_('cp-top-weeks',topWeeks,fmtVal);
+
+  var monthTotals=months.map(function(m,i){
+    var sum=0;
+    brandMonthData.forEach(function(d){ sum+=d.monthly[i].val; });
+    return {month:m,label:monthNames[m],val:sum};
+  });
+
+  // ── KPI strip + Monthly Trend chart ──
+  var wkPv=pickPeakValley_(weekTotals, function(w){return w.month;});
+  var moPv=pickPeakValley_(monthTotals, function(mo){return mo.month;});
+  var pkWk=wkPv.peak, vlWk=wkPv.valley, pkMo=moPv.peak, vlMo=moPv.valley;
+  document.getElementById('cp-chart-title').textContent='📊 '+CP_METRIC_LABEL[metric]+' — Monthly Trend';
+  document.getElementById('cp-chart-tag').textContent=months.length>1?(monthNames[months[0]]+' – '+monthNames[months[months.length-1]]):monthNames[months[0]];
+  document.getElementById('cp-kpis').innerHTML=
+    '<div class="kpi-grid g3">'+
+      kpiCard('amber','Peak Week',pkWk.label,fmtVal(pkWk.val))+
+      kpiCard('green','Valley Week',vlWk.label,fmtVal(vlWk.val))+
+      kpiCard('teal','Total Weeks',weekTotals.length,months.length>1?(monthNames[months[0]]+' – '+monthNames[months[months.length-1]]):monthNames[months[0]])+
+    '</div>'+
+    '<div class="kpi-grid g3">'+
+      kpiCard('amber','Peak Month',pkMo.label,fmtVal(pkMo.val))+
+      kpiCard('green','Valley Month',vlMo.label,fmtVal(vlMo.val))+
+      kpiCard('teal','Total Months',monthTotals.length,months.length>1?(monthNames[months[0]]+' – '+monthNames[months[months.length-1]]):monthNames[months[0]])+
+    '</div>';
+
+  if(cpChart) cpChart.destroy();
+  var moBarColors=monthTotals.map(function(m){
+    return m.month===pkMo.month?'rgba(255,145,0,0.85)':m.month===vlMo.month?'rgba(0,230,118,0.85)':'rgba(155,127,244,0.6)';
+  });
+  cpChart=new Chart(document.getElementById('cp-chart').getContext('2d'),{
+    type:'bar',
+    data:{labels:monthTotals.map(function(m){return m.label;}),datasets:[{data:monthTotals.map(function(m){return m.val;}),backgroundColor:moBarColors,borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:function(ctx){return fmtVal(ctx.parsed.y);}}}},
+      scales:{x:{grid:{display:false},ticks:{color:chartTextColor_(),font:{size:10}}},
+              y:{beginAtZero:true,grid:{color:chartGridColor_()},ticks:{color:chartTextColor_(),font:{size:9}}}}}
+  });
+  bindChartZoom_('cp-chart',CP_METRIC_LABEL[metric]+' — Monthly Trend',cpChart);
+
+  var topMonths=monthTotals.slice().sort(function(a,b){return b.val-a.val;}).slice(0,3);
+  renderPeakBarList_('cp-top-months',topMonths,fmtVal);
+
+  // ── Brand Weekly Split ──
+  document.getElementById('cp-wsplit-tag').textContent=(cpMonth==='ALL'?'Jan–Dec (All Months)':monthNames[cpMonth])+' · by brand';
+  var weekLabels=weekTotals.map(function(w){return w.label;});
+  if(cpWeekSplitChart) cpWeekSplitChart.destroy();
+  cpWeekSplitChart=new Chart(document.getElementById('cp-wsplit-chart').getContext('2d'),{
+    type:'line',
+    data:{labels:weekLabels,datasets:brands.map(function(b){
+      var d=brandWeekData.filter(function(x){return x.brand===b;})[0];
+      var c=brandColor_(brands,b);
+      return {label:b,data:d.weeks.map(function(w){return w.val;}),borderColor:c,backgroundColor:c,fill:false,tension:.3,pointRadius:3,pointHoverRadius:5,borderWidth:2};
+    })},
+    options:{responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:true,labels:{color:chartTextColor_(),boxWidth:9,font:{size:9}}},
+        tooltip:{mode:'index',intersect:false,callbacks:{
+          title:function(items){ var w=weekTotals[items[0].dataIndex]; return w.range?w.label+' ('+w.range+')':w.label; },
+          label:function(ctx){return ctx.dataset.label+': '+fmtInt(ctx.parsed.y);}
+        }}},
+      scales:{x:{grid:{display:false},ticks:{color:chartTextColor_(),font:{size:9},autoSkip:false,maxRotation:90,minRotation:90}},
+              y:{grid:{color:chartGridColor_()},ticks:{color:chartTextColor_(),font:{size:9}}}}}
+  });
+  attachChartZoom_('cp-wsplit-chart','Chat Peaks & Valleys — Brand Weekly Split',function(){return cpWeekSplitChart;});
+
+  // ── Brand Monthly Split ──
+  if(cpMonthSplitChart) cpMonthSplitChart.destroy();
+  cpMonthSplitChart=new Chart(document.getElementById('cp-msplit-chart').getContext('2d'),{
+    type:'line',
+    data:{labels:months.map(function(m){return monthNames[m];}),datasets:brands.map(function(b){
+      var d=brandMonthData.filter(function(x){return x.brand===b;})[0];
+      var c=brandColor_(brands,b);
+      return {label:b,data:d.monthly.map(function(mo){return mo.val;}),borderColor:c,backgroundColor:c,fill:false,tension:.3,pointRadius:3,pointHoverRadius:5,borderWidth:2};
+    })},
+    options:{responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:true,labels:{color:chartTextColor_(),boxWidth:9,font:{size:9}}},
+        tooltip:{mode:'index',intersect:false,callbacks:{label:function(ctx){return ctx.dataset.label+': '+fmtInt(ctx.parsed.y);}}}},
+      scales:{x:{grid:{display:false},ticks:{color:chartTextColor_(),font:{size:9}}},
+              y:{grid:{color:chartGridColor_()},ticks:{color:chartTextColor_(),font:{size:9}}}}}
+  });
+  attachChartZoom_('cp-msplit-chart','Chat Peaks & Valleys — Brand Monthly Split',function(){return cpMonthSplitChart;});
+
+  // ── Weekly Volume Trend ──
+  if(cpWeekTrendChart) cpWeekTrendChart.destroy();
+  cpWeekTrendChart=new Chart(document.getElementById('cp-wtrend-chart').getContext('2d'),{
+    type:'bar',
+    data:{labels:weekLabels,datasets:[{label:CP_METRIC_LABEL[metric],data:weekTotals.map(function(w){return w.val;}),backgroundColor:'#00b0ff',borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+        tooltip:{callbacks:{title:function(items){ var w=weekTotals[items[0].dataIndex]; return w.range?w.label+' ('+w.range+')':w.label; }}}},
+      scales:{x:{grid:{display:false},ticks:{color:chartTextColor_(),font:{size:9},autoSkip:false,maxRotation:90,minRotation:90}},y:{grid:{color:chartGridColor_()},ticks:{color:chartTextColor_(),font:{size:9}}}}}
+  });
+  attachChartZoom_('cp-wtrend-chart','Chat Peaks & Valleys — Weekly Volume Trend',function(){return cpWeekTrendChart;});
 }
 
 /* ═══════════ BRAND COMPARISON ═══════════
@@ -4858,7 +5249,7 @@ function renderAll(){
     ? (overviewMonth?monthNames[overviewMonth]:'No data yet')
     : (isAllMonths?'Full Year (Jan–Dec)':monthNames[currentMonth]);
   var activePageId='overview';
-  ['dailyreport','trends','summary','brandcomp','sla','auto','chatdaily'].forEach(function(p){
+  ['dailyreport','trends','summary','brandcomp','sla','auto','chatdaily','chatpeaks'].forEach(function(p){
     if(document.getElementById('page-'+p).classList.contains('active')) activePageId=p;
   });
   var pgTitles={
@@ -4869,18 +5260,20 @@ function renderAll(){
     brandcomp:'🆚 Brand Comparison — '+brandLabel_(currentBrand),
     sla:'🎧 SLA Metrics — Aff CS',
     auto:'🤖 Automation — Aff CS Bot vs Agent',
-    chatdaily:'💬 Chat Daily Report — Aff CS'
+    chatdaily:'💬 Chat Daily Report — Aff CS',
+    chatpeaks:'🏔️ Chat Peaks & Valleys — Aff CS'
   };
-  // SLA Metrics / Automation / Chat Daily Report are CS chat data, entirely
-  // independent of the currency/brand/month state the rest of this function
-  // computes below — dispatch to them immediately and skip the Sales-specific
-  // chrome (KPIs, trend chart, pg-sub) that the rest of renderAll() builds,
-  // since it would just be overwritten a moment later by their own render
-  // functions setting their own pg-title/pg-sub anyway, and computing it is
-  // wasted work.
+  // SLA Metrics / Automation / Chat Daily Report / Chat Peaks & Valleys are CS
+  // chat data, entirely independent of the currency/brand/month state the rest
+  // of this function computes below — dispatch to them immediately and skip
+  // the Sales-specific chrome (KPIs, trend chart, pg-sub) that the rest of
+  // renderAll() builds, since it would just be overwritten a moment later by
+  // their own render functions setting their own pg-title/pg-sub anyway, and
+  // computing it is wasted work.
   if(activePageId==='sla'){ renderSlaPage(); return; }
   if(activePageId==='auto'){ renderAutoPage(); return; }
   if(activePageId==='chatdaily'){ renderChatDailyPage(); return; }
+  if(activePageId==='chatpeaks'){ renderChatPeaks(); return; }
   document.getElementById('pg-title').textContent=pgTitles[activePageId];
   var dataLabel=res.status==='ready'?'Live data':res.status==='mixed'?('Mixed data — '+res.liveCount+'/'+res.brandCount+' live'):res.status==='loading'?'Syncing…':res.status==='error'?'Sync error':'No data';
   document.getElementById('pg-sub').textContent=dataLabel+' · '+monthLabel+' · '+currentCurrency+' sheet';
