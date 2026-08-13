@@ -2239,17 +2239,17 @@ function csSeedGroupCurrencies_(text){
   for(var i=0;i<CS_GROUP_SEED_RULES_.length;i++){ if(CS_GROUP_SEED_RULES_[i].test.test(t)) return CS_GROUP_SEED_RULES_[i].currencies; }
   return [];
 }
-// Falls back, in order, to: (2) a manual override in CS Sheet settings — respected even if the
-// person explicitly cleared it to nothing, which is why this checks for the key's presence
-// rather than truthiness — then (3) the confirmed CS_GROUP_SEED_RULES_ above, then finally
-// "unresolved" (needs mapping). Deliberately NOT guessed via brand-abbreviation heuristics
-// beyond the confirmed rules: a wrong guess here silently misfiles an agent's SLA numbers
-// under the wrong currency, which is worse than surfacing it as "needs mapping" once.
+// Priority order: (1) a manual override in Sheet Links settings — checked FIRST so it can
+// override even a group whose own text spells out a currency code (e.g. a group is text-tagged
+// "PKR" but you know it should actually be split BDT+INR) — respected even if the person
+// explicitly cleared it to nothing, which is why this checks for the key's presence rather
+// than truthiness — then (2) a currency code spelled out directly in the group's own text,
+// then (3) the confirmed CS_GROUP_SEED_RULES_ above, then finally "unresolved" (needs mapping).
 function csResolveGroupCurrencies_(group, cfg){
-  var auto=csDetectCurrencyFromText_(group);
-  if(auto.length) return auto;
   var map=cfg.groupCurrencyMap||{};
   if(Object.prototype.hasOwnProperty.call(map,group)) return map[group];
+  var auto=csDetectCurrencyFromText_(group);
+  if(auto.length) return auto;
   var seed=csSeedGroupCurrencies_(group);
   if(seed.length) return seed;
   return [];
@@ -2894,10 +2894,10 @@ function flashStatusHtml_(key){
 
 // Groups whose text doesn't spell out a currency directly need a one-time manual
 // assignment. This renders the FULL list (every group seen, not just the ones that
-// need attention) so it doubles as an audit view: text-auto-detected groups show up
-// locked (this UI can never override a text match — csResolveGroupCurrencies_ checks
-// the Sheet's own text before it ever looks at the manual map), seed-rule and
-// manually-set groups stay editable, and anything genuinely unresolved is flagged red.
+// need attention) so it doubles as an audit view: every checkbox is editable — a
+// manual override here beats even a text-detected currency (see
+// csResolveGroupCurrencies_) — the tag just explains why it's currently resolved
+// the way it is, not whether you're allowed to change it.
 function csCurrencyMappingHtml_(cfg){
   var groupMap=cfg.groupCurrencyMap||{};
   var groupKeys=Object.keys(groupMap).concat(csLastAllGroups_).filter(function(v,i,a){return a.indexOf(v)===i;}).sort();
@@ -2908,19 +2908,17 @@ function csCurrencyMappingHtml_(cfg){
     var textAuto=csDetectCurrencyFromText_(key);
     var resolved=csResolveGroupCurrencies_(key,cfg);
     var manuallyTouched=Object.prototype.hasOwnProperty.call(groupMap,key);
-    var locked=textAuto.length>0; // a text match always wins, so editing here would be a no-op
     var tagHtml;
-    if(locked) tagHtml='<span class="map-tag" style="color:var(--green)">· detected from text ('+textAuto.join('/')+')</span>';
-    else if(!resolved.length){ tagHtml='<span class="map-tag" style="color:var(--red)">· needs mapping</span>'; needCount++; }
+    if(!resolved.length){ tagHtml='<span class="map-tag" style="color:var(--red)">· needs mapping</span>'; needCount++; }
     else if(manuallyTouched) tagHtml='<span class="map-tag" style="color:var(--muted)">· manual</span>';
+    else if(textAuto.length) tagHtml='<span class="map-tag" style="color:var(--green)">· detected from text ('+textAuto.join('/')+')</span>';
     else tagHtml='<span class="map-tag" style="color:var(--teal)">· seed rule</span>';
 
     var boxes=curs.map(function(c){
       var checked=resolved.indexOf(c)>=0?'checked':'';
-      var dis=locked?'disabled':'';
-      return '<label class="map-box"><input type="checkbox" data-group="'+csEsc(key)+'" data-cur="'+c+'" '+checked+' '+dis+' onchange="csToggleGroupCurrency_(this)">'+c+'</label>';
+      return '<label class="map-box"><input type="checkbox" data-group="'+csEsc(key)+'" data-cur="'+c+'" '+checked+' onchange="csToggleGroupCurrency_(this)">'+c+'</label>';
     }).join('');
-    return '<div class="map-row"><div class="map-name">'+csEsc(key)+tagHtml+'</div><div class="map-boxes'+(locked?' locked':'')+'">'+boxes+'</div></div>';
+    return '<div class="map-row"><div class="map-name">'+csEsc(key)+tagHtml+'</div><div class="map-boxes">'+boxes+'</div></div>';
   }).join('');
 
   return '<div class="cfg-card" style="margin-bottom:0">'+
@@ -2929,8 +2927,8 @@ function csCurrencyMappingHtml_(cfg){
     '<span class="cfg-head-spacer"></span><span class="cfg-head-hint">'+groupKeys.length+' groups total</span></div>'+
     (groupKeys.length ? rowsHtml : '<div class="md-hint">No groups seen yet — connect the SLA Sheet above first.</div>')+
     '<div class="map-legend">'+
-      '<span><span class="lg-dot" style="background:var(--green)"></span>Detected from the Sheet\'s own text, can\'t be overridden here</span>'+
-      '<span><span class="lg-dot" style="background:var(--teal)"></span>Seed rule, tick/untick to override</span>'+
+      '<span><span class="lg-dot" style="background:var(--green)"></span>Detected from the Sheet\'s own text — tick to override</span>'+
+      '<span><span class="lg-dot" style="background:var(--teal)"></span>Seed rule — tick to override</span>'+
       '<span><span class="lg-dot" style="background:var(--muted)"></span>You set this manually</span>'+
       '<span><span class="lg-dot" style="background:var(--red)"></span>Not mapped yet, data is hidden</span>'+
     '</div>'+
