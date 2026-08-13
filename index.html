@@ -416,6 +416,28 @@ table.dt td.pv-brand{font-weight:800}
 .md-status.error{background:var(--red-d);color:var(--red)}
 .md-status.loading{background:var(--teal-d);color:var(--teal)}
 .md-status.off{background:var(--ov-03);color:var(--muted)}
+
+/* DRILL-DOWN DETAIL MODAL — reused by any KPI card that wants to show "how this
+   number was calculated" (formula + the raw rows backing it). Same modal-overlay/
+   modal-box chrome as the settings modals above, so it looks native to the app
+   instead of like a bolted-on extra. */
+.drill-formula{background:var(--teal-d);border:1px solid rgba(0,176,255,0.25);border-radius:9px;padding:12px 14px;font-family:var(--mono);font-size:11px;line-height:1.7;color:var(--text);margin-bottom:14px}
+.drill-formula b{color:var(--teal)}
+
+/* Any .kpi with a drill-down wired to it — a double-click hint, reusing the same
+   ⤢ affordance already used for kpi-jump and chart-zoom-hint elsewhere. */
+.kpi.kpi-drill{cursor:pointer}
+.kpi.kpi-drill:hover{border-color:var(--border2)}
+
+/* SEARCHABLE / SORTABLE TABLE — generic component (mountSearchTable in JS) for any
+   day-by-day or row-heavy table in the app. Search box + click-to-sort headers,
+   built on top of the existing .dt table styling so it matches every other table. */
+.st-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.st-search{flex:0 0 220px;background:var(--card);border:1px solid var(--border2);color:var(--text);font-size:11px;font-family:var(--font);padding:7px 10px;border-radius:7px}
+.st-search:focus{outline:none;border-color:var(--teal)}
+.st-count{font-size:9px;font-family:var(--mono);color:var(--muted);letter-spacing:.04em}
+.st-sortable{cursor:pointer;user-select:none;white-space:nowrap}
+.st-sortable:hover{color:var(--text)}
 .modal-foot{padding:10px 18px;border-top:1px solid var(--border);font-size:9px;color:var(--dim);line-height:1.6}
 .chart-zoom-box{max-width:min(1500px,96vw);width:100%}
 .chart-zoom-body{height:min(820px,85vh);padding:24px}
@@ -452,10 +474,11 @@ table.dt td.pv-brand{font-weight:800}
     <div class="nav-sec">Analysis</div>
     <div class="nav-item" onclick="showPage('summary',this)"><div class="nav-dot" style="background:#00e5b4"></div>Summary</div>
     <div class="nav-item" onclick="showPage('brandcomp',this)"><div class="nav-dot" style="background:#9b7ff4"></div>Brand Comparison</div>
+    <div class="nav-item" onclick="showPage('auto',this)"><div class="nav-dot" style="background:#00e676"></div>Automation</div>
 
     <div class="nav-sec">CS Performance</div>
     <div class="nav-item" onclick="showPage('sla',this)"><div class="nav-dot" style="background:#ff9100"></div>SLA Metrics</div>
-    <div class="nav-item" onclick="showPage('auto',this)"><div class="nav-dot" style="background:#00e676"></div>Automation</div>
+    <div class="nav-item" onclick="showPage('chatdaily',this)"><div class="nav-dot" style="background:#00b0ff"></div>Chat Daily Report</div>
 
     <div class="sb-footer">
       <div class="conn-box" id="conn-box">
@@ -793,7 +816,7 @@ table.dt td.pv-brand{font-weight:800}
         </div>
 
         <div class="kpi-grid g4">
-          <div class="kpi c-green"><div class="kpi-lbl">Containment Rate</div><div class="kpi-val" id="au-rate">—</div><div class="kpi-d" id="au-rate-d" title="Target ≥ 55%">Target ≥ 55%</div></div>
+          <div class="kpi c-green kpi-drill" ondblclick="auOpenContainmentDrill_()"><span class="kpi-jump-hint">⤢</span><div class="kpi-lbl">Containment Rate</div><div class="kpi-val" id="au-rate">—</div><div class="kpi-d" id="au-rate-d" title="Target ≥ 55%">Target ≥ 55%</div></div>
           <div class="kpi c-purple"><div class="kpi-lbl">Bot Chats</div><div class="kpi-val" id="au-bot">—</div><div class="kpi-d" id="au-bot-d">—</div></div>
           <div class="kpi c-teal"><div class="kpi-lbl">Agent Chats</div><div class="kpi-val" id="au-ag">—</div><div class="kpi-d" id="au-ag-d">—</div></div>
           <div class="kpi c-amber"><div class="kpi-lbl">Total Chats</div><div class="kpi-val" id="au-tot">—</div><div class="kpi-d">Combined</div></div>
@@ -805,6 +828,43 @@ table.dt td.pv-brand{font-weight:800}
         <div class="panel">
           <div class="ph"><span class="ph-t">📋 Monthly Bot / Agent Breakdown</span></div>
           <div class="pb" style="overflow-x:auto"><table class="dt" id="au-tbl" style="table-layout:auto"></table></div>
+        </div>
+      </div>
+
+      <!-- CHAT DAILY REPORT (Aff CS — day-by-day, same Sheet Automation reads) -->
+      <div class="page" id="page-chatdaily">
+        <div class="filter-bar">
+          <span class="filter-lbl">Month</span>
+          <select class="fsel" id="cd-f-month" onchange="applyChatDailyFilter()">
+            <option value="all">All Months</option>
+            <option value="H1">H1 Jan–Jun</option>
+            <option value="H2">H2 Jul–Dec</option>
+            <option value="Jan">January</option><option value="Feb">February</option><option value="Mar">March</option>
+            <option value="Apr">April</option><option value="May">May</option><option value="Jun">June</option>
+            <option value="Jul">July</option><option value="Aug">August</option><option value="Sep">September</option>
+            <option value="Oct">October</option><option value="Nov">November</option><option value="Dec">December</option>
+          </select>
+          <span class="filter-lbl" style="margin-left:10px">Brand</span>
+          <select class="fsel" id="cd-f-brand" onchange="applyChatDailyFilter()">
+            <option value="all">All Brands</option>
+          </select>
+          <span style="margin-left:auto;font-size:9px;color:var(--muted);font-family:var(--mono)" id="cd-filter-info">All Months · All Brands</span>
+        </div>
+
+        <div class="panel" id="cd-config-warn" style="display:none">
+          <div class="pb" style="color:var(--muted);font-size:11px">⚠️ No Daily Chat Report Sheet configured yet — click <b>CS Sheet</b> in the sidebar to connect it.</div>
+        </div>
+
+        <div class="kpi-grid g4">
+          <div class="kpi c-green kpi-drill" ondblclick="cdOpenContainmentDrill_()"><span class="kpi-jump-hint">⤢</span><div class="kpi-lbl">Containment Rate</div><div class="kpi-val" id="cd-rate">—</div><div class="kpi-d" id="cd-rate-d" title="Target ≥ 55%">Target ≥ 55%</div></div>
+          <div class="kpi c-purple"><div class="kpi-lbl">Bot Chats</div><div class="kpi-val" id="cd-bot">—</div><div class="kpi-d">Bot resolved</div></div>
+          <div class="kpi c-teal"><div class="kpi-lbl">Agent Chats</div><div class="kpi-val" id="cd-ag">—</div><div class="kpi-d">Human handled</div></div>
+          <div class="kpi c-amber"><div class="kpi-lbl">Total Chats</div><div class="kpi-val" id="cd-tot">—</div><div class="kpi-d">Combined</div></div>
+        </div>
+
+        <div class="panel">
+          <div class="ph"><span class="ph-t">💬 Chat Daily Report<span class="ph-daycount" id="cd-daycount"></span></span><span class="ph-tag" id="cd-tag">All Months</span></div>
+          <div class="pb dt-scroll" id="cd-table-wrap"></div>
         </div>
       </div>
 
@@ -875,6 +935,24 @@ table.dt td.pv-brand{font-weight:800}
     </div>
     <div class="modal-body single">
       <div class="modal-detail" id="cs-settings-body"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ DRILL-DOWN DETAIL MODAL — "how was this number calculated" ═══════════
+     Generic: any KPI card can wire its dblclick to openDrillDown(title, formulaHtml,
+     headers, rows) and this modal shows the formula plus the raw rows that sum to it. -->
+<div class="modal-overlay" id="drill-overlay" onclick="if(event.target===this) closeDrillDown()">
+  <div class="modal-box" style="max-width:640px">
+    <div class="modal-head">
+      <div class="modal-title" id="drill-title">Detail</div>
+      <button class="modal-close" onclick="closeDrillDown()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body single">
+      <div class="modal-detail">
+        <div id="drill-formula"></div>
+        <div class="dt-scroll"><table class="dt" id="drill-table"></table></div>
+      </div>
     </div>
   </div>
 </div>
@@ -1937,6 +2015,23 @@ function csDeriveAuto(dailyRows){
   return {use:use, ag:ag, bt:bt, brands:brands, months:use.map(function(r){return r.month;})};
 }
 
+/* Same source parse as csDeriveAuto (csParseDailySheet), but keeps the DAY-level
+   rows instead of collapsing straight to monthly totals — feeds the Chat Daily
+   Report page, which needs one row per calendar day the way the Sales Daily
+   Report page does. Each day row keeps its raw ag_<brand>/bt_<brand> fields so the
+   page can re-total them per whichever brand is selected in its own filter bar. */
+function csDeriveChatDaily(dailyRows){
+  var dp=csParseDailySheet(dailyRows);
+  var brands=dp.brands;
+  var days=[];
+  CS_MONTHS.forEach(function(m){
+    if(!dp.months[m]) return;
+    dp.months[m].days.forEach(function(d){
+      days.push({month:m, date:d.date, raw:d});
+    });
+  });
+  return {brands:brands, days:days};
+}
 
 /* ---------- Fetch + cache wrappers, reusing this app's existing getSheetTabData()/SHEET_LINKS plumbing ---------- */
 /* ---------- Currency auto-detection ---------- */
@@ -2082,6 +2177,20 @@ function getCsDailyParsed(){
   if(e.status==='loading') return {status:'loading'};
   if(e.status==='error') return {status:'error', error:e.error};
   return {status:'ready', data:csDeriveAuto(e.rawRows)};
+}
+
+// Same Sheet/tab as getCsDailyParsed() (Automation), just parsed down to day-level
+// rows instead of monthly totals — reuses the same cache entry (getSheetTabData
+// dedupes by sheetId+tab), so opening this page costs no extra fetch if Automation
+// (or this page) already pulled the data this session.
+function getCsChatDailyParsed(){
+  var cfg=csCfg_();
+  var d=(cfg.dailyByCurrency && cfg.dailyByCurrency[currentCurrency]) || {};
+  if(!d.sheetId || !d.tab) return {status:'none'};
+  var e=getSheetTabData(d.sheetId, d.tab);
+  if(e.status==='loading') return {status:'loading'};
+  if(e.status==='error') return {status:'error', error:e.error};
+  return {status:'ready', data:csDeriveChatDaily(e.rawRows)};
 }
 
 /* ---------- SLA Metrics page ---------- */
@@ -2338,6 +2447,135 @@ function renderAutoPage(){
   document.getElementById('au-tbl').innerHTML=
     '<tr><th>Month</th><th>Total</th><th>Agent</th><th>Bot (Containment)</th><th>Status</th></tr>'+
     (tblRows || '<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:16px">No data for this selection</td></tr>');
+
+  // Cached for auOpenContainmentDrill_() — the exact monthly rows/brand-selection
+  // this render used, so double-clicking the Containment Rate KPI right after
+  // shows the same numbers, not a re-derived approximation.
+  auLastMonthly_=useRows.map(function(r,i){
+    var tot=getVal(r), agV2=getVal(agRows[i]), botV2=getVal(btRows[i]);
+    return {month:r.month, ag:agV2, bt:botV2, tot:tot};
+  });
+}
+
+// Detail rows behind Automation's Containment Rate KPI — one row per month in
+// the current filter selection, same formula the headline % is built from.
+var auLastMonthly_=[];
+function auOpenContainmentDrill_(){
+  var totAg=auLastMonthly_.reduce(function(s,r){return s+r.ag;},0);
+  var totBt=auLastMonthly_.reduce(function(s,r){return s+r.bt;},0);
+  var totAll=totAg+totBt;
+  var rate=totAll>0?Math.round(totBt/totAll*100):0;
+  var formula='<div class="drill-formula">Containment Rate = Bot Chats ÷ (Bot Chats + Agent Chats)<br>'+
+    '= '+fmtInt(totBt)+' ÷ ('+fmtInt(totBt)+' + '+fmtInt(totAg)+') = <b>'+rate+'%</b></div>';
+  var headers=['Month','Agent','Bot','Total','Containment %'];
+  var rows=auLastMonthly_.map(function(r){
+    var mRate=r.tot>0?Math.round(r.bt/r.tot*100):0;
+    return [r.month, fmtInt(r.ag), fmtInt(r.bt), fmtInt(r.tot), csPctSpan_(mRate)];
+  });
+  openDrillDown('Containment Rate — how it\'s calculated', formula, headers, rows);
+}
+
+/* ---------- Chat Daily Report page ---------- *//* Day-by-day view of the same
+   Daily Chat Report Sheet Automation reads (see csDeriveChatDaily above) — one
+   row per calendar day, mirroring the Sales "Daily Report" page's shape/spirit
+   but for chat volume instead of sales figures. Its own Month/Brand filter bar,
+   same convention as SLA Metrics/Automation (independent of the Sales top filter
+   bar, which is hidden on all three CS pages — see isCsPage in showPage()). */
+var cdMonth='all', cdBrand='all';
+var cdLastRows_=[]; // day rows behind the currently-shown table/KPIs, read by cdOpenContainmentDrill_()
+
+function applyChatDailyFilter(){
+  cdMonth=document.getElementById('cd-f-month').value;
+  cdBrand=document.getElementById('cd-f-brand').value;
+  renderChatDailyPage();
+}
+
+function renderChatDailyPage(){
+  var res=getCsChatDailyParsed();
+  csSetStatusChrome_(res.status, res.error, '💬 Chat Daily Report — Aff CS');
+  document.getElementById('cd-config-warn').style.display = res.status==='none' ? '' : 'none';
+
+  if(res.status!=='ready'){
+    ['cd-rate','cd-bot','cd-ag','cd-tot'].forEach(function(id){ document.getElementById(id).textContent='—'; });
+    document.getElementById('cd-table-wrap').innerHTML='';
+    cdLastRows_=[];
+    return;
+  }
+
+  var d=res.data;
+  var brands=d.brands;
+
+  // Brand <select> — same "rebuild only when the option set actually changes"
+  // pattern the Automation/SLA filter bars use, so the dropdown's open state
+  // and scroll position don't reset on every render.
+  var brandSel=document.getElementById('cd-f-brand');
+  var brandsKey=currentCurrency+'|'+brands.join('|');
+  if(brandSel.dataset.built!==brandsKey){
+    brandSel.innerHTML='<option value="all">All Brands</option>'+brands.map(function(b){return '<option value="'+csEsc(b)+'">'+csEsc(b)+'</option>';}).join('');
+    brandSel.value=brands.indexOf(cdBrand)>=0?cdBrand:'all';
+    cdBrand=brandSel.value;
+    brandSel.dataset.built=brandsKey;
+  }
+
+  var monthsArr=csExpandMonths(cdMonth);
+  var days=monthsArr===null?d.days:d.days.filter(function(x){return monthsArr.indexOf(x.month)>=0;});
+
+  function agVal_(x){ return cdBrand==='all' ? brands.reduce(function(s,b){return s+(x.raw['ag_'+b]||0);},0) : (x.raw['ag_'+cdBrand]||0); }
+  function btVal_(x){ return cdBrand==='all' ? brands.reduce(function(s,b){return s+(x.raw['bt_'+b]||0);},0) : (x.raw['bt_'+cdBrand]||0); }
+
+  var agAll=0, btAll=0;
+  var tableRows=days.map(function(x){
+    var ag=agVal_(x), bt=btVal_(x), tot=ag+bt;
+    agAll+=ag; btAll+=bt;
+    return {month:x.month, date:x.date, ag:ag, bt:bt, tot:tot};
+  });
+  cdLastRows_=tableRows;
+  var totAll=agAll+btAll;
+  var containmentRate=totAll>0?Math.round(btAll/totAll*100):0;
+
+  var monthLbl=cdMonth==='all'?'All Months':(cdMonth==='H1'?'H1 Jan–Jun':(cdMonth==='H2'?'H2 Jul–Dec':cdMonth));
+  document.getElementById('pg-sub').textContent=currentCurrency+' · '+monthLbl+' · '+(cdBrand==='all'?'All Brands':cdBrand)+' · '+tableRows.length+' days';
+  document.getElementById('cd-filter-info').textContent=currentCurrency+' · '+monthLbl+' · '+(cdBrand==='all'?'All Brands':cdBrand);
+  document.getElementById('cd-tag').textContent=monthLbl+' · '+brands.length+' brand(s)';
+  document.getElementById('cd-daycount').textContent='· '+tableRows.length+' days';
+
+  document.getElementById('cd-tot').textContent=fmtInt(totAll);
+  document.getElementById('cd-ag').textContent=fmtInt(agAll);
+  document.getElementById('cd-bot').textContent=fmtInt(btAll);
+  document.getElementById('cd-rate').textContent=containmentRate+'%';
+  var rateD=document.getElementById('cd-rate-d');
+  var aboveTarget=containmentRate>=CS_AUTOMATION_TARGET_PCT;
+  rateD.textContent=aboveTarget?'✓ Above Target':'⚠ Below Target';
+  rateD.style.color=aboveTarget?'var(--green)':'var(--red)';
+
+  // Searchable/sortable table (see mountSearchTable above) instead of a static
+  // render — with up to 365 day-rows across "All Months", being able to type a
+  // date fragment or sort by Containment % is a real usability win, not just
+  // decoration.
+  mountSearchTable('cd-table-wrap',[
+    {key:'date', label:'Date', sortValue:function(r){return CS_MONTHS.indexOf(r.month)+'-'+r.date;}, format:function(r){return r.date+' '+r.month;}},
+    {key:'ag', label:'Agent', sortValue:function(r){return r.ag;}, format:function(r){return fmtInt(r.ag);}},
+    {key:'bt', label:'Bot', sortValue:function(r){return r.bt;}, format:function(r){return fmtInt(r.bt);}},
+    {key:'tot', label:'Total', sortValue:function(r){return r.tot;}, format:function(r){return fmtInt(r.tot);}},
+    {key:'rate', label:'Containment', sortValue:function(r){return r.tot>0?r.bt/r.tot:0;}, format:function(r){return csPctSpan_(r.tot>0?Math.round(r.bt/r.tot*100):0);}}
+  ], tableRows, {defaultSortKey:'date', defaultSortDir:'asc'});
+}
+
+// Detail rows behind Chat Daily Report's Containment Rate KPI — every day in the
+// current filter selection, same formula the headline % is built from.
+function cdOpenContainmentDrill_(){
+  var totAg=cdLastRows_.reduce(function(s,r){return s+r.ag;},0);
+  var totBt=cdLastRows_.reduce(function(s,r){return s+r.bt;},0);
+  var totAll=totAg+totBt;
+  var rate=totAll>0?Math.round(totBt/totAll*100):0;
+  var formula='<div class="drill-formula">Containment Rate = Bot Chats ÷ (Bot Chats + Agent Chats)<br>'+
+    '= '+fmtInt(totBt)+' ÷ ('+fmtInt(totBt)+' + '+fmtInt(totAg)+') = <b>'+rate+'%</b></div>';
+  var headers=['Date','Agent','Bot','Total','Containment %'];
+  var rows=cdLastRows_.map(function(r){
+    var dRate=r.tot>0?Math.round(r.bt/r.tot*100):0;
+    return [r.date+' '+r.month, fmtInt(r.ag), fmtInt(r.bt), fmtInt(r.tot), csPctSpan_(dRate)];
+  });
+  openDrillDown('Containment Rate — how it\'s calculated', formula, headers, rows);
 }
 
 /* ---------- CS Sheet settings modal ---------- */
@@ -2683,6 +2921,112 @@ function kpiCard(cls,lbl,val,sub,jump){
   return '<div class="kpi c-'+cls+' kpi-jump" ondblclick="'+jump+'"><span class="kpi-jump-hint">⤢</span><div class="kpi-lbl">'+lbl+'</div><div class="kpi-val">'+val+'</div><div class="kpi-d">'+(sub||'')+'</div></div>';
 }
 
+/* ═══════════ DRILL-DOWN DETAIL MODAL — generic, reusable by any page ═══════════
+   Any KPI card that wants to show "how was this number calculated" wires its
+   dblclick to a small wrapper function that calls openDrillDown(title,
+   formulaHtml, headers, rows) — formulaHtml is a ready-made HTML string (usually
+   built with .drill-formula styling), headers is an array of column labels, rows
+   is an array of arrays of already-formatted cell strings. Keeps the modal itself
+   dumb/reusable — all the "what does this number mean" logic stays with the
+   caller, next to the KPI it explains. */
+function openDrillDown(title,formulaHtml,headers,rows){
+  document.getElementById('drill-title').textContent=title;
+  document.getElementById('drill-formula').innerHTML=formulaHtml||'';
+  var headHtml='<tr>'+headers.map(function(h){return '<th>'+csEsc(h)+'</th>';}).join('')+'</tr>';
+  var bodyHtml=rows.map(function(r){
+    return '<tr>'+r.map(function(c){return '<td>'+c+'</td>';}).join('')+'</tr>';
+  }).join('') || '<tr><td colspan="'+headers.length+'" style="text-align:center;color:var(--muted);padding:16px">No rows for this selection</td></tr>';
+  document.getElementById('drill-table').innerHTML=headHtml+bodyHtml;
+  document.getElementById('drill-overlay').classList.add('open');
+}
+function closeDrillDown(){
+  document.getElementById('drill-overlay').classList.remove('open');
+}
+
+/* ═══════════ SEARCHABLE / SORTABLE TABLE — generic, reusable by any page ═══════════
+   mountSearchTable(containerId, columns, rows, opts) renders a search box + a
+   click-to-sort .dt table into containerId, and re-renders itself in place on
+   every keystroke/sort click (no framework, just direct DOM writes — consistent
+   with the rest of this file). State (current search text + sort column/direction)
+   is kept per containerId in searchTableState_ so switching pages and coming back
+   doesn't reset it, and so this can be called fresh on every data refresh without
+   losing what the person was doing.
+     columns: [{key, label, sortValue?(row), format?(row), searchValue?(row), cellClass?(row)}]
+     rows:    plain array of row objects — whatever shape format()/sortValue() expect
+     opts:    {defaultSortKey, defaultSortDir} */
+var searchTableState_={};
+function mountSearchTable(containerId,columns,rows,opts){
+  opts=opts||{};
+  var container=document.getElementById(containerId);
+  if(!container) return;
+  var st=searchTableState_[containerId]||(searchTableState_[containerId]={search:'',sortKey:opts.defaultSortKey||null,sortDir:opts.defaultSortDir||'asc'});
+
+  function cellVal_(col,r,kind){
+    if(kind==='search' && col.searchValue) return col.searchValue(r);
+    if(kind==='sort' && col.sortValue) return col.sortValue(r);
+    if(col.format) return col.format(r);
+    return r[col.key];
+  }
+  function visibleRows_(){
+    var q=st.search.trim().toLowerCase();
+    var out=!q?rows.slice():rows.filter(function(r){
+      return columns.some(function(c){
+        return String(cellVal_(c,r,'search')==null?'':cellVal_(c,r,'search')).toLowerCase().indexOf(q)>=0;
+      });
+    });
+    if(st.sortKey){
+      var col=columns.filter(function(c){return c.key===st.sortKey;})[0];
+      if(col){
+        out.sort(function(a,b){
+          var av=cellVal_(col,a,'sort'), bv=cellVal_(col,b,'sort');
+          if(av<bv) return st.sortDir==='asc'?-1:1;
+          if(av>bv) return st.sortDir==='asc'?1:-1;
+          return 0;
+        });
+      }
+    }
+    return out;
+  }
+
+  function render(){
+    var vis=visibleRows_();
+    var headHtml=columns.map(function(c){
+      var arrow=st.sortKey===c.key?(st.sortDir==='asc'?' ▲':' ▼'):'';
+      return '<th class="st-sortable" data-key="'+c.key+'">'+csEsc(c.label)+arrow+'</th>';
+    }).join('');
+    var bodyHtml=vis.map(function(r){
+      return '<tr>'+columns.map(function(c){
+        var cls=c.cellClass?(' class="'+c.cellClass(r)+'"'):'';
+        return '<td'+cls+'>'+cellVal_(c,r,'format')+'</td>';
+      }).join('')+'</tr>';
+    }).join('') || '<tr><td colspan="'+columns.length+'" style="text-align:center;color:var(--muted);padding:16px">No matching rows</td></tr>';
+
+    container.innerHTML=
+      '<div class="st-toolbar"><input type="text" class="st-search" placeholder="🔍 Search…" value="'+csEsc(st.search)+'">'+
+      '<span class="st-count">'+vis.length+' / '+rows.length+' rows</span></div>'+
+      '<div class="dt-scroll"><table class="dt st-table"><thead><tr>'+headHtml+'</tr></thead><tbody>'+bodyHtml+'</tbody></table></div>';
+
+    var input=container.querySelector('.st-search');
+    input.addEventListener('input',function(){
+      st.search=this.value;
+      var caret=this.selectionStart;
+      render();
+      var newInput=container.querySelector('.st-search');
+      newInput.focus();
+      newInput.setSelectionRange(caret,caret);
+    });
+    container.querySelectorAll('.st-sortable').forEach(function(th){
+      th.addEventListener('click',function(){
+        var k=th.getAttribute('data-key');
+        if(st.sortKey===k) st.sortDir=st.sortDir==='asc'?'desc':'asc';
+        else { st.sortKey=k; st.sortDir='asc'; }
+        render();
+      });
+    });
+  }
+  render();
+}
+
 var brandDDOpen=false;
 var brandFilter='';
 var ALL_BRANDS='__ALL__'; // sentinel currentBrand value meaning "aggregate every brand under this currency"
@@ -2934,7 +3278,8 @@ function showPage(id,el){
     summary:'📊 Summary — '+brandLabel_(currentBrand),
     brandcomp:'🆚 Brand Comparison — '+brandLabel_(currentBrand),
     sla:'🎧 SLA Metrics — Aff CS',
-    auto:'🤖 Automation — Aff CS Bot vs Agent'
+    auto:'🤖 Automation — Aff CS Bot vs Agent',
+    chatdaily:'💬 Chat Daily Report — Aff CS'
   };
   document.getElementById('pg-title').textContent=titles[id];
   var showGran=(id==='dailyreport');
@@ -2942,11 +3287,12 @@ function showPage(id,el){
   document.getElementById('dr-gran').style.display=showGran?'':'none';
   // Overview always shows the latest month with live data — no manual month
   // picker there (see renderAll's use of latestLiveMonth_). Every other page
-  // still uses the shared Month dropdown as before. SLA Metrics/Automation are
-  // CS chat data, not tied to currency/brand/month at all — they have their
-  // own filter-bar inside the page — so the shared top filter bar (currency
-  // brand + month, which only makes sense for the Sales pages) is hidden there.
-  var isCsPage=(id==='sla'||id==='auto');
+  // still uses the shared Month dropdown as before. SLA Metrics/Automation/Chat
+  // Daily Report are CS chat data, not tied to currency/brand/month at all —
+  // they have their own filter-bar inside the page — so the shared top filter
+  // bar (currency + brand + month, which only makes sense for the Sales pages)
+  // is hidden there.
+  var isCsPage=(id==='sla'||id==='auto'||id==='chatdaily');
   var showMonthPicker=(id!=='overview' && !isCsPage);
   document.getElementById('month-lbl').style.display=showMonthPicker?'':'none';
   document.getElementById('month-select').style.display=showMonthPicker?'':'none';
@@ -4362,7 +4708,7 @@ function renderAll(){
     ? (overviewMonth?monthNames[overviewMonth]:'No data yet')
     : (isAllMonths?'Full Year (Jan–Dec)':monthNames[currentMonth]);
   var activePageId='overview';
-  ['dailyreport','trends','summary','brandcomp','sla','auto'].forEach(function(p){
+  ['dailyreport','trends','summary','brandcomp','sla','auto','chatdaily'].forEach(function(p){
     if(document.getElementById('page-'+p).classList.contains('active')) activePageId=p;
   });
   var pgTitles={
@@ -4372,16 +4718,19 @@ function renderAll(){
     summary:'📊 Summary — '+brandLabel_(currentBrand),
     brandcomp:'🆚 Brand Comparison — '+brandLabel_(currentBrand),
     sla:'🎧 SLA Metrics — Aff CS',
-    auto:'🤖 Automation — Aff CS Bot vs Agent'
+    auto:'🤖 Automation — Aff CS Bot vs Agent',
+    chatdaily:'💬 Chat Daily Report — Aff CS'
   };
-  // SLA Metrics / Automation are CS chat data, entirely independent of the
-  // currency/brand/month state the rest of this function computes below —
-  // dispatch to them immediately and skip the Sales-specific chrome (KPIs,
-  // trend chart, pg-sub) that the rest of renderAll() builds, since it would
-  // just be overwritten a moment later by renderSlaPage()/renderAutoPage()
-  // setting their own pg-title/pg-sub anyway, and computing it is wasted work.
+  // SLA Metrics / Automation / Chat Daily Report are CS chat data, entirely
+  // independent of the currency/brand/month state the rest of this function
+  // computes below — dispatch to them immediately and skip the Sales-specific
+  // chrome (KPIs, trend chart, pg-sub) that the rest of renderAll() builds,
+  // since it would just be overwritten a moment later by their own render
+  // functions setting their own pg-title/pg-sub anyway, and computing it is
+  // wasted work.
   if(activePageId==='sla'){ renderSlaPage(); return; }
   if(activePageId==='auto'){ renderAutoPage(); return; }
+  if(activePageId==='chatdaily'){ renderChatDailyPage(); return; }
   document.getElementById('pg-title').textContent=pgTitles[activePageId];
   var dataLabel=res.status==='ready'?'Live data':res.status==='mixed'?('Mixed data — '+res.liveCount+'/'+res.brandCount+' live'):res.status==='loading'?'Syncing…':res.status==='error'?'Sync error':'No data';
   document.getElementById('pg-sub').textContent=dataLabel+' · '+monthLabel+' · '+currentCurrency+' sheet';
