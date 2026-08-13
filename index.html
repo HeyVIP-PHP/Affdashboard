@@ -2868,6 +2868,30 @@ function renderChatDailyPage(){
 var settingsCur_=null;
 function selectSettingsCur_(cur){ settingsCur_=cur; renderSettings(); }
 
+// Brief "✓ Saved" / "⚠ Saved locally, not synced" flash under a card's Save button
+// after persistSheetLinks() resolves. Auto-clears itself and re-renders after a
+// couple seconds — token guards against an older timeout clearing a newer flash
+// if the person clicks Save twice in quick succession.
+var settingsFlash_={};
+function flashSaved_(key, ok){
+  var token={};
+  settingsFlash_[key]={ok:ok, token:token};
+  renderSettings();
+  setTimeout(function(){
+    if(settingsFlash_[key] && settingsFlash_[key].token===token){
+      delete settingsFlash_[key];
+      renderSettings();
+    }
+  }, 1800);
+}
+function flashStatusHtml_(key){
+  var f=settingsFlash_[key];
+  if(!f) return null;
+  return f.ok
+    ? '<div class="md-status on" style="margin-top:10px">✓ Saved</div>'
+    : '<div class="md-status error" style="margin-top:10px">⚠ Saved on this device, but couldn\'t sync to the shared config — check your connection and save again</div>';
+}
+
 // Groups whose text doesn't spell out a currency directly need a one-time manual
 // assignment. This renders the FULL list (every group seen, not just the ones that
 // need attention) so it doubles as an audit view: text-auto-detected groups show up
@@ -2925,7 +2949,7 @@ function csToggleGroupCurrency_(checkbox){
   renderAll();
 }
 function slaTabCacheKeys_(cfg){ return csSlaTabList_(cfg).map(function(t){return sheetTabKey_(cfg.slaSheetId,t);}); }
-function saveCsSla_(){
+async function saveCsSla_(){
   var url=document.getElementById('cs-set-sla-url').value.trim();
   var sheetId=extractSheetId_(url);
   if(!sheetId){ document.getElementById('settings-body').insertAdjacentHTML('beforeend','<div class="md-status error" style="margin-top:8px">✕ Could not identify a Sheet ID from this link</div>'); return; }
@@ -2937,20 +2961,20 @@ function saveCsSla_(){
   cfg.slaRawUrl=url;
   cfg.slaTabs=document.getElementById('cs-set-sla-tabs').value.trim();
   SHEET_LINKS.__CS__=cfg;
-  persistSheetLinks();
-  renderSettings();
+  var ok=await persistSheetLinks();
+  flashSaved_('sla', ok);
   renderAll();
 }
-function clearCsSla_(){
+async function clearCsSla_(){
   var cfg=SHEET_LINKS.__CS__||{};
   if(cfg.slaSheetId) slaTabCacheKeys_(cfg).forEach(function(k){ delete sheetTabCache[k]; });
   delete cfg.slaSheetId; delete cfg.slaRawUrl; delete cfg.slaTabs;
   SHEET_LINKS.__CS__=cfg;
-  persistSheetLinks();
-  renderSettings();
+  var ok=await persistSheetLinks();
+  flashSaved_('sla', ok);
   renderAll();
 }
-function saveCsAutomation_(){
+async function saveCsAutomation_(){
   var cur=settingsCur_;
   var url=document.getElementById('cs-set-daily-url').value.trim();
   var sheetId=extractSheetId_(url);
@@ -2962,19 +2986,19 @@ function saveCsAutomation_(){
   if(old && old.sheetId && old.tab && (old.sheetId!==sheetId || old.tab!==tab)) delete sheetTabCache[sheetTabKey_(old.sheetId,old.tab)];
   cfg.dailyByCurrency[cur]={sheetId:sheetId, rawUrl:url, tab:tab};
   SHEET_LINKS.__CS__=cfg;
-  persistSheetLinks();
-  renderSettings();
+  var ok=await persistSheetLinks();
+  flashSaved_('automation:'+cur, ok);
   renderAll();
 }
-function clearCsAutomation_(){
+async function clearCsAutomation_(){
   var cur=settingsCur_;
   var cfg=SHEET_LINKS.__CS__||{};
   var old=cfg.dailyByCurrency && cfg.dailyByCurrency[cur];
   if(old && old.sheetId && old.tab) delete sheetTabCache[sheetTabKey_(old.sheetId,old.tab)];
   if(cfg.dailyByCurrency) delete cfg.dailyByCurrency[cur];
   SHEET_LINKS.__CS__=cfg;
-  persistSheetLinks();
-  renderSettings();
+  var ok=await persistSheetLinks();
+  flashSaved_('automation:'+cur, ok);
   renderAll();
 }
 // override configured for this brand, use that instead
@@ -5377,8 +5401,10 @@ async function persistSheetLinks(){
     if(!resp.ok){
       var data=await resp.json().catch(function(){return {};});
       console.error('Failed to save Sheet Links to shared config:',data.error||resp.status);
+      return false;
     }
-  }catch(e){ console.error('Failed to save Sheet Links to shared config',e); }
+    return true;
+  }catch(e){ console.error('Failed to save Sheet Links to shared config',e); return false; }
 }
 
 // Brand row status: first check whether this currency has a Sheet configured, then whether this brand's tab has been fetched
@@ -5530,6 +5556,15 @@ function renderSettings(){
   var csCfg=SHEET_LINKS.__CS__||{};
   var curs=csCurrencyList_();
 
+  // Currency Mapping needs csLastAllGroups_ populated, which only happens once the
+  // SLA Sheet has actually been parsed — normally that's whenever the live SLA
+  // Metrics page loads, but the person may open Settings without ever visiting
+  // that page this session. Trigger the same parse here so the full group list
+  // shows up the first time Settings is opened, not just after a page visit.
+  // If the fetch is still in flight, onSheetDataUpdated() re-renders this modal
+  // automatically once it resolves (see below), so the card catches up on its own.
+  getCsSlaParsed();
+
   // left nav — one switcher drives Revenue Sheet / Brand Tabs / Automation Sheet below
   document.getElementById('settings-cur-nav').innerHTML=
     '<div class="cur-nav-sep">Currency</div>'+
@@ -5540,9 +5575,9 @@ function renderSettings(){
 
   // Revenue Sheet card
   var revBadge=revCfg.sheetId?'<span class="cfg-badge set">SET</span>':'<span class="cfg-badge off">OFF</span>';
-  var revStatus=revCfg.sheetId
+  var revStatus=flashStatusHtml_('revenue') || (revCfg.sheetId
     ? ''
-    : '<div class="md-status off" style="margin-top:10px">Not configured — every brand under '+cur+' shows no data yet</div>';
+    : '<div class="md-status off" style="margin-top:10px">Not configured — every brand under '+cur+' shows no data yet</div>');
   var revCard='<div class="cfg-card">'+
     '<div class="cfg-head"><i class="fa-solid fa-coins"></i><span class="cfg-head-title">Revenue Sheet</span>'+revBadge+
     '<span class="cfg-head-spacer"></span><span class="cfg-head-hint">'+cur+'</span></div>'+
@@ -5575,7 +5610,7 @@ function renderSettings(){
   '</div>';
 
   // SLA Sheet card — global, not tied to a currency
-  var slaStatus=csCfg.slaSheetId?'':'<div class="md-status off" style="margin-top:10px">Not set</div>';
+  var slaStatus=flashStatusHtml_('sla') || (csCfg.slaSheetId?'':'<div class="md-status off" style="margin-top:10px">Not set</div>');
   var slaCard='<div class="cfg-card">'+
     '<div class="cfg-head"><i class="fa-solid fa-headset"></i><span class="cfg-head-title">SLA Sheet</span>'+
     '<span class="cfg-badge global">GLOBAL</span></div>'+
@@ -5593,7 +5628,7 @@ function renderSettings(){
   var dailyByCur=csCfg.dailyByCurrency||{};
   var dailyVal=dailyByCur[cur]||{};
   var autoBadge=dailyVal.sheetId?'<span class="cfg-badge set">SET</span>':'<span class="cfg-badge off">OFF</span>';
-  var autoStatus=dailyVal.sheetId?'':'<div class="md-status off" style="margin-top:10px">Not set</div>';
+  var autoStatus=flashStatusHtml_('automation:'+cur) || (dailyVal.sheetId?'':'<div class="md-status off" style="margin-top:10px">Not set</div>');
   var autoCard='<div class="cfg-card" style="margin-bottom:12px">'+
     '<div class="cfg-head"><i class="fa-solid fa-robot"></i><span class="cfg-head-title">Automation Sheet</span>'+autoBadge+
     '<span class="cfg-head-spacer"></span><span class="cfg-head-hint">'+cur+'</span></div>'+
@@ -5617,7 +5652,7 @@ function renderSettings(){
   if(newScroll) newScroll.scrollTop=scrollTop;
 }
 
-function saveCurrencySheet_(){
+async function saveCurrencySheet_(){
   var cur=settingsCur_||currentCurrency;
   var url=document.getElementById('set-url').value.trim();
   var sheetId=extractSheetId_(url);
@@ -5635,12 +5670,12 @@ function saveCurrencySheet_(){
   }
   var prevTabs=(oldCfg&&oldCfg.tabs)||{};
   SHEET_LINKS[cur]={sheetId:sheetId,rawUrl:url,tabs:prevTabs};
-  persistSheetLinks();
-  renderSettings();
+  var ok=await persistSheetLinks();
+  flashSaved_('revenue', ok);
   renderAll();
 }
 
-function clearCurrencySheet_(){
+async function clearCurrencySheet_(){
   var cur=settingsCur_||currentCurrency;
   var cfg=SHEET_LINKS[cur];
   if(cfg&&cfg.sheetId){
@@ -5649,8 +5684,8 @@ function clearCurrencySheet_(){
     });
   }
   delete SHEET_LINKS[cur];
-  persistSheetLinks();
-  renderSettings();
+  var ok=await persistSheetLinks();
+  flashSaved_('revenue', ok);
   renderAll();
 }
 
