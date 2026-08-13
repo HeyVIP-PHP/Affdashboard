@@ -6315,24 +6315,62 @@ function downloadHtmlFile_(htmlStr,filename){
   setTimeout(function(){ URL.revokeObjectURL(url); },4000);
 }
 
+// Kicks off (or reuses an already-in-flight) fetch for every CS Sheet tab this
+// currency could need in the export — SLA, this currency's Automation tab, and
+// every distinct tab any of its brands reads for revenue — then polls until
+// none of them are still 'loading' (or a timeout passes). Saving a Sheet Link
+// only stores the URL/tab; the actual Google Sheets read happens on first use,
+// same as any other page in this app, so exporting immediately after saving
+// (before that first read finishes) used to silently produce a report missing
+// whatever section depended on it — this makes export wait for that first read
+// instead of racing it.
+function csPendingFetchesFor_(cur){
+  var pending=[];
+  var csCfg=SHEET_LINKS.__CS__||{};
+  csSlaTabList_(csCfg).forEach(function(t){
+    if(csCfg.slaSheetId) pending.push(getSheetTabData(csCfg.slaSheetId, t));
+  });
+  var daily=(csCfg.dailyByCurrency && csCfg.dailyByCurrency[cur]) || {};
+  if(daily.sheetId && daily.tab) pending.push(getSheetTabData(daily.sheetId, daily.tab));
+  var revCfg=SHEET_LINKS[cur];
+  if(revCfg && revCfg.sheetId){
+    (BRANDS_BY_CURRENCY[cur]||[]).forEach(function(b){
+      pending.push(getSheetTabData(revCfg.sheetId, tabNameFor_(cur,b)));
+    });
+  }
+  return pending;
+}
+function waitForCsDataThen_(cur, cb){
+  var deadline=Date.now()+15000; // give real fetches (with their own retry/backoff on 429s) up to 15s
+  (function poll(){
+    var pending=csPendingFetchesFor_(cur);
+    var stillLoading=pending.some(function(e){ return e.status==='loading'; });
+    if(!stillLoading || Date.now()>deadline){ cb(); return; }
+    setTimeout(poll, 250);
+  })();
+}
+
 function exportMonthReport(){
   var period=document.getElementById('export-month-sel').value;
   if(!period){ alert('Select a month or period first.'); return; }
   var btn=document.getElementById('export-btn'), lbl=document.getElementById('export-label');
   btn.disabled=true;
   var prevLbl=lbl.textContent;
-  lbl.textContent='Generating…';
-  setTimeout(function(){
-    try{
-      var html=buildMonthReportHtml_(currentCurrency,period);
-      downloadHtmlFile_(html,currentCurrency+'_'+period+'_Report.html');
-    }catch(e){
-      alert('Failed to generate report: '+((e&&e.message)||e));
-    }finally{
-      btn.disabled=false;
-      lbl.textContent=prevLbl;
-    }
-  },30);
+  lbl.textContent='Loading data…';
+  waitForCsDataThen_(currentCurrency, function(){
+    lbl.textContent='Generating…';
+    setTimeout(function(){
+      try{
+        var html=buildMonthReportHtml_(currentCurrency,period);
+        downloadHtmlFile_(html,currentCurrency+'_'+period+'_Report.html');
+      }catch(e){
+        alert('Failed to generate report: '+((e&&e.message)||e));
+      }finally{
+        btn.disabled=false;
+        lbl.textContent=prevLbl;
+      }
+    },30);
+  });
 }
 
 // Minimal self-contained styling for the exported report — deliberately not
