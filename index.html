@@ -1224,7 +1224,7 @@ var COL_MATCHERS_=[
 // row says, per month block (each month repeats its own header rows above
 // the day rows), and only falls back to DEFAULT_COL_MAP_ for any field it
 // can't confidently find.
-function findColumnMap_(rawRows, titleRowIdx){
+function findColumnMap_(rawRows, titleRowIdx, currency){
   var map={}; var bestRow=-1, bestScore=-1;
   for(var i=titleRowIdx+1; i<Math.min(titleRowIdx+8, rawRows.length); i++){
     var row=rawRows[i]||[]; var score=0;
@@ -1240,13 +1240,44 @@ function findColumnMap_(rawRows, titleRowIdx){
   // note cell) could point at the wrong row entirely.
   if(bestRow===-1 || bestScore<5) return Object.assign({}, DEFAULT_COL_MAP_);
   var row=rawRows[bestRow]||[];
-  for(var c=0;c<row.length;c++){
-    var n=normHeader_(row[c]);
-    if(!n) continue;
-    for(var k=0;k<COL_MATCHERS_.length;k++){
-      var m=COL_MATCHERS_[k];
-      if(map[m.key]===undefined && m.test(n)) map[m.key]=c;
+
+  // Some Sheets repeat this same set of headers more than once in one row — e.g.
+  // a hidden/legacy currency block left over from an old template, sitting to the
+  // left of the block that's actually this currency's live data (confirmed real
+  // case: PHP's Total Turnover/Deposit/etc. living at columns P-T, with hidden
+  // leftover columns in between picking up the plain first-match scan below and
+  // silently pointing every field at empty cells — all-zero Overview, real data
+  // never read). If the row directly above the header row carries group labels
+  // (Google Sheets only populates the left cell of a merge, so forward-fill each
+  // column with the nearest label to its left to cover the whole merged span),
+  // prefer whichever repeat sits under a label matching this currency over
+  // whichever one simply comes first.
+  var groupRow=rawRows[bestRow-1]||[];
+  var groupLabel=[]; var lastLabel='';
+  for(var gc=0; gc<row.length; gc++){
+    var g=String(groupRow[gc]||'').trim();
+    if(g) lastLabel=g;
+    groupLabel[gc]=lastLabel;
+  }
+  var curNorm=String(currency||'').trim().toUpperCase();
+  // Match the currency code as a whole word within the group label rather than
+  // requiring an exact match — real Sheets phrase these group headers inconsistently
+  // across brands/currencies ("PHP" on one tab, "Betvisa - PHP" or "PHP Turnover" on
+  // another), and this needs to work the same way for all four currencies, not just
+  // whichever one happens to be phrased as a bare currency code.
+  var curRe = curNorm ? new RegExp('(^|[^A-Z])'+curNorm+'([^A-Z]|$)') : null;
+
+  for(var k=0;k<COL_MATCHERS_.length;k++){
+    var m=COL_MATCHERS_[k];
+    var firstMatch=-1, curMatch=-1;
+    for(var c=0;c<row.length;c++){
+      var n=normHeader_(row[c]);
+      if(!n || !m.test(n)) continue;
+      if(firstMatch===-1) firstMatch=c;
+      if(curMatch===-1 && curRe && curRe.test(groupLabel[c].toUpperCase())) curMatch=c;
     }
+    map[m.key] = curMatch!==-1 ? curMatch : firstMatch;
+    if(map[m.key]===-1) delete map[m.key];
   }
   // FTD Amount USD is a special case: the Sheet just labels that one column
   // bare "USD" (same word as the group header above the whole USD block),
@@ -1363,10 +1394,10 @@ function zeroDayRow_(monthKey,d){
     revenueUsd:0, revenueUsdFilled:false
   };
 }
-function parseMonthBlock_(rawRows, titleRowIdx, monthKey){
+function parseMonthBlock_(rawRows, titleRowIdx, monthKey, currency){
   var days=daysInMonth_(monthKey);
   var firstDayRow=findFirstDayRow_(rawRows, titleRowIdx, monthKey);
-  var col=findColumnMap_(rawRows, titleRowIdx); // {field: columnIndex}, read from this block's own header row
+  var col=findColumnMap_(rawRows, titleRowIdx, currency); // {field: columnIndex}, read from this block's own header row
   var out=[];
   for(var d=1; d<=days; d++){
     var r=rawRows[firstDayRow+d-1]||[];
@@ -1411,7 +1442,7 @@ function parseMonthBlock_(rawRows, titleRowIdx, monthKey){
 // Usage example (once the real fetch is wired up):
 // fetchFromSheet_(sheetId, 'CRICKEX!A1:Y400').then(function(rawRows){
 //   var blocks=findMonthBlocks_(rawRows);
-//   var febRecords=parseMonthBlock_(rawRows, blocks['Feb'], 'Feb'); // exactly 28 records
+//   var febRecords=parseMonthBlock_(rawRows, blocks['Feb'], 'Feb', 'PHP'); // exactly 28 records
 // });
 /* ═══════════ END REAL SHEET PARSING ═══════════ */
 
@@ -2240,18 +2271,29 @@ function csSeedGroupCurrencies_(text){
   return [];
 }
 // Priority order: (1) a manual override in Sheet Links settings — checked FIRST so it can
-// override even a group whose own text spells out a currency code (e.g. a group is text-tagged
-// "PKR" but you know it should actually be split BDT+INR) — respected even if the person
-// explicitly cleared it to nothing, which is why this checks for the key's presence rather
-// than truthiness — then (2) a currency code spelled out directly in the group's own text,
-// then (3) the confirmed CS_GROUP_SEED_RULES_ above, then finally "unresolved" (needs mapping).
+// override anything below it — respected even if the person explicitly cleared it to nothing,
+// which is why this checks for the key's presence rather than truthiness — then (2) the
+// confirmed CS_GROUP_SEED_RULES_ (Team A/B/C — told to me directly, not guessed), then (3) a
+// currency code spelled out directly in the group's own text, then finally "unresolved".
+//
+// Seed rules are checked BEFORE own-text detection (not after) specifically because real
+// group cells are often a whole POOLED QUEUE label, not a single team's name — e.g. "TEAM B,
+// CX, BJ BDT/INR, MP, DP, BV, JWY, BN88, SB66, BJDB" is one literal Sheet cell covering nine
+// different sub-teams bundled under Team B. If own-text detection ran first, it would scan
+// the ENTIRE string, find "BDT/INR" buried inside the "BJ BDT/INR" fragment, and conclude the
+// whole pooled group (and its full chat volume) belongs to BOTH BDT and INR — even though
+// eight of those nine sub-teams are confirmed BDT-only via the Team B seed rule. Checking the
+// seed rule first means a recognized "Team B"/"Team A"/"Team C" prefix settles the currency
+// for the whole cell before any embedded substring gets a chance to expand it. A group that
+// ISN'T seed-rule-covered (e.g. "S10 PKR Aff team", "PHP Affiliate Team") still falls through
+// to own-text detection exactly as before.
 function csResolveGroupCurrencies_(group, cfg){
   var map=cfg.groupCurrencyMap||{};
   if(Object.prototype.hasOwnProperty.call(map,group)) return map[group];
-  var auto=csDetectCurrencyFromText_(group);
-  if(auto.length) return auto;
   var seed=csSeedGroupCurrencies_(group);
   if(seed.length) return seed;
+  var auto=csDetectCurrencyFromText_(group);
+  if(auto.length) return auto;
   return [];
 }
 // Resolves an agent's currencies as the UNION of resolving each of its
@@ -2896,8 +2938,8 @@ function flashStatusHtml_(key){
 // assignment. This renders the FULL list (every group seen, not just the ones that
 // need attention) so it doubles as an audit view: every checkbox is editable — a
 // manual override here beats even a text-detected currency (see
-// csResolveGroupCurrencies_) — the tag just explains why it's currently resolved
-// the way it is, not whether you're allowed to change it.
+// csResolveGroupCurrencies_). Status is shown as a colored dot (see the legend
+// below) rather than a text label, to keep each row scannable.
 function csCurrencyMappingHtml_(cfg){
   var groupMap=cfg.groupCurrencyMap||{};
   var groupKeys=Object.keys(groupMap).concat(csLastAllGroups_).filter(function(v,i,a){return a.indexOf(v)===i;}).sort();
@@ -2905,20 +2947,23 @@ function csCurrencyMappingHtml_(cfg){
   var needCount=0;
 
   var rowsHtml=groupKeys.map(function(key){
+    var seedAuto=csSeedGroupCurrencies_(key);
     var textAuto=csDetectCurrencyFromText_(key);
     var resolved=csResolveGroupCurrencies_(key,cfg);
     var manuallyTouched=Object.prototype.hasOwnProperty.call(groupMap,key);
-    var tagHtml;
-    if(!resolved.length){ tagHtml='<span class="map-tag" style="color:var(--red)">· needs mapping</span>'; needCount++; }
-    else if(manuallyTouched) tagHtml='<span class="map-tag" style="color:var(--muted)">· manual</span>';
-    else if(textAuto.length) tagHtml='<span class="map-tag" style="color:var(--green)">· detected from text ('+textAuto.join('/')+')</span>';
-    else tagHtml='<span class="map-tag" style="color:var(--teal)">· seed rule</span>';
+    var dotColor;
+    if(!resolved.length){ dotColor='var(--red)'; needCount++; }
+    else if(manuallyTouched) dotColor='var(--muted)';
+    else if(seedAuto.length) dotColor='var(--teal)';
+    else if(textAuto.length) dotColor='var(--green)';
+    else dotColor='var(--teal)';
+    var dotHtml='<span class="lg-dot" style="background:'+dotColor+';margin-right:8px"></span>';
 
     var boxes=curs.map(function(c){
       var checked=resolved.indexOf(c)>=0?'checked':'';
       return '<label class="map-box"><input type="checkbox" data-group="'+csEsc(key)+'" data-cur="'+c+'" '+checked+' onchange="csToggleGroupCurrency_(this)">'+c+'</label>';
     }).join('');
-    return '<div class="map-row"><div class="map-name">'+csEsc(key)+tagHtml+'</div><div class="map-boxes">'+boxes+'</div></div>';
+    return '<div class="map-row"><div class="map-name">'+dotHtml+csEsc(key)+'</div><div class="map-boxes">'+boxes+'</div></div>';
   }).join('');
 
   return '<div class="cfg-card" style="margin-bottom:0">'+
@@ -3036,7 +3081,7 @@ function getMonthRows(cur,brand,month){
         return {rows:emptyMonthRows_(month),live:false,status:'error',
           error:'Could not find the "'+MO_FULLNAME[month]+'" month block title in the Sheet'};
       }
-      var parsed=parseMonthBlock_(entry.rawRows,blocks[month],month).map(normalizeRealRow_);
+      var parsed=parseMonthBlock_(entry.rawRows,blocks[month],month,cur).map(normalizeRealRow_);
       return {rows:parsed,live:true,status:'ready'};
     }
     if(entry.status==='error') return {rows:emptyMonthRows_(month),live:false,status:'error',error:entry.error};
